@@ -1,0 +1,24 @@
+# Wails build artifacts
+build/bin/
+frontend/dist/
+frontend/wailsjs/
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Go artifacts
+go.sum
+*.exe
+*.dll
+*.so
+*.dylib
+
+# User Data & Local Configs
+data/
+core/
+
+# IDE settings
+.vscode/
+.idea/
+*.log
