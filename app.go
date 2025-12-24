@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -20,10 +19,9 @@ import (
 	"github.com/energye/systray"
 	"github.com/google/uuid"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
-	"golang.org/x/sys/windows/registry"
 )
 
-const DefaultTunConfig = `{"type":"tun","tag":"tun-in","mtu":9000,"address":["172.19.0.1/30","fdfe:dcba:9876::1/126"],"auto_route":true,"strict_route":true}`
+const DefaultTunConfig = `{"type":"tun","tag":"tun-in","address":["172.19.0.1/30","fdfe:dcba:9876::1/126"],"mtu":9000,"auto_route":true,"strict_route":true}`
 const DefaultMixedConfig = `{"type":"mixed","tag":"mixed-in","listen":"0.0.0.0","listen_port":7893,"set_system_proxy":true}`
 
 type Profile struct {
@@ -40,6 +38,8 @@ type MetaData struct {
 	MirrorEnabled bool      `json:"mirror_enabled"`
 	TunMode       bool      `json:"tun_mode"`
 	SysProxy      bool      `json:"sys_proxy"`
+	TunConfig     string    `json:"tun_config"`
+	MixedConfig   string    `json:"mixed_config"`
 	Profiles      []Profile `json:"profiles"`
 }
 
@@ -92,10 +92,6 @@ func (a *App) startup(ctx context.Context) {
 	cwd, _ := os.Getwd()
 	os.MkdirAll(filepath.Join(cwd, "data", "core"), 0755)
 	os.MkdirAll(filepath.Join(cwd, "data", "profiles"), 0755)
-
-	a.ensureConfigFile("tun.json", DefaultTunConfig)
-	a.ensureConfigFile("mixed.json", DefaultMixedConfig)
-	a.setSystemProxy(false, 0)
 
 	meta := a.loadMeta()
 	meta.TunMode = false
@@ -158,53 +154,32 @@ func (a *App) Show() {
 	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, false)
 }
 
-func (a *App) ensureConfigFile(filename, content string) {
-	cwd, _ := os.Getwd()
-	path := filepath.Join(cwd, "data", filename)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		os.WriteFile(path, []byte(content), 0644)
-	}
-}
-
-func (a *App) setSystemProxy(enable bool, port int) error {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.ALL_ACCESS)
-	if err != nil {
-		return err
-	}
-	defer k.Close()
-
-	if enable && port > 0 {
-		k.SetStringValue("ProxyServer", fmt.Sprintf("127.0.0.1:%d", port))
-		k.SetDWordValue("ProxyEnable", 1)
-	} else {
-		k.SetDWordValue("ProxyEnable", 0)
-	}
-	mod := syscall.NewLazyDLL("wininet.dll")
-	proc := mod.NewProc("InternetSetOptionW")
-	proc.Call(0, 39, 0, 0)
-	proc.Call(0, 37, 0, 0)
-	return nil
-}
-
 func (a *App) GetOverride(name string) string {
-	cwd, _ := os.Getwd()
-	path := filepath.Join(cwd, "data", name+".json")
-	content, err := os.ReadFile(path)
-	if err != nil {
+	meta := a.loadMeta()
+	switch name {
+	case "tun":
+		return meta.TunConfig
+	case "mixed":
+		return meta.MixedConfig
+	default:
 		return "{}"
 	}
-	return string(content)
 }
 
 func (a *App) SaveOverride(name, content string) string {
 	if !json.Valid([]byte(content)) {
 		return "Invalid JSON"
 	}
-	cwd, _ := os.Getwd()
-	path := filepath.Join(cwd, "data", name+".json")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return "Write Error: " + err.Error()
+	meta := a.loadMeta()
+	switch name {
+	case "tun":
+		meta.TunConfig = content
+	case "mixed":
+		meta.MixedConfig = content
+	default:
+		return "Unknown type"
 	}
+	a.saveMeta(meta)
 	return "Success"
 }
 
@@ -233,25 +208,19 @@ func (a *App) processConfig(srcPath, dstPath string, enableTun bool, enableProxy
 	}
 
 	newInbounds := make([]interface{}, 0)
-	cwd, _ := os.Getwd()
+	meta := a.loadMeta()
 
 	if enableTun {
-		tunData, err := os.ReadFile(filepath.Join(cwd, "data", "tun.json"))
-		if err == nil {
-			var tunMap map[string]interface{}
-			if json.Unmarshal(tunData, &tunMap) == nil {
-				newInbounds = append(newInbounds, tunMap)
-			}
+		var tunMap map[string]interface{}
+		if json.Unmarshal([]byte(meta.TunConfig), &tunMap) == nil {
+			newInbounds = append(newInbounds, tunMap)
 		}
 	}
 
 	if enableProxy {
-		mixedData, err := os.ReadFile(filepath.Join(cwd, "data", "mixed.json"))
-		if err == nil {
-			var mixedMap map[string]interface{}
-			if json.Unmarshal(mixedData, &mixedMap) == nil {
-				newInbounds = append(newInbounds, mixedMap)
-			}
+		var mixedMap map[string]interface{}
+		if json.Unmarshal([]byte(meta.MixedConfig), &mixedMap) == nil {
+			newInbounds = append(newInbounds, mixedMap)
 		}
 	}
 
@@ -457,7 +426,13 @@ func (a *App) loadMeta() MetaData {
 	cwd, _ := os.Getwd()
 	f, err := os.ReadFile(filepath.Join(cwd, "data", "meta.json"))
 	if err != nil {
-		return MetaData{Profiles: []Profile{}, MirrorEnabled: true, Mirror: "https://gh-proxy.com/"}
+		return MetaData{
+			Profiles:      []Profile{},
+			MirrorEnabled: true,
+			Mirror:        "https://gh-proxy.com/",
+			TunConfig:     DefaultTunConfig,
+			MixedConfig:   DefaultMixedConfig,
+		}
 	}
 	var m MetaData
 	json.Unmarshal(f, &m)
@@ -466,6 +441,13 @@ func (a *App) loadMeta() MetaData {
 		m.Mirror = "https://gh-proxy.com/"
 		m.MirrorEnabled = true
 	}
+	if m.TunConfig == "" {
+		m.TunConfig = DefaultTunConfig
+	}
+	if m.MixedConfig == "" {
+		m.MixedConfig = DefaultMixedConfig
+	}
+
 	return m
 }
 
