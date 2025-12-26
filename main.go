@@ -1,44 +1,50 @@
 package main
 
 import (
-	"context"
 	"embed"
+	"os"
 
-	"github.com/energye/systray"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//go:embed build/windows/icon.ico
-var iconData []byte
-
 func main() {
-	app := NewApp(iconData)
+	startMinimized := false
+	for _, arg := range os.Args {
+		if arg == "-minimized" {
+			startMinimized = true
+			break
+		}
+	}
+
+	app := NewApp(nil, startMinimized)
 
 	err := wails.Run(&options.App{
-		Title:            "WinBox",
-		Width:            400,
-		Height:           680,
-		Assets:           assets,
-		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
-		OnStartup:        app.startup,
-		Bind:             []interface{}{app},
-		Frameless:        true,
-
-		OnBeforeClose: func(ctx context.Context) (prevent bool) {
-			systray.Quit()
-			return false
+		Title:         "WinBox",
+		Width:         400,
+		Height:        720,
+		DisableResize: false,
+		Frameless:     true,
+		AssetServer: &assetserver.Options{
+			Assets: assets,
 		},
-
+		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 0},
+		OnStartup:        app.startup,
+		OnShutdown:       app.onShutdown,
+		Bind: []interface{}{
+			app,
+		},
 		Windows: &windows.Options{
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			BackdropType:         windows.Acrylic,
-			Theme:                windows.Dark,
+			WebviewIsTransparent:              true,
+			WindowIsTranslucent:               true,
+			BackdropType:                      windows.Mica,
+			DisableWindowIcon:                 true,
+			DisableFramelessWindowDecorations: true,
 		},
 	})
 

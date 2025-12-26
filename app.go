@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/energye/systray"
 	"github.com/google/uuid"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/windows/registry"
 )
 
 const DefaultTunConfig = `{"type":"tun","tag":"tun-in","address":["172.19.0.1/30","fdfe:dcba:9876::1/126"],"mtu":9000,"auto_route":true,"strict_route":true}`
@@ -40,6 +42,8 @@ type MetaData struct {
 	SysProxy      bool      `json:"sys_proxy"`
 	TunConfig     string    `json:"tun_config"`
 	MixedConfig   string    `json:"mixed_config"`
+	AutoConnect   bool      `json:"auto_connect"`
+	StartOnBoot   bool      `json:"start_on_boot"`
 	Profiles      []Profile `json:"profiles"`
 }
 
@@ -75,15 +79,17 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 }
 
 type App struct {
-	ctx      context.Context
-	cmd      *exec.Cmd
-	Running  bool
-	iconData []byte
+	ctx            context.Context
+	cmd            *exec.Cmd
+	Running        bool
+	iconData       []byte
+	startMinimized bool
 }
 
-func NewApp(icon []byte) *App {
+func NewApp(icon []byte, startMinimized bool) *App {
 	return &App{
-		iconData: icon,
+		iconData:       icon,
+		startMinimized: startMinimized,
 	}
 }
 
@@ -99,6 +105,22 @@ func (a *App) startup(ctx context.Context) {
 	a.saveMeta(meta)
 
 	a.StartTray()
+
+	if a.startMinimized {
+		wailsRuntime.WindowHide(a.ctx)
+	}
+
+	if meta.AutoConnect {
+		go func() {
+			time.Sleep(1 * time.Second)
+			a.startCore()
+			wailsRuntime.EventsEmit(a.ctx, "status", true)
+		}()
+	}
+}
+
+func (a *App) onShutdown(ctx context.Context) {
+	a.stopCore()
 }
 
 func (a *App) StartTray() {
@@ -432,6 +454,8 @@ func (a *App) loadMeta() MetaData {
 			Mirror:        "https://gh-proxy.com/",
 			TunConfig:     DefaultTunConfig,
 			MixedConfig:   DefaultMixedConfig,
+			AutoConnect:   false,
+			StartOnBoot:   false,
 		}
 	}
 	var m MetaData
@@ -478,6 +502,8 @@ func (a *App) GetInitData() map[string]interface{} {
 		"mirrorEnabled": meta.MirrorEnabled,
 		"tunMode":       meta.TunMode,
 		"sysProxy":      meta.SysProxy,
+		"startOnBoot":   meta.StartOnBoot,
+		"autoConnect":   meta.AutoConnect,
 	}
 }
 
@@ -486,6 +512,43 @@ func (a *App) SaveSettings(mirror string, enabled bool) string {
 	m.Mirror = mirror
 	m.MirrorEnabled = enabled
 	a.saveMeta(m)
+	return "Success"
+}
+
+func (a *App) SetStartOnBoot(enabled bool) string {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "Failed to get executable path"
+	}
+
+	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.ALL_ACCESS)
+	if err != nil {
+		return "Failed to open registry"
+	}
+	defer k.Close()
+
+	if enabled {
+		cmd := fmt.Sprintf(`"%s" -minimized`, exePath)
+		if err := k.SetStringValue("WinBox", cmd); err != nil {
+			return "Failed to write registry"
+		}
+	} else {
+		if err := k.DeleteValue("WinBox"); err != nil && err != registry.ErrNotExist {
+			return "Failed to delete registry key"
+		}
+	}
+
+	meta := a.loadMeta()
+	meta.StartOnBoot = enabled
+	a.saveMeta(meta)
+
+	return "Success"
+}
+
+func (a *App) SetAutoConnect(enabled bool) string {
+	meta := a.loadMeta()
+	meta.AutoConnect = enabled
+	a.saveMeta(meta)
 	return "Success"
 }
 

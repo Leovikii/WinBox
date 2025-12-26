@@ -33,6 +33,9 @@ function App() {
     const [updateState, setUpdateState] = useState("idle");
     const [downloadProgress, setDownloadProgress] = useState(0);
 
+    const [startOnBoot, setStartOnBoot] = useState(false);
+    const [autoConnect, setAutoConnect] = useState(false);
+
     const [profiles, setProfiles] = useState<any[]>([]);
     const [activeProfile, setActiveProfile] = useState<any>(null);
     const [newName, setNewName] = useState("");
@@ -76,6 +79,8 @@ function App() {
         setMirrorEnabled(data.mirrorEnabled);
         setTunMode(data.tunMode);
         setSysProxy(data.sysProxy);
+        setStartOnBoot(data.startOnBoot);
+        setAutoConnect(data.autoConnect);
     };
 
     const handleToggle = async (target: 'tun' | 'proxy') => {
@@ -101,6 +106,26 @@ function App() {
         const newState = !mirrorEnabled;
         setMirrorEnabled(newState);
         await Backend.SaveSettings(mirrorUrl, newState);
+    };
+
+    const handleStartOnBootToggle = async () => {
+        const newState = !startOnBoot;
+        const res = await Backend.SetStartOnBoot(newState);
+        if (res === "Success") {
+            setStartOnBoot(newState);
+            if (newState && !autoConnect) {
+                const resAuto = await Backend.SetAutoConnect(true);
+                if (resAuto === "Success") setAutoConnect(true);
+            }
+        }
+        else alert(res);
+    };
+
+    const handleAutoConnectToggle = async () => {
+        const newState = !autoConnect;
+        const res = await Backend.SetAutoConnect(newState);
+        if (res === "Success") setAutoConnect(newState);
+        else alert(res);
     };
 
     const openEditor = async (type: "tun" | "mixed" | "mirror") => {
@@ -203,23 +228,35 @@ function App() {
             <div className="flex gap-2" style={{"--wails-draggable": "no-drag"} as any}><button onClick={minimize} className={`text-[#666] p-1 w-8 h-8 rounded-xl ${btnBase} hover:bg-white/10 hover:text-white`}><i className="fas fa-minus text-sm"></i></button><button onClick={minimizeToTray} className={`text-[#666] p-1 w-8 h-8 rounded-xl ${btnBase} hover:bg-white/10 hover:text-white`}><i className="fas fa-angle-down text-sm"></i></button></div></div>
             <div className={`absolute inset-0 pt-16 px-6 pb-8 flex flex-col justify-between items-center transition-all duration-500 ${isDrawerOpen ? 'scale-95 opacity-50 blur-[2px]' : 'scale-100 opacity-100'}`}>
                 <div className="w-full pt-4"><div className="text-[9px] font-bold text-[#444] mb-2 tracking-widest uppercase ml-1">Active Configuration</div><div onClick={() => setActiveDrawer('profiles')} className={`w-full bg-[#131313] border border-[#222] rounded-2xl p-4 cursor-pointer group relative overflow-hidden h-20 flex items-center ${btnBase} hover:border-[#333] hover:shadow-[0_0_20px_rgba(255,255,255,0.03)]`}><div className="flex justify-between items-center w-full z-10 relative"><div className="overflow-hidden mr-4"><div className="text-sm font-bold text-white mb-1 truncate">{activeProfile ? activeProfile.name : "Select Profile"}</div><div className="text-[10px] text-[#555] font-mono truncate group-hover:text-[#777] transition-colors">{activeProfile && activeProfile.updated ? `Updated: ${activeProfile.updated}` : "Tap to select"}</div></div><div className="text-[#333] group-hover:text-blue-500 transition-colors duration-300"><i className="fas fa-chevron-down text-xs"></i></div></div>{running && <div className="absolute inset-0 bg-blue-500/5 animate-pulse pointer-events-none"></div>}</div></div>
-                <div className="w-full flex-1 flex flex-col justify-center relative"><div className={`w-full bg-[#111] border border-[#222] rounded-4xl p-8 flex flex-col gap-8 relative overflow-hidden transition-all duration-500 ${isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100'}`}><div className={`absolute inset-0 blur-[60px] opacity-40 pointer-events-none transition-all duration-1000 ${getControlBg()}`}></div><div className="text-center z-10 cursor-pointer" onClick={() => {if(msg==="ERROR" || errorLog) setActiveDrawer('logs')}}><div className={`text-4xl font-black tracking-tighter transition-all duration-500 whitespace-nowrap ${getStatusGlow()}`}>{getStatusText()}</div><div className="text-[9px] text-[#444] group-hover:text-[#666] font-mono uppercase tracking-widest mt-2 h-3 transition-colors">{msg === "ERROR" ? "VIEW ERROR LOGS" : msg}</div></div><div className="h-px bg-[#222]/80 z-10 mx-auto w-[90%]"></div><div className="flex flex-col gap-6 z-10 px-1"><SwitchRow label="TUN MODE" sub="Virtual Network Interface" active={tunMode} color="blue" icon="fa-shield-alt" onClick={() => handleToggle('tun')} /><SwitchRow label="SYSTEM PROXY" sub="Global HTTP Proxy" active={sysProxy} color="purple" icon="fa-globe" onClick={() => handleToggle('proxy')} /></div></div></div>
+                <div className="w-full flex-1 flex flex-col justify-center relative"><div className={`w-full bg-[#111] border border-[#222] rounded-4xl p-8 flex flex-col gap-6 relative overflow-hidden transition-all duration-500 ${isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100'}`}><div className={`absolute inset-0 blur-[60px] opacity-40 pointer-events-none transition-all duration-1000 ${getControlBg()}`}></div><div className="text-center z-10 cursor-pointer" onClick={() => {if(msg==="ERROR" || errorLog) setActiveDrawer('logs')}}><div className={`text-4xl font-black tracking-tighter transition-all duration-500 whitespace-nowrap ${getStatusGlow()}`}>{getStatusText()}</div><div className="text-[9px] text-[#444] group-hover:text-[#666] font-mono uppercase tracking-widest mt-2 h-3 transition-colors">{msg === "ERROR" ? "VIEW ERROR LOGS" : msg}</div></div><div className="h-px bg-[#222]/80 z-10 mx-auto w-[90%]"></div><div className="flex flex-col gap-6 z-10 px-1"><SwitchRow label="TUN MODE" sub="Virtual Network Interface" active={tunMode} color="blue" icon="fa-shield-alt" onClick={() => handleToggle('tun')} /><SwitchRow label="SYSTEM PROXY" sub="Global HTTP Proxy" active={sysProxy} color="purple" icon="fa-globe" onClick={() => handleToggle('proxy')} /></div></div></div>
                 <div className="w-full flex gap-3 z-10 pt-4"><button onClick={Backend.OpenDashboard} disabled={!running} className={`flex-1 py-3 rounded-xl text-xs font-bold tracking-wide border border-transparent ${btnBase} ${running ? `bg-blue-600 text-white ${btnBlueGlow}` : "bg-[#1a1a1a] text-[#444] border-[#222] cursor-not-allowed"}`}>DASHBOARD</button><button onClick={() => setActiveDrawer('logs')} className={`w-12 rounded-xl border bg-[#1a1a1a] text-[#666] ${btnBase} ${msg === "ERROR" ? "border-red-500 text-red-500 bg-red-900/10 shadow-[0_0_15px_rgba(220,38,38,0.3)]" : btnGlow}`}> <i className="fas fa-file-lines"></i></button><button onClick={() => setActiveDrawer('settings')} className={`w-12 rounded-xl border border-[#222] bg-[#1a1a1a] text-[#666] ${btnBase} ${btnGlow}`}><i className="fas fa-cog"></i></button><button onClick={quitApp} className={`w-12 rounded-xl border border-[#222] bg-[#1a1a1a] text-[#666] ${btnBase} ${btnRedGlow}`}><i className="fas fa-power-off"></i></button></div>
             </div>
 
             <div className={`absolute inset-x-0 top-10 bottom-0 z-40 bg-[#090909]/95 backdrop-blur-3xl flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${activeDrawer === 'settings' ? 'translate-y-0' : 'translate-y-full'}`}>
                 <div className="h-10 shrink-0 flex justify-between items-center px-6 border-b border-[#222]"><h2 className="text-xs font-bold text-[#666] uppercase tracking-widest">System Settings</h2><button onClick={() => setActiveDrawer('none')} className={`text-[10px] font-bold text-blue-500 bg-blue-500/10 px-3 py-1.5 rounded-xl ${btnBase} hover:bg-blue-500/20 hover:shadow-[0_0_10px_rgba(37,99,235,0.2)]`}>DONE</button></div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
-                    <div className="bg-[#131313] p-4 rounded-xl border border-[#222] space-y-3 shadow-lg">
-                        <div className="flex justify-between text-xs text-gray-400"><span>Local Kernel</span><span>{localVer}</span></div>
-                        <div className="flex justify-between text-xs text-blue-400"><span>Latest Release</span><span>{remoteVer}</span></div>
-                        <div className="flex justify-between items-center">
+                    <div className="bg-[#131313] p-5 rounded-xl border border-[#222] space-y-5 shadow-lg">
+                        <div className="flex justify-between items-center py-1 text-xs text-gray-400"><span>Local Kernel</span><span>{localVer}</span></div>
+                        <div className="flex justify-between items-center py-1 text-xs text-blue-400"><span>Latest Release</span><span>{remoteVer}</span></div>
+                        <div className="flex justify-between items-center py-1">
                             <span className="text-xs font-bold text-gray-400">GitHub Mirror</span>
                             <div className="flex items-center gap-2">
+                                <button onClick={() => openEditor('mirror')} className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${btnBase} border-[#333] text-gray-300 bg-[#1a1a1a] ${btnGlow}`}>EDIT</button>
                                 <div onClick={handleMirrorToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${mirrorEnabled ? 'bg-blue-600' : 'bg-[#333]'}`}>
                                     <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${mirrorEnabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
                                 </div>
-                                <button onClick={() => openEditor('mirror')} className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${btnBase} border-[#333] text-gray-300 bg-[#1a1a1a] ${btnGlow}`}>EDIT</button>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                            <span className="text-xs font-bold text-gray-400">Start With Windows</span>
+                            <div onClick={handleStartOnBootToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${startOnBoot ? 'bg-blue-600' : 'bg-[#333]'}`}>
+                                <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${startOnBoot ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                            <span className="text-xs font-bold text-gray-400">Auto Connect</span>
+                            <div onClick={handleAutoConnectToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${autoConnect ? 'bg-blue-600' : 'bg-[#333]'}`}>
+                                <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${autoConnect ? 'translate-x-4' : 'translate-x-0'}`}></div>
                             </div>
                         </div>
                         {renderKernelButton()}
