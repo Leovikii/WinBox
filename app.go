@@ -20,7 +20,6 @@ import (
 	"github.com/energye/systray"
 	"github.com/google/uuid"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
-	"golang.org/x/sys/windows/registry"
 )
 
 const DefaultTunConfig = `{"type":"tun","tag":"tun-in","address":["172.19.0.1/30","fdfe:dcba:9876::1/126"],"mtu":9000,"auto_route":true,"strict_route":true}`
@@ -159,7 +158,10 @@ func (a *App) StartTray() {
 		systray.Run(func() {
 			if len(a.iconData) > 0 {
 				systray.SetIcon(a.iconData)
+			} else {
+				systray.SetTitle("WinBox")
 			}
+
 			systray.SetTitle("WinBox")
 			systray.SetTooltip("WinBox Client")
 
@@ -549,21 +551,19 @@ func (a *App) SetStartOnBoot(enabled bool) string {
 		return "Failed to get executable path"
 	}
 
-	k, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.ALL_ACCESS)
-	if err != nil {
-		return "Failed to open registry"
-	}
-	defer k.Close()
+	taskName := "WinBoxAutostart"
 
 	if enabled {
-		cmd := fmt.Sprintf(`"%s" -minimized`, exePath)
-		if err := k.SetStringValue("WinBox", cmd); err != nil {
-			return "Failed to write registry"
+		cmdStr := fmt.Sprintf(`"%s" -minimized`, exePath)
+		cmd := exec.Command("schtasks", "/Create", "/TN", taskName, "/TR", cmdStr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F")
+		SetCmdWindowHidden(cmd)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "Task Schedule Failed: " + string(output)
 		}
 	} else {
-		if err := k.DeleteValue("WinBox"); err != nil && err != registry.ErrNotExist {
-			return "Failed to delete registry key"
-		}
+		cmd := exec.Command("schtasks", "/Delete", "/TN", taskName, "/F")
+		SetCmdWindowHidden(cmd)
+		cmd.Run()
 	}
 
 	meta := a.loadMeta()

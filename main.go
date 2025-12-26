@@ -13,6 +13,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed build/windows/icon.ico
+var icon []byte
+
 func main() {
 	startMinimized := false
 	for _, arg := range os.Args {
@@ -22,7 +25,7 @@ func main() {
 		}
 	}
 
-	app := NewApp(nil, startMinimized)
+	app := NewApp(icon, startMinimized)
 
 	err := wails.Run(&options.App{
 		Title:         "WinBox",
