@@ -96,12 +96,37 @@ func NewApp(icon []byte, startMinimized bool) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	cwd, _ := os.Getwd()
-	os.MkdirAll(filepath.Join(cwd, "data", "core"), 0755)
+	coreDir := filepath.Join(cwd, "data", "core")
+	os.MkdirAll(coreDir, 0755)
 	os.MkdirAll(filepath.Join(cwd, "data", "profiles"), 0755)
 
 	meta := a.loadMeta()
-	meta.TunMode = false
-	meta.SysProxy = false
+
+	coreExe := filepath.Join(coreDir, "sing-box.exe")
+	_, errCore := os.Stat(coreExe)
+	kernelExists := errCore == nil
+
+	profileExists := false
+	if meta.ActiveID != "" {
+		for _, p := range meta.Profiles {
+			if p.ID == meta.ActiveID {
+				if _, err := os.Stat(p.Path); err == nil {
+					profileExists = true
+				}
+				break
+			}
+		}
+	}
+
+	canAutoStart := kernelExists && profileExists && meta.AutoConnect
+
+	if canAutoStart {
+		meta.TunMode = true
+		meta.SysProxy = true
+	} else {
+		meta.TunMode = false
+		meta.SysProxy = false
+	}
 	a.saveMeta(meta)
 
 	a.StartTray()
@@ -110,11 +135,14 @@ func (a *App) startup(ctx context.Context) {
 		wailsRuntime.WindowHide(a.ctx)
 	}
 
-	if meta.AutoConnect {
+	if canAutoStart {
 		go func() {
-			time.Sleep(1 * time.Second)
-			a.startCore()
-			wailsRuntime.EventsEmit(a.ctx, "status", true)
+			time.Sleep(500 * time.Millisecond)
+			if res := a.startCore(); res == "Success" {
+				wailsRuntime.EventsEmit(a.ctx, "status", true)
+			} else {
+				wailsRuntime.EventsEmit(a.ctx, "status", false)
+			}
 		}()
 	}
 }
@@ -591,8 +619,10 @@ func (a *App) CheckUpdate() string {
 }
 
 func (a *App) UpdateKernel(mirrorUrl string) string {
-	if a.Running {
-		return "Stop service first"
+	wasRunning := a.Running
+	if wasRunning {
+		a.stopCore()
+		time.Sleep(1 * time.Second)
 	}
 
 	cwd, _ := os.Getwd()
@@ -701,6 +731,11 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 
 	if !foundExe {
 		return "exe not found in zip"
+	}
+
+	if wasRunning {
+		a.startCore()
+		wailsRuntime.EventsEmit(a.ctx, "status", true)
 	}
 
 	return "Success"
