@@ -136,7 +136,7 @@ func (a *App) startup(ctx context.Context) {
 
 	if canAutoStart {
 		go func() {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(30 * time.Second)
 			if res := a.startCore(); res == "Success" {
 				wailsRuntime.EventsEmit(a.ctx, "status", true)
 			} else {
