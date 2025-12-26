@@ -92,12 +92,24 @@ func NewApp(icon []byte, startMinimized bool) *App {
 	}
 }
 
+func (a *App) getAppDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		wd, _ := os.Getwd()
+		return wd
+	}
+	return filepath.Dir(exe)
+}
+
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	cwd, _ := os.Getwd()
-	coreDir := filepath.Join(cwd, "data", "core")
+
+	appDir := a.getAppDir()
+	coreDir := filepath.Join(appDir, "data", "core")
+	profilesDir := filepath.Join(appDir, "data", "profiles")
+
 	os.MkdirAll(coreDir, 0755)
-	os.MkdirAll(filepath.Join(cwd, "data", "profiles"), 0755)
+	os.MkdirAll(profilesDir, 0755)
 
 	meta := a.loadMeta()
 
@@ -107,13 +119,9 @@ func (a *App) startup(ctx context.Context) {
 
 	profileExists := false
 	if meta.ActiveID != "" {
-		for _, p := range meta.Profiles {
-			if p.ID == meta.ActiveID {
-				if _, err := os.Stat(p.Path); err == nil {
-					profileExists = true
-				}
-				break
-			}
+		realProfilePath := filepath.Join(profilesDir, meta.ActiveID+".json")
+		if _, err := os.Stat(realProfilePath); err == nil {
+			profileExists = true
 		}
 	}
 
@@ -131,16 +139,23 @@ func (a *App) startup(ctx context.Context) {
 	a.StartTray()
 
 	if a.startMinimized {
-		wailsRuntime.WindowHide(a.ctx)
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			wailsRuntime.WindowHide(a.ctx)
+		}()
 	}
 
 	if canAutoStart {
 		go func() {
-			time.Sleep(30 * time.Second)
+			if a.startMinimized {
+				time.Sleep(3 * time.Second)
+			}
+
 			if res := a.startCore(); res == "Success" {
 				wailsRuntime.EventsEmit(a.ctx, "status", true)
 			} else {
 				wailsRuntime.EventsEmit(a.ctx, "status", false)
+				wailsRuntime.EventsEmit(a.ctx, "log", "AutoStart Failed: "+res)
 			}
 		}()
 	}
@@ -282,6 +297,9 @@ func (a *App) processConfig(srcPath, dstPath string, enableTun bool, enableProxy
 	if err != nil {
 		return err
 	}
+
+	os.MkdirAll(filepath.Dir(dstPath), 0755)
+
 	return os.WriteFile(dstPath, newContent, 0644)
 }
 
@@ -316,22 +334,25 @@ func (a *App) startCore() string {
 	meta := a.loadMeta()
 
 	var activeProfilePath string
+
+	found := false
 	for _, p := range meta.Profiles {
 		if p.ID == meta.ActiveID {
-			activeProfilePath = p.Path
+			activeProfilePath = filepath.Join(a.getAppDir(), "data", "profiles", p.ID+".json")
+			found = true
 			break
 		}
 	}
 
-	if activeProfilePath == "" {
-		return "Error: No active profile"
+	if !found {
+		return "Error: No active profile selected"
 	}
 	if _, err := os.Stat(activeProfilePath); os.IsNotExist(err) {
-		return "Error: Profile file missing"
+		return "Error: Profile file missing at " + activeProfilePath
 	}
 
-	cwd, _ := os.Getwd()
-	coreDir := filepath.Join(cwd, "data", "core")
+	appDir := a.getAppDir()
+	coreDir := filepath.Join(appDir, "data", "core")
 	runtimeConfig := filepath.Join(coreDir, "config.json")
 	coreExe := filepath.Join(coreDir, "sing-box.exe")
 
@@ -397,8 +418,10 @@ func (a *App) AddProfile(name, url string) string {
 	}
 	defer resp.Body.Close()
 	id := uuid.New().String()
-	cwd, _ := os.Getwd()
-	savePath := filepath.Join(cwd, "data", "profiles", id+".json")
+
+	appDir := a.getAppDir()
+	savePath := filepath.Join(appDir, "data", "profiles", id+".json")
+
 	out, _ := os.Create(savePath)
 	io.Copy(out, resp.Body)
 	out.Close()
@@ -449,10 +472,16 @@ func (a *App) UpdateActiveProfile() string {
 		return "Download Failed"
 	}
 	defer resp.Body.Close()
-	out, _ := os.Create(target.Path)
+
+	realPath := filepath.Join(a.getAppDir(), "data", "profiles", target.ID+".json")
+
+	out, _ := os.Create(realPath)
 	io.Copy(out, resp.Body)
 	out.Close()
 	target.Updated = time.Now().Format("2006-01-02 15:04")
+
+	target.Path = realPath
+
 	a.saveMeta(meta)
 	return "Success"
 }
@@ -460,9 +489,13 @@ func (a *App) UpdateActiveProfile() string {
 func (a *App) DeleteProfile(id string) {
 	meta := a.loadMeta()
 	newProfiles := []Profile{}
+
+	appDir := a.getAppDir()
+
 	for _, p := range meta.Profiles {
 		if p.ID == id {
-			os.Remove(p.Path)
+			realPath := filepath.Join(appDir, "data", "profiles", p.ID+".json")
+			os.Remove(realPath)
 			continue
 		}
 		newProfiles = append(newProfiles, p)
@@ -475,8 +508,10 @@ func (a *App) DeleteProfile(id string) {
 }
 
 func (a *App) loadMeta() MetaData {
-	cwd, _ := os.Getwd()
-	f, err := os.ReadFile(filepath.Join(cwd, "data", "meta.json"))
+	appDir := a.getAppDir()
+	metaPath := filepath.Join(appDir, "data", "meta.json")
+
+	f, err := os.ReadFile(metaPath)
 	if err != nil {
 		return MetaData{
 			Profiles:      []Profile{},
@@ -507,8 +542,8 @@ func (a *App) loadMeta() MetaData {
 
 func (a *App) saveMeta(m MetaData) {
 	d, _ := json.MarshalIndent(m, "", "  ")
-	cwd, _ := os.Getwd()
-	os.WriteFile(filepath.Join(cwd, "data", "meta.json"), d, 0644)
+	appDir := a.getAppDir()
+	os.WriteFile(filepath.Join(appDir, "data", "meta.json"), d, 0644)
 }
 
 func (a *App) GetInitData() map[string]interface{} {
@@ -586,8 +621,9 @@ func (a *App) Quit() {
 }
 
 func (a *App) GetLocalVersion() string {
-	cwd, _ := os.Getwd()
-	exe := filepath.Join(cwd, "data", "core", "sing-box.exe")
+	appDir := a.getAppDir()
+	exe := filepath.Join(appDir, "data", "core", "sing-box.exe")
+
 	if _, err := os.Stat(exe); os.IsNotExist(err) {
 		return "Not Installed"
 	}
@@ -625,8 +661,10 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 		time.Sleep(1 * time.Second)
 	}
 
-	cwd, _ := os.Getwd()
-	tmpFile := filepath.Join(cwd, "data", "core", "update.zip")
+	appDir := a.getAppDir()
+	coreDir := filepath.Join(appDir, "data", "core")
+	tmpFile := filepath.Join(coreDir, "update.zip")
+
 	defer func() {
 		os.Remove(tmpFile)
 	}()
@@ -681,7 +719,7 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	}
 	defer outResp.Body.Close()
 
-	os.MkdirAll(filepath.Join(cwd, "data", "core"), 0755)
+	os.MkdirAll(coreDir, 0755)
 
 	out, err := os.Create(tmpFile)
 	if err != nil {
@@ -715,7 +753,7 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 			if err != nil {
 				continue
 			}
-			dstPath := filepath.Join(cwd, "data", "core", "sing-box.exe")
+			dstPath := filepath.Join(coreDir, "sing-box.exe")
 			dst, err := os.Create(dstPath)
 			if err != nil {
 				src.Close()
