@@ -4,6 +4,13 @@ import { EventsOn } from "../wailsjs/runtime/runtime";
 
 type DrawerType = 'none' | 'settings' | 'profiles' | 'logs';
 
+const SettingsItem = ({ label, children }: { label: string, children: React.ReactNode }) => (
+    <div className="flex justify-between items-center py-2">
+        <span className="text-xs font-bold text-gray-400">{label}</span>
+        {children}
+    </div>
+);
+
 const SwitchRow = ({ label, sub, active, color, icon, onClick }: any) => (
     <div onClick={onClick} className="flex items-center justify-between cursor-pointer group select-none py-1">
         <div className="flex items-center gap-4"> 
@@ -35,6 +42,7 @@ function App() {
 
     const [startOnBoot, setStartOnBoot] = useState(false);
     const [autoConnect, setAutoConnect] = useState(false);
+    const [autoConnectMode, setAutoConnectMode] = useState("full");
 
     const [profiles, setProfiles] = useState<any[]>([]);
     const [activeProfile, setActiveProfile] = useState<any>(null);
@@ -81,6 +89,7 @@ function App() {
         setSysProxy(data.sysProxy);
         setStartOnBoot(data.startOnBoot);
         setAutoConnect(data.autoConnect);
+        setAutoConnectMode(data.autoConnectMode);
     };
 
     const handleToggle = async (target: 'tun' | 'proxy') => {
@@ -114,7 +123,7 @@ function App() {
         if (res === "Success") {
             setStartOnBoot(newState);
             if (newState && !autoConnect) {
-                const resAuto = await Backend.SetAutoConnect(true);
+                const resAuto = await Backend.SetAutoConnect(true, autoConnectMode);
                 if (resAuto === "Success") setAutoConnect(true);
             }
         }
@@ -123,9 +132,15 @@ function App() {
 
     const handleAutoConnectToggle = async () => {
         const newState = !autoConnect;
-        const res = await Backend.SetAutoConnect(newState);
+        const res = await Backend.SetAutoConnect(newState, autoConnectMode);
         if (res === "Success") setAutoConnect(newState);
         else alert(res);
+    };
+
+    const handleAutoConnectModeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newMode = e.target.value;
+        const res = await Backend.SetAutoConnect(autoConnect, newMode);
+        if (res === "Success") setAutoConnectMode(newMode);
     };
 
     const openEditor = async (type: "tun" | "mixed" | "mirror") => {
@@ -219,7 +234,24 @@ function App() {
     const btnRedGlow = "hover:border-red-900/50 hover:text-red-500 hover:bg-red-900/10 hover:shadow-[0_0_20px_rgba(220,38,38,0.2)]";
     const btnBlueGlow = "hover:bg-blue-500 hover:shadow-[0_0_30px_rgba(37,99,235,0.4)] text-white";
 
-    const renderKernelButton = () => { if (updateState === 'checking') return (<button disabled className={`w-full py-3 rounded-xl text-xs font-bold bg-[#1a1a1a] text-blue-400 border border-blue-500/30 gap-2 cursor-wait ${btnBase}`}><i className="fas fa-circle-notch fa-spin"></i> CHECKING...</button>); if (updateState === 'updating') return (<button disabled className={`w-full py-3 rounded-xl text-xs font-bold bg-[#1a1a1a] text-blue-400 border border-blue-500/30 gap-2 cursor-wait ${btnBase} overflow-hidden relative`}><div className="absolute left-0 top-0 bottom-0 bg-blue-500/20 transition-all duration-300" style={{width: `${downloadProgress}%`}}></div><span className="z-10 flex items-center gap-2"><i className="fas fa-arrow-down"></i> DOWNLOADING {downloadProgress}%</span></button>); if (updateState === 'success') return (<button disabled className={`w-full py-3 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 gap-2 ${btnBase}`}><i className="fas fa-check"></i> UPDATED</button>); if (updateState === 'available') return (<button onClick={performUpdate} className={`w-full py-3 rounded-xl text-xs font-bold bg-blue-600 gap-2 animate-pulse ${btnBase} ${btnBlueGlow}`}><i className="fas fa-download"></i> UPDATE TO {remoteVer}</button>); return (<button onClick={checkUpdate} className={`w-full py-3 rounded-xl text-xs font-bold gap-2 bg-[#1a1a1a] border border-[#222] text-gray-300 ${btnBase} ${btnGlow} ${!coreExists ? "bg-yellow-600/20 text-yellow-500 border-yellow-600/50 hover:bg-yellow-600/30 hover:shadow-[0_0_15px_rgba(202,138,4,0.2)]" : ""}`}>{coreExists ? "CHECK UPDATES" : "DOWNLOAD KERNEL"}</button>); };
+    const renderKernelUpdateBtn = () => {
+        const baseStyle = `text-[10px] font-bold px-3 py-1.5 rounded-lg border ${btnBase}`;
+        switch(updateState) {
+            case 'checking': 
+                return <button disabled className={`${baseStyle} border-blue-500/30 text-blue-400 bg-[#1a1a1a] cursor-wait`}><i className="fas fa-circle-notch fa-spin mr-1"></i> CHECKING</button>;
+            case 'available':
+                return <button onClick={performUpdate} className={`${baseStyle} border-blue-600 bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.4)] animate-pulse`}>UP TO {remoteVer}</button>;
+            case 'updating':
+                return <button disabled className={`${baseStyle} border-blue-500/30 text-white bg-[#1a1a1a] relative overflow-hidden`}><div className="absolute inset-0 bg-blue-600/30 transition-all duration-300" style={{width: `${downloadProgress}%`}}></div><span className="relative z-10">DL {downloadProgress}%</span></button>;
+            case 'success':
+                return <button disabled className={`${baseStyle} border-emerald-500/50 text-emerald-400 bg-emerald-500/10`}>UPDATED</button>;
+            case 'latest':
+                return <button disabled className={`${baseStyle} border-emerald-500/20 text-emerald-600 bg-[#1a1a1a]`}>LATEST</button>;
+            default:
+                return <button onClick={checkUpdate} className={`${baseStyle} border-[#333] text-gray-300 bg-[#1a1a1a] ${btnGlow} ${!coreExists && "border-yellow-600 text-yellow-500"}`}>CHECK</button>;
+        }
+    };
+
     const isDrawerOpen = activeDrawer !== 'none';
 
     return (
@@ -235,38 +267,58 @@ function App() {
             <div className={`absolute inset-x-0 top-10 bottom-0 z-40 bg-[#090909]/95 backdrop-blur-3xl flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${activeDrawer === 'settings' ? 'translate-y-0' : 'translate-y-full'}`}>
                 <div className="h-10 shrink-0 flex justify-between items-center px-6 border-b border-[#222]"><h2 className="text-xs font-bold text-[#666] uppercase tracking-widest">System Settings</h2><button onClick={() => setActiveDrawer('none')} className={`text-[10px] font-bold text-blue-500 bg-blue-500/10 px-3 py-1.5 rounded-xl ${btnBase} hover:bg-blue-500/20 hover:shadow-[0_0_10px_rgba(37,99,235,0.2)]`}>DONE</button></div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
-                    <div className="bg-[#131313] p-5 rounded-xl border border-[#222] space-y-5 shadow-lg">
-                        <div className="flex justify-between items-center py-1 text-xs text-gray-400"><span>Local Kernel</span><span>{localVer}</span></div>
-                        <div className="flex justify-between items-center py-1 text-xs text-blue-400"><span>Latest Release</span><span>{remoteVer}</span></div>
-                        <div className="flex justify-between items-center py-1">
-                            <span className="text-xs font-bold text-gray-400">GitHub Mirror</span>
+                    <div className="bg-[#131313] p-5 rounded-xl border border-[#222] space-y-3 shadow-lg">
+                        <SettingsItem label="Local Kernel">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500 font-mono">{localVer}</span>
+                                {renderKernelUpdateBtn()}
+                            </div>
+                        </SettingsItem>
+                        
+                        <SettingsItem label="GitHub Mirror">
                             <div className="flex items-center gap-2">
                                 <button onClick={() => openEditor('mirror')} className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${btnBase} border-[#333] text-gray-300 bg-[#1a1a1a] ${btnGlow}`}>EDIT</button>
                                 <div onClick={handleMirrorToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${mirrorEnabled ? 'bg-blue-600' : 'bg-[#333]'}`}>
                                     <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${mirrorEnabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                            <span className="text-xs font-bold text-gray-400">Start With Windows</span>
+                        </SettingsItem>
+
+                        <SettingsItem label="Start With Windows">
                             <div onClick={handleStartOnBootToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${startOnBoot ? 'bg-blue-600' : 'bg-[#333]'}`}>
                                 <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${startOnBoot ? 'translate-x-4' : 'translate-x-0'}`}></div>
                             </div>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                            <span className="text-xs font-bold text-gray-400">Auto Connect</span>
+                        </SettingsItem>
+
+                        <SettingsItem label="Auto Connect">
                             <div onClick={handleAutoConnectToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${autoConnect ? 'bg-blue-600' : 'bg-[#333]'}`}>
                                 <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${autoConnect ? 'translate-x-4' : 'translate-x-0'}`}></div>
                             </div>
-                        </div>
-                        {renderKernelButton()}
-                    </div>
-                    <div className="bg-[#131313] p-4 rounded-xl border border-[#222] space-y-3 shadow-lg">
-                        <h3 className="text-xs font-bold text-gray-400 uppercase">Config Overrides</h3>
-                        <div className="flex gap-2">
-                            <button onClick={() => openEditor('tun')} className={`flex-1 py-3 rounded-xl text-[10px] font-bold border border-[#333] text-gray-300 bg-[#1a1a1a] ${btnBase} ${btnGlow}`}>EDIT TUN</button>
-                            <button onClick={() => openEditor('mixed')} className={`flex-1 py-3 rounded-xl text-[10px] font-bold border border-[#333] text-gray-300 bg-[#1a1a1a] ${btnBase} ${btnGlow}`}>EDIT MIXED</button>
-                        </div>
+                        </SettingsItem>
+
+                        {autoConnect && (
+                            <div className="flex justify-between items-center py-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <span className="text-xs font-bold text-gray-400 pl-4 border-l-2 border-[#333]">Startup Mode</span>
+                                <select 
+                                    value={autoConnectMode}
+                                    onChange={handleAutoConnectModeChange}
+                                    className="bg-[#1a1a1a] text-xs text-gray-300 border border-[#333] rounded-lg px-2 py-1 outline-none focus:border-blue-500/50 appearance-none text-center font-bold w-24 cursor-pointer"
+                                >
+                                    <option value="full">FULL</option>
+                                    <option value="tun">TUN</option>
+                                    <option value="proxy">PROXY</option>
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="h-px bg-[#222] my-2"></div>
+                        
+                        <SettingsItem label="TUN Config">
+                             <button onClick={() => openEditor('tun')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border ${btnBase} border-[#333] text-gray-300 bg-[#1a1a1a] ${btnGlow}`}>EDIT</button>
+                        </SettingsItem>
+                        <SettingsItem label="Mixed Config">
+                             <button onClick={() => openEditor('mixed')} className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border ${btnBase} border-[#333] text-gray-300 bg-[#1a1a1a] ${btnGlow}`}>EDIT</button>
+                        </SettingsItem>
                     </div>
                 </div>
             </div>

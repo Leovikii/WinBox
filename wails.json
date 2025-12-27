@@ -16,5 +16,14 @@
   },
   "output": {
     "filename": "WinBox.exe"
+  },
+  "info": {
+    "productName": "WinBox",
+    "companyName": "WB Inc.",
+    "productVersion": "1.3.1",
+    "fileVersion": "1.3.1",
+    "copyright": "Copyright © 2025",
+    "comments": "Built using Wails",
+    "fileDescription": "Sing-Box Windows GUI"
   }
 }

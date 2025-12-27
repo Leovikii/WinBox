@@ -34,16 +34,17 @@ type Profile struct {
 }
 
 type MetaData struct {
-	ActiveID      string    `json:"active_id"`
-	Mirror        string    `json:"mirror"`
-	MirrorEnabled bool      `json:"mirror_enabled"`
-	TunMode       bool      `json:"tun_mode"`
-	SysProxy      bool      `json:"sys_proxy"`
-	TunConfig     string    `json:"tun_config"`
-	MixedConfig   string    `json:"mixed_config"`
-	AutoConnect   bool      `json:"auto_connect"`
-	StartOnBoot   bool      `json:"start_on_boot"`
-	Profiles      []Profile `json:"profiles"`
+	ActiveID        string    `json:"active_id"`
+	Mirror          string    `json:"mirror"`
+	MirrorEnabled   bool      `json:"mirror_enabled"`
+	TunMode         bool      `json:"tun_mode"`
+	SysProxy        bool      `json:"sys_proxy"`
+	TunConfig       string    `json:"tun_config"`
+	MixedConfig     string    `json:"mixed_config"`
+	AutoConnect     bool      `json:"auto_connect"`
+	AutoConnectMode string    `json:"auto_connect_mode"`
+	StartOnBoot     bool      `json:"start_on_boot"`
+	Profiles        []Profile `json:"profiles"`
 }
 
 type ReleaseAsset struct {
@@ -128,8 +129,17 @@ func (a *App) startup(ctx context.Context) {
 	canAutoStart := kernelExists && profileExists && meta.AutoConnect
 
 	if canAutoStart {
-		meta.TunMode = true
-		meta.SysProxy = true
+		switch meta.AutoConnectMode {
+		case "tun":
+			meta.TunMode = true
+			meta.SysProxy = false
+		case "proxy":
+			meta.TunMode = false
+			meta.SysProxy = true
+		default:
+			meta.TunMode = true
+			meta.SysProxy = true
+		}
 	} else {
 		meta.TunMode = false
 		meta.SysProxy = false
@@ -514,13 +524,14 @@ func (a *App) loadMeta() MetaData {
 	f, err := os.ReadFile(metaPath)
 	if err != nil {
 		return MetaData{
-			Profiles:      []Profile{},
-			MirrorEnabled: true,
-			Mirror:        "https://gh-proxy.com/",
-			TunConfig:     DefaultTunConfig,
-			MixedConfig:   DefaultMixedConfig,
-			AutoConnect:   false,
-			StartOnBoot:   false,
+			Profiles:        []Profile{},
+			MirrorEnabled:   true,
+			Mirror:          "https://gh-proxy.com/",
+			TunConfig:       DefaultTunConfig,
+			MixedConfig:     DefaultMixedConfig,
+			AutoConnect:     false,
+			AutoConnectMode: "full",
+			StartOnBoot:     false,
 		}
 	}
 	var m MetaData
@@ -535,6 +546,9 @@ func (a *App) loadMeta() MetaData {
 	}
 	if m.MixedConfig == "" {
 		m.MixedConfig = DefaultMixedConfig
+	}
+	if m.AutoConnectMode == "" {
+		m.AutoConnectMode = "full"
 	}
 
 	return m
@@ -558,17 +572,18 @@ func (a *App) GetInitData() map[string]interface{} {
 	local := a.GetLocalVersion()
 	core := local != "Not Installed"
 	return map[string]interface{}{
-		"running":       a.Running,
-		"activeProfile": active,
-		"profiles":      meta.Profiles,
-		"coreExists":    core,
-		"localVersion":  local,
-		"mirror":        meta.Mirror,
-		"mirrorEnabled": meta.MirrorEnabled,
-		"tunMode":       meta.TunMode,
-		"sysProxy":      meta.SysProxy,
-		"startOnBoot":   meta.StartOnBoot,
-		"autoConnect":   meta.AutoConnect,
+		"running":         a.Running,
+		"activeProfile":   active,
+		"profiles":        meta.Profiles,
+		"coreExists":      core,
+		"localVersion":    local,
+		"mirror":          meta.Mirror,
+		"mirrorEnabled":   meta.MirrorEnabled,
+		"tunMode":         meta.TunMode,
+		"sysProxy":        meta.SysProxy,
+		"startOnBoot":     meta.StartOnBoot,
+		"autoConnect":     meta.AutoConnect,
+		"autoConnectMode": meta.AutoConnectMode,
 	}
 }
 
@@ -608,9 +623,10 @@ func (a *App) SetStartOnBoot(enabled bool) string {
 	return "Success"
 }
 
-func (a *App) SetAutoConnect(enabled bool) string {
+func (a *App) SetAutoConnect(enabled bool, mode string) string {
 	meta := a.loadMeta()
 	meta.AutoConnect = enabled
+	meta.AutoConnectMode = mode
 	a.saveMeta(meta)
 	return "Success"
 }
