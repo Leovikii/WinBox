@@ -321,13 +321,13 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 		needsRestart = true
 	}
 
-	if !targetTun && !targetProxy {
-		return a.stopCore()
-	}
-
 	meta.TunMode = targetTun
 	meta.SysProxy = targetProxy
 	a.saveMeta(meta)
+
+	if !targetTun && !targetProxy {
+		return a.stopCore()
+	}
 
 	if needsRestart {
 		if a.Running {

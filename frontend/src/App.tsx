@@ -13,9 +13,8 @@ interface SystemButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const SystemButton = ({ children, variant = 'normal', loading, icon, className, disabled, ...props }: SystemButtonProps) => {
-
     const baseStyle = "h-7 px-3 rounded-lg text-[11px] font-bold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 select-none disabled:active:scale-100 disabled:opacity-60 disabled:cursor-not-allowed";
-
+    
     let variantStyle = "";
     switch (variant) {
         case 'primary':
@@ -33,9 +32,9 @@ const SystemButton = ({ children, variant = 'normal', loading, icon, className, 
     }
 
     return (
-        <button
-            disabled={disabled || loading}
-            className={`${baseStyle} ${variantStyle} ${className || ''}`}
+        <button 
+            disabled={disabled || loading} 
+            className={`${baseStyle} ${variantStyle} ${className || ''}`} 
             {...props}
         >
             {loading ? <i className="fas fa-circle-notch fa-spin"></i> : (icon && <i className={`fas ${icon}`}></i>)}
@@ -61,11 +60,11 @@ const ExpandableSection = ({ isOpen, children }: { isOpen: boolean, children: Re
 
 const SwitchRow = ({ label, sub, active, color, icon, onClick }: any) => (
     <div onClick={onClick} className="flex items-center justify-between cursor-pointer group select-none py-1">
-        <div className="flex items-center gap-4">
-            <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-sm transition-all duration-500 ${active ? (color === 'blue' ? 'bg-blue-600 text-white shadow-[0_0_20px_2px_rgba(37,99,235,0.6)]' : 'bg-purple-600 text-white shadow-[0_0_20px_2px_rgba(147,51,234,0.6)]') : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]'}`}><i className={`fas ${icon}`}></i></div>
+        <div className="flex items-center gap-4"> 
+            <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-sm transition-all duration-500 ${active ? (color==='blue' ? 'bg-blue-600 text-white shadow-[0_0_20px_2px_rgba(37,99,235,0.6)]' : 'bg-purple-600 text-white shadow-[0_0_20px_2px_rgba(147,51,234,0.6)]') : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]'}`}><i className={`fas ${icon}`}></i></div>
             <div className="flex flex-col min-w-0"><div className={`text-xs font-bold tracking-wide transition-colors duration-300 whitespace-nowrap ${active ? 'text-white' : 'text-[#555] group-hover:text-gray-400'}`}>{label}</div><div className="text-[9px] text-[#444] whitespace-nowrap group-hover:text-[#555] transition-colors">{sub}</div></div>
         </div>
-        <div className={`w-11 h-6 shrink-0 rounded-full transition-colors duration-300 relative ${active ? (color === 'blue' ? 'bg-blue-600' : 'bg-purple-600') : 'bg-[#222] group-hover:bg-[#2a2a2a]'}`}><div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-md ${active ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
+        <div className={`w-11 h-6 shrink-0 rounded-full transition-colors duration-300 relative ${active ? (color==='blue'?'bg-blue-600':'bg-purple-600') : 'bg-[#222] group-hover:bg-[#2a2a2a]'}`}><div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-md ${active ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
     </div>
 );
 
@@ -76,13 +75,13 @@ function App() {
     const [coreExists, setCoreExists] = useState(true);
     const [msg, setMsg] = useState("READY");
     const [activeDrawer, setActiveDrawer] = useState<DrawerType>('none');
-
+    
     const [tunMode, setTunMode] = useState(false);
     const [sysProxy, setSysProxy] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-
+    
     const [copyState, setCopyState] = useState("COPY");
-    const [errorLog, setErrorLog] = useState("");
+    const [errorLog, setErrorLog] = useState(""); 
     const [localVer, setLocalVer] = useState("Unknown");
     const [remoteVer, setRemoteVer] = useState("Unknown");
     const [mirrorUrl, setMirrorUrl] = useState("");
@@ -98,7 +97,7 @@ function App() {
     const [activeProfile, setActiveProfile] = useState<any>(null);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
     const [isProfileListExpanded, setIsProfileListExpanded] = useState(false);
-
+    
     // Config Adding State
     const [showAddProfileModal, setShowAddProfileModal] = useState(false);
     const [newName, setNewName] = useState("");
@@ -122,7 +121,7 @@ function App() {
             const ignoreKeywords = ["forcibly closed", "connection upload closed", "raw-read tcp", "use of closed network connection", "context canceled"];
             if (ignoreKeywords.some(k => cleaned.includes(k))) return;
             if (cleaned.includes("ERROR") || cleaned.includes("FATAL") || cleaned.includes("bind: address already in use") || cleaned.includes("Access is denied")) {
-                setMsg("ERROR"); setRunning(false); setErrorLog(cleaned);
+                setMsg("ERROR"); setRunning(false); setErrorLog(cleaned); 
             } else { setMsg(cleaned); }
         });
         const unsubProgress = EventsOn("download-progress", (pct: number) => {
@@ -141,8 +140,10 @@ function App() {
         setLocalVer(data.localVersion);
         setMirrorUrl(data.mirror);
         setMirrorEnabled(data.mirrorEnabled);
-        setTunMode(data.tunMode);
-        setSysProxy(data.sysProxy);
+        
+        setTunMode(data.running && data.tunMode);
+        setSysProxy(data.running && data.sysProxy);
+        
         setStartOnBoot(data.startOnBoot);
         setAutoConnect(data.autoConnect);
         setAutoConnectMode(data.autoConnectMode);
@@ -239,7 +240,7 @@ function App() {
     };
 
     const resetEditor = async () => {
-        if (confirm("Reset to default?")) {
+        if(confirm("Reset to default?")) {
             if (editingType === 'mirror') {
                 setEditorContent("https://gh-proxy.com/");
             } else {
@@ -254,37 +255,37 @@ function App() {
         }
     };
 
-    const checkUpdate = async () => { setUpdateState("checking"); const ver = await Backend.CheckUpdate(); if (ver.includes("Error") || ver.includes("Failed") || ver.includes("No tag")) { setMsg("Check Failed"); setErrorLog(ver); setUpdateState("idle"); return; } setRemoteVer(ver); setUpdateState(ver.replace("v", "") !== localVer.replace("v", "") ? "available" : "latest"); };
-
-    const performUpdate = async () => {
-        setUpdateState("updating");
-        setMsg("Init Download...");
+    const checkUpdate = async () => { setUpdateState("checking"); const ver = await Backend.CheckUpdate(); if (ver.includes("Error") || ver.includes("Failed") || ver.includes("No tag")) { setMsg("Check Failed"); setErrorLog(ver); setUpdateState("idle"); return; } setRemoteVer(ver); setUpdateState(ver.replace("v","") !== localVer.replace("v","") ? "available" : "latest"); };
+    
+    const performUpdate = async () => { 
+        setUpdateState("updating"); 
+        setMsg("Init Download..."); 
         const effectiveMirror = mirrorEnabled ? mirrorUrl : "";
-        const res = await Backend.UpdateKernel(effectiveMirror);
-        if (res === "Success") {
-            setCoreExists(true);
-            setMsg("Updated!");
-            setLocalVer(remoteVer.replace("v", ""));
-            setUpdateState("success");
-            setTimeout(() => setUpdateState("idle"), 2000);
-        } else {
-            setMsg("Failed");
-            setErrorLog(cleanLog(res));
-            setUpdateState("error");
-        }
+        const res = await Backend.UpdateKernel(effectiveMirror); 
+        if (res === "Success") { 
+            setCoreExists(true); 
+            setMsg("Updated!"); 
+            setLocalVer(remoteVer.replace("v","")); 
+            setUpdateState("success"); 
+            setTimeout(()=>setUpdateState("idle"),2000); 
+        } else { 
+            setMsg("Failed"); 
+            setErrorLog(cleanLog(res)); 
+            setUpdateState("error"); 
+        } 
     };
 
-    const addProfile = async () => {
-        if (!newName || !newUrl) return setMsg("Input missing");
-
+    const addProfile = async () => { 
+        if(!newName||!newUrl) return setMsg("Input missing"); 
+        
         setIsAddingProfile(true);
-        setMsg("Downloading Config...");
-
-        const res = await Backend.AddProfile(newName, newUrl);
-
+        setMsg("Downloading Config..."); 
+        
+        const res = await Backend.AddProfile(newName, newUrl); 
+        
         setIsAddingProfile(false);
-
-        if (res === "Success") {
+        
+        if(res==="Success"){
             setMsg("Success");
             setNewName("");
             setNewUrl("");
@@ -293,59 +294,59 @@ function App() {
         } else {
             setMsg("Error");
             setErrorLog(cleanLog(res));
-        }
+        } 
     };
 
-    const switchProfile = async (id: string, e: any) => {
+    const switchProfile = async (id: string, e: any) => { 
         e.stopPropagation();
-        const res = await Backend.SelectProfile(id);
-        if (res === "Success") {
+        const res = await Backend.SelectProfile(id); 
+        if(res==="Success"){
             setMsg("Switched");
             setIsProfileListExpanded(false);
             refreshData();
         } else {
             setMsg("Error");
             setErrorLog(cleanLog(res));
-        }
+        } 
     };
 
-    const deleteProfile = async (id: string, e: any) => {
+    const deleteProfile = async (id: string, e: any) => { 
+        e.stopPropagation(); 
+        if(confirm("Delete?")) { 
+            await Backend.DeleteProfile(id); 
+            refreshData(); 
+        } 
+    };
+
+    const updateActive = async (e: any) => { 
         e.stopPropagation();
-        if (confirm("Delete?")) {
-            await Backend.DeleteProfile(id);
-            refreshData();
-        }
+        if (isUpdatingProfile) return; 
+        setIsUpdatingProfile(true); 
+        setMsg("Updating..."); 
+        const res = await Backend.UpdateActiveProfile(); 
+        setIsUpdatingProfile(false); 
+        if(res !== "Success") { 
+            setMsg("Error"); 
+            setErrorLog(cleanLog(res)); 
+        } else { 
+            setMsg("Updated"); 
+            refreshData(); 
+        } 
     };
-
-    const updateActive = async (e: any) => {
-        e.stopPropagation();
-        if (isUpdatingProfile) return;
-        setIsUpdatingProfile(true);
-        setMsg("Updating...");
-        const res = await Backend.UpdateActiveProfile();
-        setIsUpdatingProfile(false);
-        if (res !== "Success") {
-            setMsg("Error");
-            setErrorLog(cleanLog(res));
-        } else {
-            setMsg("Updated");
-            refreshData();
-        }
-    };
-
+    
     const minimize = () => Backend.Minimize();
     const minimizeToTray = () => Backend.MinimizeToTray();
     const quitApp = () => Backend.Quit();
-
+    
     const getStatusText = () => { if (!coreExists) return "MISSING"; if (msg === "ERROR") return "ERROR"; if (!running) return "OFFLINE"; if (tunMode && sysProxy) return "FULL MODE"; if (tunMode) return "TUN MODE"; if (sysProxy) return "PROXY MODE"; return "ONLINE"; };
     const getStatusGlow = () => { if (!coreExists || msg === "ERROR") return "text-red-500 drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]"; if (!running) return "text-[#333] drop-shadow-none"; if (tunMode && sysProxy) return "text-white drop-shadow-[0_0_35px_rgba(147,51,234,0.8)]"; if (tunMode) return "text-white drop-shadow-[0_0_35px_rgba(37,99,235,0.8)]"; if (sysProxy) return "text-white drop-shadow-[0_0_35px_rgba(168,85,247,0.8)]"; return "text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.5)]"; };
     const getControlBg = () => { if (tunMode && sysProxy) return "bg-gradient-to-br from-blue-600/40 via-purple-600/40 to-blue-900/40"; if (tunMode) return "bg-blue-600/20"; if (sysProxy) return "bg-purple-600/20"; return "bg-transparent"; };
 
     const renderKernelUpdateBtn = () => {
-        switch (updateState) {
+        switch(updateState) {
             case 'checking': return <SystemButton disabled loading>CHECKING</SystemButton>;
             case 'available': return <SystemButton variant='primary' onClick={performUpdate} className="animate-pulse">UP TO {remoteVer}</SystemButton>;
-            case 'updating': return <SystemButton disabled className="relative overflow-hidden w-24"><div className="absolute inset-0 bg-blue-600/30 transition-all duration-300" style={{ width: `${downloadProgress}%` }}></div><span className="relative z-10">{downloadProgress}%</span></SystemButton>;
+            case 'updating': return <SystemButton disabled className="relative overflow-hidden w-24"><div className="absolute inset-0 bg-blue-600/30 transition-all duration-300" style={{width: `${downloadProgress}%`}}></div><span className="relative z-10">{downloadProgress}%</span></SystemButton>;
             case 'success': return <SystemButton variant='success' disabled>UPDATED</SystemButton>;
             case 'latest': return <SystemButton disabled className="opacity-50">LATEST</SystemButton>;
             default: return <SystemButton onClick={checkUpdate} className={!coreExists ? "border-yellow-600 text-yellow-500" : ""}>{coreExists ? "CHECK" : "DOWNLOAD"}</SystemButton>;
@@ -358,11 +359,11 @@ function App() {
     return (
         <div className="h-screen w-screen relative bg-[#090909] text-white select-none border border-[#222] rounded-xl overflow-hidden font-sans flex flex-col shadow-2xl">
             {/* Title Bar */}
-            <div className="h-10 shrink-0 flex justify-between items-center px-4 bg-[#090909] z-70 relative border-b border-[#1a1a1a]" style={{ "--wails-draggable": "drag" } as any}>
+            <div className="h-10 shrink-0 flex justify-between items-center px-4 bg-[#090909] z-70 relative border-b border-[#1a1a1a]" style={{"--wails-draggable": "drag"} as any}>
                 <div className="text-[10px] font-bold tracking-[0.2em] text-[#666] flex items-center gap-2">
                     <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_8px_currentcolor] ${coreExists ? "bg-emerald-500 text-emerald-500" : "bg-red-500 text-red-500"}`}></div> WINBOX
                 </div>
-                <div className="flex gap-2" style={{ "--wails-draggable": "no-drag" } as any}>
+                <div className="flex gap-2" style={{"--wails-draggable": "no-drag"} as any}>
                     <button onClick={minimize} className="text-[#666] p-1 w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"><i className="fas fa-minus text-sm"></i></button>
                     <button onClick={minimizeToTray} className="text-[#666] p-1 w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"><i className="fas fa-angle-down text-sm"></i></button>
                 </div>
@@ -389,7 +390,7 @@ function App() {
                 <div className="w-full flex-1 flex flex-col justify-center relative">
                     <div className={`w-full bg-[#111] border border-[#222] rounded-4xl p-8 flex flex-col gap-6 relative overflow-hidden transition-all duration-500 ${isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100'}`}>
                         <div className={`absolute inset-0 blur-[60px] opacity-40 pointer-events-none transition-all duration-1000 ${getControlBg()}`}></div>
-                        <div className="text-center z-10 cursor-pointer" onClick={() => { if (msg === "ERROR" || errorLog) setActiveDrawer('logs') }}>
+                        <div className="text-center z-10 cursor-pointer" onClick={() => {if(msg==="ERROR" || errorLog) setActiveDrawer('logs')}}>
                             <div className={`text-4xl font-black tracking-tighter transition-all duration-500 whitespace-nowrap ${getStatusGlow()}`}>{getStatusText()}</div>
                             <div className="text-[9px] text-[#444] group-hover:text-[#666] font-mono uppercase tracking-widest mt-2 h-3 transition-colors">{msg === "ERROR" ? "VIEW ERROR LOGS" : msg}</div>
                         </div>
@@ -424,7 +425,7 @@ function App() {
                                 {renderKernelUpdateBtn()}
                             </div>
                         </SettingsItem>
-
+                        
                         <SettingsItem label="GitHub Mirror">
                             <div className="flex items-center gap-2">
                                 <div onClick={handleMirrorToggle} className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${mirrorEnabled ? 'bg-blue-600' : 'bg-[#333]'}`}>
@@ -432,7 +433,7 @@ function App() {
                                 </div>
                             </div>
                         </SettingsItem>
-
+                        
                         <ExpandableSection isOpen={mirrorEnabled}>
                             <div className="flex justify-between items-center py-2 pl-4 border-l-2 border-[#222]">
                                 <span className="text-xs font-bold text-gray-400">Mirror Config</span>
@@ -455,7 +456,7 @@ function App() {
                         <ExpandableSection isOpen={autoConnect}>
                             <div className="flex justify-between items-center py-2 pl-4 border-l-2 border-[#222]">
                                 <span className="text-xs font-bold text-gray-400">Startup Mode</span>
-                                <select
+                                <select 
                                     value={autoConnectMode}
                                     onChange={handleAutoConnectModeChange}
                                     className="bg-[#1a1a1a] text-[11px] text-gray-300 border border-[#333] rounded-lg px-2 outline-none focus:border-blue-500/50 appearance-none text-center font-bold w-20 cursor-pointer h-7"
@@ -468,12 +469,12 @@ function App() {
                         </ExpandableSection>
 
                         <div className="h-px bg-[#222] my-2"></div>
-
+                        
                         <SettingsItem label="TUN Config">
-                            <SystemButton onClick={() => openEditor('tun')}>EDIT</SystemButton>
+                             <SystemButton onClick={() => openEditor('tun')}>EDIT</SystemButton>
                         </SettingsItem>
                         <SettingsItem label="Mixed Config">
-                            <SystemButton onClick={() => openEditor('mixed')}>EDIT</SystemButton>
+                             <SystemButton onClick={() => openEditor('mixed')}>EDIT</SystemButton>
                         </SettingsItem>
                     </div>
                 </div>
@@ -485,12 +486,12 @@ function App() {
                     <h2 className="text-xs font-bold text-[#666] uppercase tracking-widest">Profiles Manager</h2>
                     <SystemButton variant='primary' className="bg-blue-500/10 text-blue-500 border-none hover:bg-blue-500/20" onClick={() => setActiveDrawer('none')}>DONE</SystemButton>
                 </div>
-
+                
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar [&::-webkit-scrollbar]:hidden">
                     {/* Collapsible Profile Card */}
                     <div className="bg-[#131313] rounded-2xl border border-[#222] shadow-[0_0_30px_rgba(0,0,0,0.3)] overflow-hidden transition-all duration-300">
                         {/* Header: Current Profile Name */}
-                        <div
+                        <div 
                             className={`p-4 flex justify-between items-center cursor-pointer ${otherProfiles.length > 0 ? 'hover:bg-[#1a1a1a]' : ''} transition-colors`}
                             onClick={() => otherProfiles.length > 0 && setIsProfileListExpanded(!isProfileListExpanded)}
                         >
@@ -529,9 +530,9 @@ function App() {
                                 <span className="text-xs font-bold text-gray-400">Subscription</span>
                                 <div className="flex items-center gap-3">
                                     <span className="text-[10px] text-[#555] font-mono">{activeProfile && activeProfile.updated ? activeProfile.updated : "Never"}</span>
-                                    <SystemButton
-                                        onClick={updateActive}
-                                        disabled={!activeProfile || isUpdatingProfile}
+                                    <SystemButton 
+                                        onClick={updateActive} 
+                                        disabled={!activeProfile || isUpdatingProfile} 
                                         loading={isUpdatingProfile}
                                         icon={!isUpdatingProfile ? "fa-sync-alt" : ""}
                                     >
@@ -558,12 +559,12 @@ function App() {
                         <button onClick={() => setShowAddProfileModal(false)} className="text-[#666] hover:text-white transition-colors"><i className="fas fa-times"></i></button>
                     </div>
                     <div className="p-5 space-y-4">
-                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Profile Name" className="w-full bg-[#050505] border border-[#222] rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500/50 transition-all" />
-                        <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Subscription URL" className="w-full bg-[#050505] border border-[#222] rounded-xl px-4 py-3 text-xs text-[#666] focus:outline-none focus:border-blue-500/50 font-mono transition-all" />
-                        <SystemButton
-                            variant='primary'
-                            className="w-full h-9"
-                            onClick={addProfile}
+                        <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Profile Name" className="w-full bg-[#050505] border border-[#222] rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500/50 transition-all"/>
+                        <input value={newUrl} onChange={e=>setNewUrl(e.target.value)} placeholder="Subscription URL" className="w-full bg-[#050505] border border-[#222] rounded-xl px-4 py-3 text-xs text-[#666] focus:outline-none focus:border-blue-500/50 font-mono transition-all"/>
+                        <SystemButton 
+                            variant='primary' 
+                            className="w-full h-9" 
+                            onClick={addProfile} 
                             loading={isAddingProfile}
                         >
                             {isAddingProfile ? "DOWNLOADING..." : "ADD PROFILE"}
@@ -584,9 +585,9 @@ function App() {
                         </div>
                     </div>
                     <div className="flex-1 p-4 bg-[#050505] relative">
-                        <textarea
-                            value={editorContent}
-                            onChange={e => setEditorContent(e.target.value)}
+                        <textarea 
+                            value={editorContent} 
+                            onChange={e => setEditorContent(e.target.value)} 
                             className="w-full h-full bg-transparent text-xs font-mono text-gray-300 focus:outline-none resize-none custom-scrollbar"
                             spellCheck="false"
                         />
