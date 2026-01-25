@@ -66,6 +66,49 @@ export function useAppState() {
     return data
   }
 
+  const handleServiceToggle = async () => {
+    if (isProcessing.value) return
+    if (!coreExists.value) {
+      msg.value = "KERNEL MISSING!"
+      return { error: 'kernel-missing' }
+    }
+
+    isProcessing.value = true
+    const willStart = !running.value
+
+    if (willStart) {
+      tunMode.value = true
+      sysProxy.value = true
+      msg.value = "STARTING..."
+      const res = await Backend.ApplyState(true, true)
+      isProcessing.value = false
+
+      if (res === "Success") {
+        msg.value = "RUNNING"
+        running.value = true
+      } else {
+        msg.value = "ERROR"
+        errorLog.value = res
+        tunMode.value = false
+        sysProxy.value = false
+      }
+    } else {
+      tunMode.value = false
+      sysProxy.value = false
+      msg.value = "STOPPING..."
+      const res = await Backend.ApplyState(false, false)
+      isProcessing.value = false
+
+      if (res === "Success" || res === "Stopped") {
+        msg.value = "STOPPED"
+        running.value = false
+      } else {
+        msg.value = "ERROR"
+        errorLog.value = res
+      }
+    }
+  }
+
   const handleToggle = async (target: 'tun' | 'proxy') => {
     if (isProcessing.value) return
     if (!coreExists.value) {
@@ -125,10 +168,10 @@ export function useAppState() {
     else alert(res)
   }
 
-  const handleAutoConnectModeChange = async (e: Event) => {
-    const newMode = (e.target as HTMLSelectElement).value
-    const res = await Backend.SetAutoConnect(autoConnect.value, newMode)
-    if (res === "Success") autoConnectMode.value = newMode
+  const handleAutoConnectModeChange = async (newMode: string | number) => {
+    const mode = String(newMode)
+    const res = await Backend.SetAutoConnect(autoConnect.value, mode)
+    if (res === "Success") autoConnectMode.value = mode
   }
 
   const setupEventListeners = () => {
@@ -172,7 +215,7 @@ export function useAppState() {
     errorLog, startOnBoot, autoConnect, autoConnectMode,
     mirrorUrl, mirrorEnabled,
     getStatusText, getStatusGlow, getControlBg,
-    handleToggle, refreshData, handleMirrorToggle,
+    handleToggle, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectToggle,
     handleAutoConnectModeChange
   }
