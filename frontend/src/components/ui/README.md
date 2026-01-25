@@ -105,3 +105,34 @@ import { WButton, WIconButton, WSwitch, WCard, WInput } from '@/components/ui'
   ]"
 />
 ```
+
+### 8. WModal - Modal Dialog
+
+**Usage:**
+```vue
+<WModal v-model="showModal" title="NEW CONFIG" width="md">
+  <WInput v-model="name" placeholder="Name" />
+  <template #footer>
+    <WButton variant="primary">SAVE</WButton>
+  </template>
+</WModal>
+```
+
+### 9. WListItem - List Item
+
+**Usage:**
+```vue
+<WListItem :title="profile.name" :subtitle="profile.url" :active="isActive">
+  <template #actions>
+    <WIconButton icon="fas fa-pen" size="sm" />
+  </template>
+</WListItem>
+```
+
+## Design System
+
+All components follow a unified design system:
+- Border radius: `rounded-xl` (12px)
+- Transition duration: 200ms (fast), 300ms (medium), 500ms (slow)
+- Glow effects: Unified rgba values for blue, purple, and red
+- Consistent styling and animations across all elements
