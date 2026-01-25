@@ -203,7 +203,6 @@ func (a *App) StartTray() {
 				systray.SetTitle("WinBox")
 			}
 
-			systray.SetTitle("WinBox")
 			systray.SetTooltip("WinBox Client")
 
 			systray.SetOnClick(func(menu systray.IMenu) {

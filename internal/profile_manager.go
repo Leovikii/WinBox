@@ -83,7 +83,9 @@ func (pm *ProfileManager) Delete(id string) error {
 	for _, p := range meta.Profiles {
 		if p.ID == id {
 			realPath := filepath.Join(pm.appDir, "data", "profiles", p.ID+".json")
-			os.Remove(realPath)
+			if err := os.Remove(realPath); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("failed to delete profile file: %w", err)
+			}
 			continue
 		}
 		newProfiles = append(newProfiles, p)

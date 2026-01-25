@@ -1,6 +1,7 @@
 import { ref, computed, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { cleanLog } from '../utils/logUtils'
 
 export function useAppState() {
   const running = ref(false)
@@ -16,9 +17,6 @@ export function useAppState() {
   const autoConnectMode = ref("full")
   const mirrorUrl = ref("")
   const mirrorEnabled = ref(false)
-
-  const cleanLog = (text: string) =>
-    text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
 
   const getStatusText = computed(() => {
     if (!coreExists.value) return "MISSING"
@@ -41,7 +39,7 @@ export function useAppState() {
 
   const getControlBg = computed(() => {
     if (tunMode.value || sysProxy.value)
-      return "bg-(--accent-color)/20"
+      return "bg-[var(--accent-color)]/20"
     return "bg-transparent"
   })
 

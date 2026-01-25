@@ -1,6 +1,7 @@
 import { ref, computed, shallowRef } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import type { useAppState } from './useAppState'
+import { cleanLog } from '../utils/logUtils'
 
 export function useProfiles(appState: ReturnType<typeof useAppState>) {
   const profiles = shallowRef<any[]>([])
@@ -21,8 +22,12 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
   const showDeleteConfirm = ref(false)
   const deletingProfileId = ref("")
 
-  const cleanLog = (text: string) =>
-    text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+  const refreshProfiles = async () => {
+    await appState.refreshData()
+    const data = await Backend.GetInitData()
+    profiles.value = data.profiles || []
+    activeProfile.value = data.activeProfile || null
+  }
 
   const addProfile = async () => {
     if (!newName.value || !newUrl.value) {
@@ -38,10 +43,7 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
       newName.value = ""
       newUrl.value = ""
       showAddProfileModal.value = false
-      await appState.refreshData()
-      const data = await Backend.GetInitData()
-      profiles.value = data.profiles || []
-      activeProfile.value = data.activeProfile || null
+      await refreshProfiles()
     } else {
       appState.msg.value = "Error"
       appState.errorLog.value = cleanLog(res)
@@ -54,10 +56,7 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
     const res = await Backend.SelectProfile(id)
     if (res === "Success") {
       appState.msg.value = "Switched"
-      await appState.refreshData()
-      const data = await Backend.GetInitData()
-      profiles.value = data.profiles || []
-      activeProfile.value = data.activeProfile || null
+      await refreshProfiles()
     } else {
       appState.msg.value = "Error"
       appState.errorLog.value = cleanLog(res)
@@ -74,10 +73,7 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
     showDeleteConfirm.value = false
     if (deletingProfileId.value) {
       await Backend.DeleteProfile(deletingProfileId.value)
-      await appState.refreshData()
-      const data = await Backend.GetInitData()
-      profiles.value = data.profiles || []
-      activeProfile.value = data.activeProfile || null
+      await refreshProfiles()
       deletingProfileId.value = ""
     }
   }
@@ -104,10 +100,7 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
     if (res === "Success") {
       appState.msg.value = "Updated"
       showEditProfileModal.value = false
-      await appState.refreshData()
-      const data = await Backend.GetInitData()
-      profiles.value = data.profiles || []
-      activeProfile.value = data.activeProfile || null
+      await refreshProfiles()
     } else {
       appState.msg.value = "Error"
       appState.errorLog.value = cleanLog(res)
@@ -126,10 +119,7 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
       appState.errorLog.value = cleanLog(res)
     } else {
       appState.msg.value = "Updated"
-      await appState.refreshData()
-      const data = await Backend.GetInitData()
-      profiles.value = data.profiles || []
-      activeProfile.value = data.activeProfile || null
+      await refreshProfiles()
     }
   }
 

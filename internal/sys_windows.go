@@ -3,7 +3,6 @@
 package internal
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -51,28 +50,4 @@ func SendExitSignal(p *os.Process) error {
 	}
 
 	return nil
-}
-
-func IsProcessAlive(p *os.Process) (bool, error) {
-	h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(p.Pid))
-	if err != nil {
-		if err == windows.ERROR_INVALID_PARAMETER {
-			return false, nil
-		}
-		return false, err
-	}
-	defer windows.CloseHandle(h)
-
-	s, err := windows.WaitForSingleObject(h, 0)
-	if err != nil {
-		return false, err
-	}
-	switch s {
-	case windows.WAIT_OBJECT_0:
-		return false, nil
-	case uint32(windows.WAIT_TIMEOUT):
-		return true, nil
-	default:
-		return false, fmt.Errorf("unexpected WaitForSingleObject status: %d", s)
-	}
 }
