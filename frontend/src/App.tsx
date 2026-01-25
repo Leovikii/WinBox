@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import * as Backend from "../wailsjs/go/main/App";
+import * as Backend from "../wailsjs/go/internal/App";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 
 type DrawerType = 'none' | 'settings' | 'profiles' | 'logs';

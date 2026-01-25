@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"archive/zip"
@@ -44,8 +44,8 @@ func (a *App) getAppDir() string {
 	return filepath.Dir(exe)
 }
 
-// startup is called when the app starts
-func (a *App) startup(ctx context.Context) {
+// Startup is called when the app starts
+func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	appDir := a.getAppDir()
 
@@ -122,7 +122,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
-func (a *App) onShutdown(ctx context.Context) {
+func (a *App) OnShutdown(ctx context.Context) {
 	a.stopCore()
 }
 
