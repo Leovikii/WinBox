@@ -31,24 +31,24 @@ export function useAppState() {
 
   const getStatusStyle = computed(() => {
     if (!coreExists.value)
-      return { color: '#fcd34d !important', filter: 'drop-shadow(0 0 25px rgba(252, 211, 77, 0.8))' }
+      return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.8))' }
 
     if (msg.value === "ERROR")
-      return { color: '#fca5a5 !important', filter: 'drop-shadow(0 0 25px rgba(252, 165, 165, 0.8))' }
+      return { color: '#F4A7B0 !important', filter: 'drop-shadow(0 0 25px rgba(233, 84, 100, 0.8))' }
 
     if (!running.value)
-      return { color: '#6b7280 !important', filter: 'none' }
+      return { color: '#9E9E9E !important', filter: 'none' }
 
     if (tunMode.value && sysProxy.value)
-      return { color: '#c4b5fd !important', filter: 'drop-shadow(0 0 35px rgba(168, 85, 247, 0.8))' }
+      return { color: '#C5A3BF !important', filter: 'drop-shadow(0 0 35px rgba(139, 127, 168, 0.8))' }
 
     if (tunMode.value)
-      return { color: '#93c5fd !important', filter: 'drop-shadow(0 0 35px rgba(59, 130, 246, 0.8))' }
+      return { color: '#89C3EB !important', filter: 'drop-shadow(0 0 35px rgba(83, 131, 195, 0.8))' }
 
     if (sysProxy.value)
-      return { color: '#6ee7b7 !important', filter: 'drop-shadow(0 0 35px rgba(16, 185, 129, 0.8))' }
+      return { color: '#7EBEAB !important', filter: 'drop-shadow(0 0 35px rgba(56, 180, 139, 0.8))' }
 
-    return { color: '#ffffff !important', filter: 'drop-shadow(0 0 25px rgba(255, 255, 255, 0.5))' }
+    return { color: '#F0F0F0 !important', filter: 'drop-shadow(0 0 25px rgba(224, 224, 224, 0.5))' }
   })
 
   const getControlBg = computed(() => {
@@ -60,7 +60,7 @@ export function useAppState() {
     )
 
     if (!coreExists.value)
-      return `bg-[#eab308]/20`
+      return `bg-[#F8B500]/20`
 
     if (msg.value === "ERROR")
       return `bg-[${color.hex}]/20`

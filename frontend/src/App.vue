@@ -67,7 +67,7 @@ const handleAccentColorChange = (color: string) => {
       </div>
     </div>
 
-    <div :class="['absolute inset-0 pt-20 px-6 pb-8 flex flex-col justify-between items-center transition-all duration-500', isDrawerOpen ? 'scale-95 opacity-50' : 'scale-100 opacity-100']">
+    <div :class="['absolute inset-0 pt-20 px-6 pb-8 flex flex-col justify-between items-center transition-all duration-300', isDrawerOpen ? 'scale-95 opacity-50' : 'scale-100 opacity-100']">
       <DashboardControl
         :running="appState.running.value"
         :coreExists="appState.coreExists.value"

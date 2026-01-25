@@ -21,7 +21,7 @@ const copyLog = () => {
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 bottom-0 top-10 z-60 flex flex-col transition-transform duration-500', isOpen ? 'translate-y-0' : 'translate-y-full']">
+  <div :class="['absolute inset-x-0 bottom-0 top-12 z-60 flex flex-col transition-transform duration-500 backface-hidden contain-[layout_style_paint]', isOpen ? 'translate-y-0' : 'translate-y-full']">
     <!-- Fixed backdrop-filter background layer -->
     <div class="absolute inset-0 bg-[#090909]/95 backdrop-blur-xl pointer-events-none"></div>
 

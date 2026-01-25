@@ -73,11 +73,8 @@ const handleApplyCustomColor = () => {
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : 'translate-y-full']">
-    <!-- Fixed backdrop-filter background layer -->
-    <div class="absolute inset-0 mica-bg pointer-events-none"></div>
-
-    <div class="relative h-12 shrink-0 flex justify-between items-center px-6 pt-2">
+  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 bg-[#090909]/95 backdrop-blur-3xl flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] backface-hidden contain-[layout_style_paint]', isOpen ? 'translate-y-0' : 'translate-y-full']">
+    <div class="h-10 shrink-0 flex justify-between items-center px-6 border-b border-[#222]">
       <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">System Settings</h2>
       <WButton variant="link" size="sm" @click="emit('close')">DONE</WButton>
     </div>

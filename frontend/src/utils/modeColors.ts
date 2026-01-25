@@ -9,60 +9,60 @@ export interface ModeColor {
 
 export const MODE_COLORS = {
   error: {
-    hex: '#ef4444',
-    rgb: '239, 68, 68',
-    light: '#fca5a5',
-    lightRgb: '252, 165, 165',
-    dark: '#dc2626',
-    darkRgb: '220, 38, 38'
+    hex: '#E95464',
+    rgb: '233, 84, 100',
+    light: '#F4A7B0',
+    lightRgb: '244, 167, 176',
+    dark: '#D93A4A',
+    darkRgb: '217, 58, 74'
   },
   warning: {
-    hex: '#f59e0b',
-    rgb: '245, 158, 11',
-    light: '#fcd34d',
-    lightRgb: '252, 211, 77',
-    dark: '#d97706',
-    darkRgb: '217, 119, 6'
+    hex: '#F8B500',
+    rgb: '248, 181, 0',
+    light: '#FCD575',
+    lightRgb: '252, 213, 117',
+    dark: '#E8A500',
+    darkRgb: '232, 165, 0'
   },
   tun: {
-    hex: '#3b82f6',
-    rgb: '59, 130, 246',
-    light: '#93c5fd',
-    lightRgb: '147, 197, 253',
-    dark: '#2563eb',
-    darkRgb: '37, 99, 235'
+    hex: '#5383C3',
+    rgb: '83, 131, 195',
+    light: '#89C3EB',
+    lightRgb: '137, 195, 235',
+    dark: '#165E83',
+    darkRgb: '22, 94, 131'
   },
   proxy: {
-    hex: '#10b981',
-    rgb: '16, 185, 129',
-    light: '#6ee7b7',
-    lightRgb: '110, 231, 183',
-    dark: '#059669',
-    darkRgb: '5, 150, 105'
+    hex: '#38B48B',
+    rgb: '56, 180, 139',
+    light: '#7EBEAB',
+    lightRgb: '126, 190, 171',
+    dark: '#00896C',
+    darkRgb: '0, 137, 108'
   },
   full: {
-    hex: '#a855f7',
-    rgb: '168, 85, 247',
-    light: '#c4b5fd',
-    lightRgb: '196, 181, 253',
-    dark: '#9333ea',
-    darkRgb: '147, 51, 234'
+    hex: '#8B7FA8',
+    rgb: '139, 127, 168',
+    light: '#C5A3BF',
+    lightRgb: '197, 163, 191',
+    dark: '#674598',
+    darkRgb: '103, 69, 152'
   },
   offline: {
-    hex: '#6b7280',
-    rgb: '107, 116, 128',
-    light: '#9ca3af',
-    lightRgb: '156, 163, 175',
-    dark: '#4b5563',
-    darkRgb: '75, 85, 99'
+    hex: '#8A8A8A',
+    rgb: '138, 138, 138',
+    light: '#B0B0B0',
+    lightRgb: '176, 176, 176',
+    dark: '#6A6A6A',
+    darkRgb: '106, 106, 106'
   },
   online: {
-    hex: '#ffffff',
-    rgb: '255, 255, 255',
-    light: '#ffffff',
-    lightRgb: '255, 255, 255',
-    dark: '#e5e7eb',
-    darkRgb: '229, 231, 235'
+    hex: '#D0D0D0',
+    rgb: '208, 208, 208',
+    light: '#E8E8E8',
+    lightRgb: '232, 232, 232',
+    dark: '#B0B0B0',
+    darkRgb: '176, 176, 176'
   }
 } as const
 
