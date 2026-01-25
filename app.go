@@ -2,90 +2,32 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/energye/systray"
-	"github.com/google/uuid"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const DefaultTunConfig = `{"type":"tun","tag":"tun-in","address":["172.19.0.1/30","fdfe:dcba:9876::1/126"],"mtu":9000,"auto_route":true,"strict_route":true}`
-const DefaultMixedConfig = `{"type":"mixed","tag":"mixed-in","listen":"0.0.0.0","listen_port":7893,"set_system_proxy":true}`
-
-type Profile struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Url     string `json:"url"`
-	Path    string `json:"path"`
-	Updated string `json:"updated"`
-}
-
-type MetaData struct {
-	ActiveID        string    `json:"active_id"`
-	Mirror          string    `json:"mirror"`
-	MirrorEnabled   bool      `json:"mirror_enabled"`
-	TunMode         bool      `json:"tun_mode"`
-	SysProxy        bool      `json:"sys_proxy"`
-	TunConfig       string    `json:"tun_config"`
-	MixedConfig     string    `json:"mixed_config"`
-	AutoConnect     bool      `json:"auto_connect"`
-	AutoConnectMode string    `json:"auto_connect_mode"`
-	StartOnBoot     bool      `json:"start_on_boot"`
-	Profiles        []Profile `json:"profiles"`
-}
-
-type ReleaseAsset struct {
-	Name               string `json:"name"`
-	BrowserDownloadUrl string `json:"browser_download_url"`
-}
-
-type ReleaseInfo struct {
-	TagName string         `json:"tag_name"`
-	Assets  []ReleaseAsset `json:"assets"`
-}
-
-type WriteCounter struct {
-	Total    uint64
-	Current  uint64
-	Ctx      context.Context
-	LastTime time.Time
-}
-
-func (wc *WriteCounter) Write(p []byte) (int, error) {
-	n := len(p)
-	wc.Current += uint64(n)
-
-	if wc.Total > 0 {
-		if time.Since(wc.LastTime) > 100*time.Millisecond || wc.Current == wc.Total {
-			percentage := float64(wc.Current) / float64(wc.Total) * 100
-			wailsRuntime.EventsEmit(wc.Ctx, "download-progress", int(percentage))
-			wc.LastTime = time.Now()
-		}
-	}
-	return n, nil
-}
-
+// App struct
 type App struct {
-	ctx            context.Context
-	cmd            *exec.Cmd
-	Running        bool
-	iconData       []byte
-	startMinimized bool
+	ctx             context.Context
+	coreManager     *CoreManager
+	profileManager  *ProfileManager
+	settingsManager *SettingsManager
+	storage         *Storage
+	httpClient      *HTTPClient
+	iconData        []byte
+	startMinimized  bool
 }
 
+// NewApp creates a new App application struct
 func NewApp(icon []byte, startMinimized bool) *App {
 	return &App{
 		iconData:       icon,
@@ -102,18 +44,27 @@ func (a *App) getAppDir() string {
 	return filepath.Dir(exe)
 }
 
+// startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-
 	appDir := a.getAppDir()
+
+	// Initialize managers
+	a.httpClient = NewHTTPClient()
+	a.storage = NewStorage(filepath.Join(appDir, "data", "meta.json"))
+	a.coreManager = NewCoreManager(appDir, ctx)
+	a.profileManager = NewProfileManager(a.storage, a.httpClient, appDir)
+	a.settingsManager = NewSettingsManager(a.storage)
+
+	// Create directories
 	coreDir := filepath.Join(appDir, "data", "core")
 	profilesDir := filepath.Join(appDir, "data", "profiles")
-
 	os.MkdirAll(coreDir, 0755)
 	os.MkdirAll(profilesDir, 0755)
 
-	meta := a.loadMeta()
+	meta, _ := a.storage.LoadMeta()
 
+	// Check if can auto start
 	coreExe := filepath.Join(coreDir, "sing-box.exe")
 	_, errCore := os.Stat(coreExe)
 	kernelExists := errCore == nil
@@ -144,7 +95,7 @@ func (a *App) startup(ctx context.Context) {
 		meta.TunMode = false
 		meta.SysProxy = false
 	}
-	a.saveMeta(meta)
+	a.storage.SaveMeta(meta)
 
 	a.StartTray()
 
@@ -175,6 +126,7 @@ func (a *App) onShutdown(ctx context.Context) {
 	a.stopCore()
 }
 
+// StartTray starts the system tray
 func (a *App) StartTray() {
 	go func() {
 		runtime.LockOSThread()
@@ -231,120 +183,16 @@ func (a *App) Show() {
 	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, false)
 }
 
-func (a *App) GetOverride(name string) string {
-	meta := a.loadMeta()
-	switch name {
-	case "tun":
-		return meta.TunConfig
-	case "mixed":
-		return meta.MixedConfig
-	default:
-		return "{}"
-	}
+func (a *App) Quit() {
+	a.stopCore()
+	wailsRuntime.Quit(a.ctx)
 }
 
-func (a *App) SaveOverride(name, content string) string {
-	if !json.Valid([]byte(content)) {
-		return "Invalid JSON"
-	}
-	meta := a.loadMeta()
-	switch name {
-	case "tun":
-		meta.TunConfig = content
-	case "mixed":
-		meta.MixedConfig = content
-	default:
-		return "Unknown type"
-	}
-	a.saveMeta(meta)
-	return "Success"
-}
-
-func (a *App) ResetOverride(name string) string {
-	var content string
-	switch name {
-	case "tun":
-		content = DefaultTunConfig
-	case "mixed":
-		content = DefaultMixedConfig
-	default:
-		return "Unknown type"
-	}
-	return a.SaveOverride(name, content)
-}
-
-func (a *App) processConfig(srcPath, dstPath string, enableTun bool, enableProxy bool) error {
-	content, err := os.ReadFile(srcPath)
-	if err != nil {
-		return err
-	}
-
-	var config map[string]interface{}
-	if err := json.Unmarshal(content, &config); err != nil {
-		return err
-	}
-
-	newInbounds := make([]interface{}, 0)
-	meta := a.loadMeta()
-
-	if enableTun {
-		var tunMap map[string]interface{}
-		if json.Unmarshal([]byte(meta.TunConfig), &tunMap) == nil {
-			newInbounds = append(newInbounds, tunMap)
-		}
-	}
-
-	if enableProxy {
-		var mixedMap map[string]interface{}
-		if json.Unmarshal([]byte(meta.MixedConfig), &mixedMap) == nil {
-			newInbounds = append(newInbounds, mixedMap)
-		}
-	}
-
-	config["inbounds"] = newInbounds
-
-	newContent, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	os.MkdirAll(filepath.Dir(dstPath), 0755)
-
-	return os.WriteFile(dstPath, newContent, 0644)
-}
-
-func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
-	meta := a.loadMeta()
-
-	needsRestart := (meta.TunMode != targetTun) || (meta.SysProxy != targetProxy)
-	if !a.Running {
-		needsRestart = true
-	}
-
-	meta.TunMode = targetTun
-	meta.SysProxy = targetProxy
-	a.saveMeta(meta)
-
-	if !targetTun && !targetProxy {
-		return a.stopCore()
-	}
-
-	if needsRestart {
-		if a.Running {
-			a.stopCore()
-			time.Sleep(500 * time.Millisecond)
-		}
-		return a.startCore()
-	}
-
-	return "Success"
-}
-
+// Core management methods
 func (a *App) startCore() string {
-	meta := a.loadMeta()
+	meta, _ := a.storage.LoadMeta()
 
 	var activeProfilePath string
-
 	found := false
 	for _, p := range meta.Profiles {
 		if p.ID == meta.ActiveID {
@@ -361,207 +209,133 @@ func (a *App) startCore() string {
 		return "Error: Profile file missing at " + activeProfilePath
 	}
 
-	appDir := a.getAppDir()
-	coreDir := filepath.Join(appDir, "data", "core")
-	runtimeConfig := filepath.Join(coreDir, "config.json")
-	coreExe := filepath.Join(coreDir, "sing-box.exe")
-
-	if _, err := os.Stat(coreExe); os.IsNotExist(err) {
-		return "Error: Kernel missing"
-	}
-
-	err := a.processConfig(activeProfilePath, runtimeConfig, meta.TunMode, meta.SysProxy)
+	err := a.coreManager.Start(activeProfilePath, meta.TunMode, meta.SysProxy, meta.TunConfig, meta.MixedConfig)
 	if err != nil {
-		return "Config Gen Error: " + err.Error()
+		return "Error: " + err.Error()
 	}
-
-	a.cmd = exec.Command(coreExe, "run", "-c", "config.json")
-	a.cmd.Dir = coreDir
-
-	SetCmdWindowHidden(a.cmd)
-
-	var stderr bytes.Buffer
-	a.cmd.Stderr = &stderr
-
-	if err := a.cmd.Start(); err != nil {
-		return "Start Error: " + err.Error()
-	}
-	a.Running = true
-
-	go func() {
-		a.cmd.Wait()
-		a.Running = false
-		wailsRuntime.EventsEmit(a.ctx, "status", false)
-		if stderr.Len() > 0 {
-			wailsRuntime.EventsEmit(a.ctx, "log", "CORE STOPPED: "+stderr.String())
-		}
-	}()
 	return "Success"
 }
 
 func (a *App) stopCore() string {
-	if a.cmd != nil && a.cmd.Process != nil {
-		if err := SendExitSignal(a.cmd.Process); err != nil {
-			a.cmd.Process.Kill()
-		}
-
-		done := make(chan error, 1)
-		go func() { done <- a.cmd.Wait() }()
-
-		select {
-		case <-done:
-		case <-time.After(2000 * time.Millisecond):
-			a.cmd.Process.Kill()
-		}
+	if err := a.coreManager.Stop(); err != nil {
+		return "Error: " + err.Error()
 	}
-	a.Running = false
 	return "Stopped"
 }
 
+// Frontend interface methods - Profile management
 func (a *App) AddProfile(name, url string) string {
-	if name == "" || url == "" {
-		return "Empty Input"
+	if err := a.profileManager.Add(name, url); err != nil {
+		return "Error: " + err.Error()
 	}
-	resp, err := http.Get(url)
-	if err != nil {
-		return "Download Failed"
-	}
-	defer resp.Body.Close()
-	id := uuid.New().String()
-
-	appDir := a.getAppDir()
-	savePath := filepath.Join(appDir, "data", "profiles", id+".json")
-
-	out, _ := os.Create(savePath)
-	io.Copy(out, resp.Body)
-	out.Close()
-	meta := a.loadMeta()
-	now := time.Now().Format("2006-01-02 15:04")
-	meta.Profiles = append(meta.Profiles, Profile{ID: id, Name: name, Url: url, Path: savePath, Updated: now})
-	if len(meta.Profiles) == 1 {
-		meta.ActiveID = id
-	}
-	a.saveMeta(meta)
-	return "Success"
-}
-
-func (a *App) SelectProfile(id string) string {
-	if a.Running {
-		return "Stop service first"
-	}
-	meta := a.loadMeta()
-	found := false
-	for _, p := range meta.Profiles {
-		if p.ID == id {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return "Profile not found"
-	}
-	meta.ActiveID = id
-	a.saveMeta(meta)
-	return "Success"
-}
-
-func (a *App) UpdateActiveProfile() string {
-	meta := a.loadMeta()
-	var target *Profile
-	for i := range meta.Profiles {
-		if meta.Profiles[i].ID == meta.ActiveID {
-			target = &meta.Profiles[i]
-			break
-		}
-	}
-	if target == nil {
-		return "No active profile"
-	}
-	resp, err := http.Get(target.Url)
-	if err != nil {
-		return "Download Failed"
-	}
-	defer resp.Body.Close()
-
-	realPath := filepath.Join(a.getAppDir(), "data", "profiles", target.ID+".json")
-
-	out, _ := os.Create(realPath)
-	io.Copy(out, resp.Body)
-	out.Close()
-	target.Updated = time.Now().Format("2006-01-02 15:04")
-
-	target.Path = realPath
-
-	a.saveMeta(meta)
 	return "Success"
 }
 
 func (a *App) DeleteProfile(id string) {
-	meta := a.loadMeta()
-	newProfiles := []Profile{}
-
-	appDir := a.getAppDir()
-
-	for _, p := range meta.Profiles {
-		if p.ID == id {
-			realPath := filepath.Join(appDir, "data", "profiles", p.ID+".json")
-			os.Remove(realPath)
-			continue
-		}
-		newProfiles = append(newProfiles, p)
-	}
-	meta.Profiles = newProfiles
-	if meta.ActiveID == id {
-		meta.ActiveID = ""
-	}
-	a.saveMeta(meta)
+	a.profileManager.Delete(id)
 }
 
-func (a *App) loadMeta() MetaData {
-	appDir := a.getAppDir()
-	metaPath := filepath.Join(appDir, "data", "meta.json")
-
-	f, err := os.ReadFile(metaPath)
-	if err != nil {
-		return MetaData{
-			Profiles:        []Profile{},
-			MirrorEnabled:   true,
-			Mirror:          "https://gh-proxy.com/",
-			TunConfig:       DefaultTunConfig,
-			MixedConfig:     DefaultMixedConfig,
-			AutoConnect:     false,
-			AutoConnectMode: "full",
-			StartOnBoot:     false,
-		}
+func (a *App) SelectProfile(id string) string {
+	if a.coreManager.IsRunning() {
+		return "Stop service first"
 	}
-	var m MetaData
-	json.Unmarshal(f, &m)
-
-	if m.Mirror == "" {
-		m.Mirror = "https://gh-proxy.com/"
-		m.MirrorEnabled = true
+	if err := a.profileManager.Select(id); err != nil {
+		return "Error: " + err.Error()
 	}
-	if m.TunConfig == "" {
-		m.TunConfig = DefaultTunConfig
-	}
-	if m.MixedConfig == "" {
-		m.MixedConfig = DefaultMixedConfig
-	}
-	if m.AutoConnectMode == "" {
-		m.AutoConnectMode = "full"
-	}
-
-	return m
+	return "Success"
 }
 
-func (a *App) saveMeta(m MetaData) {
-	d, _ := json.MarshalIndent(m, "", "  ")
-	appDir := a.getAppDir()
-	os.WriteFile(filepath.Join(appDir, "data", "meta.json"), d, 0644)
+func (a *App) UpdateActiveProfile() string {
+	if err := a.profileManager.Update(); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+// Frontend interface methods - Settings
+func (a *App) GetOverride(name string) string {
+	result, _ := a.settingsManager.GetOverride(name)
+	return result
+}
+
+func (a *App) SaveOverride(name, content string) string {
+	if err := a.settingsManager.SaveOverride(name, content); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) ResetOverride(name string) string {
+	var content string
+	switch name {
+	case "tun":
+		content = DefaultTunConfig
+	case "mixed":
+		content = DefaultMixedConfig
+	default:
+		return "Unknown type"
+	}
+	return a.SaveOverride(name, content)
+}
+
+func (a *App) SaveSettings(mirror string, enabled bool) string {
+	if err := a.settingsManager.SaveMirror(mirror, enabled); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) SetStartOnBoot(enabled bool) string {
+	if err := a.settingsManager.SetStartOnBoot(enabled); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) SetAutoConnect(enabled bool, mode string) string {
+	if err := a.settingsManager.SetAutoConnect(enabled, mode); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+// Frontend interface methods - State management
+func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
+	meta, _ := a.storage.LoadMeta()
+
+	needsRestart := (meta.TunMode != targetTun) || (meta.SysProxy != targetProxy)
+	if !a.coreManager.IsRunning() {
+		needsRestart = true
+	}
+
+	meta.TunMode = targetTun
+	meta.SysProxy = targetProxy
+	a.storage.SaveMeta(meta)
+
+	if !targetTun && !targetProxy {
+		return a.stopCore()
+	}
+
+	if needsRestart {
+		if a.coreManager.IsRunning() {
+			a.stopCore()
+			time.Sleep(500 * time.Millisecond)
+		}
+		return a.startCore()
+	}
+
+	return "Success"
+}
+
+func (a *App) ToggleService() string {
+	if a.coreManager.IsRunning() {
+		return a.stopCore()
+	}
+	return a.startCore()
 }
 
 func (a *App) GetInitData() map[string]interface{} {
-	meta := a.loadMeta()
+	meta, _ := a.storage.LoadMeta()
 	var active Profile
 	for _, p := range meta.Profiles {
 		if p.ID == meta.ActiveID {
@@ -572,7 +346,7 @@ func (a *App) GetInitData() map[string]interface{} {
 	local := a.GetLocalVersion()
 	core := local != "Not Installed"
 	return map[string]interface{}{
-		"running":         a.Running,
+		"running":         a.coreManager.IsRunning(),
 		"activeProfile":   active,
 		"profiles":        meta.Profiles,
 		"coreExists":      core,
@@ -587,91 +361,24 @@ func (a *App) GetInitData() map[string]interface{} {
 	}
 }
 
-func (a *App) SaveSettings(mirror string, enabled bool) string {
-	m := a.loadMeta()
-	m.Mirror = mirror
-	m.MirrorEnabled = enabled
-	a.saveMeta(m)
-	return "Success"
-}
-
-func (a *App) SetStartOnBoot(enabled bool) string {
-	exePath, err := os.Executable()
-	if err != nil {
-		return "Failed to get executable path"
-	}
-
-	taskName := "WinBoxAutostart"
-
-	if enabled {
-		cmdStr := fmt.Sprintf(`"%s" -minimized`, exePath)
-		cmd := exec.Command("schtasks", "/Create", "/TN", taskName, "/TR", cmdStr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F")
-		SetCmdWindowHidden(cmd)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return "Task Schedule Failed: " + string(output)
-		}
-	} else {
-		cmd := exec.Command("schtasks", "/Delete", "/TN", taskName, "/F")
-		SetCmdWindowHidden(cmd)
-		cmd.Run()
-	}
-
-	meta := a.loadMeta()
-	meta.StartOnBoot = enabled
-	a.saveMeta(meta)
-
-	return "Success"
-}
-
-func (a *App) SetAutoConnect(enabled bool, mode string) string {
-	meta := a.loadMeta()
-	meta.AutoConnect = enabled
-	meta.AutoConnectMode = mode
-	a.saveMeta(meta)
-	return "Success"
-}
-
-func (a *App) Quit() {
-	a.stopCore()
-	wailsRuntime.Quit(a.ctx)
-}
-
 func (a *App) GetLocalVersion() string {
-	appDir := a.getAppDir()
-	exe := filepath.Join(appDir, "data", "core", "sing-box.exe")
-
-	if _, err := os.Stat(exe); os.IsNotExist(err) {
-		return "Not Installed"
-	}
-	cmd := exec.Command(exe, "version")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	out, _ := cmd.Output()
-	re := regexp.MustCompile(`version\s+([0-9a-zA-Z\.\-]+)`)
-	matches := re.FindStringSubmatch(string(out))
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return "Unknown"
+	return a.coreManager.GetLocalVersion()
 }
 
 func (a *App) CheckUpdate() string {
-	resp, err := http.Get("https://api.github.com/repos/SagerNet/sing-box/releases/latest")
+	version, err := a.httpClient.CheckUpdate()
 	if err != nil {
-		return "Network Error"
+		return "Error: " + err.Error()
 	}
-	defer resp.Body.Close()
-	var res ReleaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "Parse Error"
-	}
-	if res.TagName == "" {
-		return "No tag found"
-	}
-	return res.TagName
+	return version
+}
+
+func (a *App) OpenDashboard() {
+	wailsRuntime.BrowserOpenURL(a.ctx, "http://127.0.0.1:9090/ui")
 }
 
 func (a *App) UpdateKernel(mirrorUrl string) string {
-	wasRunning := a.Running
+	wasRunning := a.coreManager.IsRunning()
 	if wasRunning {
 		a.stopCore()
 		time.Sleep(1 * time.Second)
@@ -686,7 +393,7 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	}()
 
 	wailsRuntime.EventsEmit(a.ctx, "log", "Fetching release info...")
-	resp, err := http.Get("https://api.github.com/repos/SagerNet/sing-box/releases/latest")
+	resp, err := a.httpClient.Get("https://api.github.com/repos/SagerNet/sing-box/releases/latest")
 	if err != nil {
 		return "Network Error"
 	}
@@ -729,30 +436,9 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	wailsRuntime.EventsEmit(a.ctx, "log", "Downloading...")
 	wailsRuntime.EventsEmit(a.ctx, "download-progress", 0)
 
-	outResp, err := http.Get(downloadUrl)
-	if err != nil {
+	if err := a.httpClient.Download(downloadUrl, tmpFile, a.ctx); err != nil {
 		return "Download Fail"
 	}
-	defer outResp.Body.Close()
-
-	os.MkdirAll(coreDir, 0755)
-
-	out, err := os.Create(tmpFile)
-	if err != nil {
-		return "Create File Fail"
-	}
-
-	counter := &WriteCounter{
-		Total:   uint64(outResp.ContentLength),
-		Current: 0,
-		Ctx:     a.ctx,
-	}
-
-	if _, err = io.Copy(out, io.TeeReader(outResp.Body, counter)); err != nil {
-		out.Close()
-		return "Download Interrupted"
-	}
-	out.Close()
 
 	wailsRuntime.EventsEmit(a.ctx, "log", "Extracting...")
 
@@ -793,15 +479,4 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	}
 
 	return "Success"
-}
-
-func (a *App) OpenDashboard() {
-	wailsRuntime.BrowserOpenURL(a.ctx, "http://127.0.0.1:9090/ui")
-}
-
-func (a *App) ToggleService() string {
-	if a.Running {
-		return a.stopCore()
-	}
-	return a.startCore()
 }
