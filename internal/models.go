@@ -31,6 +31,8 @@ type MetaData struct {
 	AutoConnect     bool      `json:"auto_connect"`
 	AutoConnectMode string    `json:"auto_connect_mode"`
 	StartOnBoot     bool      `json:"start_on_boot"`
+	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"
+	AccentColor     string    `json:"accent_color"`      // hex color code
 	Profiles        []Profile `json:"profiles"`
 }
 

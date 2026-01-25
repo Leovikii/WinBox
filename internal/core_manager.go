@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
-	"syscall"
 	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -119,7 +118,7 @@ func (cm *CoreManager) GetLocalVersion() string {
 	}
 
 	cmd := exec.Command(exe, "version")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	SetCmdWindowHidden(cmd)
 	out, _ := cmd.Output()
 	re := regexp.MustCompile(`version\s+([0-9a-zA-Z\.\-]+)`)
 	matches := re.FindStringSubmatch(string(out))

@@ -54,7 +54,7 @@ func main() {
 			WebviewIsTransparent:              true,
 			WindowIsTranslucent:               true,
 			BackdropType:                      windows.Mica,
-			DisableWindowIcon:                 true,
+			DisableWindowIcon:                 false,
 			DisableFramelessWindowDecorations: true,
 		},
 	})

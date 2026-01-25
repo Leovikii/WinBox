@@ -13,14 +13,12 @@ type Storage struct {
 	metaPath   string
 	cache      *MetaData
 	cacheValid bool
-	profileMap map[string]*Profile
 }
 
 // NewStorage creates a new storage instance
 func NewStorage(metaPath string) *Storage {
 	return &Storage{
-		metaPath:   metaPath,
-		profileMap: make(map[string]*Profile),
+		metaPath: metaPath,
 	}
 }
 
@@ -37,7 +35,6 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Double-check
 	if s.cacheValid {
 		meta := *s.cache
 		return &meta, nil
@@ -49,7 +46,6 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 		meta := s.getDefaultMeta()
 		s.cache = meta
 		s.cacheValid = true
-		s.buildProfileMap(meta)
 		return meta, nil
 	}
 
@@ -72,10 +68,15 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	if meta.AutoConnectMode == "" {
 		meta.AutoConnectMode = "full"
 	}
+	if meta.ThemeMode == "" {
+		meta.ThemeMode = "dark"
+	}
+	if meta.AccentColor == "" {
+		meta.AccentColor = "#2563eb"
+	}
 
 	s.cache = &meta
 	s.cacheValid = true
-	s.buildProfileMap(&meta)
 
 	return &meta, nil
 }
@@ -104,26 +105,8 @@ func (s *Storage) SaveMeta(meta *MetaData) error {
 	// Update cache
 	s.cache = meta
 	s.cacheValid = true
-	s.buildProfileMap(meta)
 
 	return nil
-}
-
-// GetProfile gets a profile by ID with O(1) lookup
-func (s *Storage) GetProfile(id string) (*Profile, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if !s.cacheValid {
-		return nil, fmt.Errorf("cache not initialized")
-	}
-
-	profile, ok := s.profileMap[id]
-	if !ok {
-		return nil, fmt.Errorf("profile not found")
-	}
-
-	return profile, nil
 }
 
 // InvalidateCache invalidates the cache
@@ -131,14 +114,6 @@ func (s *Storage) InvalidateCache() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cacheValid = false
-}
-
-// buildProfileMap builds the profile index map
-func (s *Storage) buildProfileMap(meta *MetaData) {
-	s.profileMap = make(map[string]*Profile)
-	for i := range meta.Profiles {
-		s.profileMap[meta.Profiles[i].ID] = &meta.Profiles[i]
-	}
 }
 
 // getDefaultMeta returns default metadata
@@ -152,5 +127,7 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		AutoConnect:     false,
 		AutoConnectMode: "full",
 		StartOnBoot:     false,
+		ThemeMode:       "dark",
+		AccentColor:     "#2563eb",
 	}
 }

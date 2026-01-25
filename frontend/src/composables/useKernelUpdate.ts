@@ -2,6 +2,7 @@ import { ref, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import type { useAppState } from './useAppState'
+import { cleanLog } from '../utils/logUtils'
 
 export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   const localVer = ref("Unknown")
@@ -17,9 +18,6 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   const showResetConfirm = ref(false)
   const showErrorAlert = ref(false)
   const errorAlertMessage = ref("")
-
-  const cleanLog = (text: string) =>
-    text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
 
   const checkUpdate = async () => {
     updateState.value = "checking"

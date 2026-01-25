@@ -203,7 +203,6 @@ func (a *App) StartTray() {
 				systray.SetTitle("WinBox")
 			}
 
-			systray.SetTitle("WinBox")
 			systray.SetTooltip("WinBox Client")
 
 			systray.SetOnClick(func(menu systray.IMenu) {
@@ -370,6 +369,13 @@ func (a *App) SetAutoConnect(enabled bool, mode string) string {
 	return "Success"
 }
 
+func (a *App) SaveTheme(mode, accentColor string) string {
+	if err := a.settingsManager.SaveTheme(mode, accentColor); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
 // Frontend interface methods - State management
 func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 	meta, _ := a.storage.LoadMeta()
@@ -429,6 +435,8 @@ func (a *App) GetInitData() map[string]interface{} {
 		"startOnBoot":     meta.StartOnBoot,
 		"autoConnect":     meta.AutoConnect,
 		"autoConnectMode": meta.AutoConnectMode,
+		"theme_mode":      meta.ThemeMode,
+		"accent_color":    meta.AccentColor,
 	}
 }
 
