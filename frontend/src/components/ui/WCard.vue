@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const cardClasses = computed(() => {
-  const classes = ['rounded-xl border transition-all duration-300']
+  const classes = ['rounded-xl border transition-colors duration-300']
 
   if (props.variant === 'default') {
     classes.push('bg-[#111] border-[#222]')

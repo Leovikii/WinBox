@@ -73,15 +73,18 @@ const handleApplyCustomColor = () => {
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 mica-bg border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : 'translate-y-full']">
-    <div class="h-12 shrink-0 flex justify-between items-center px-6 pt-2">
+  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : 'translate-y-full']">
+    <!-- Fixed backdrop-filter background layer -->
+    <div class="absolute inset-0 mica-bg pointer-events-none"></div>
+
+    <div class="relative h-12 shrink-0 flex justify-between items-center px-6 pt-2">
       <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">System Settings</h2>
       <WButton variant="link" size="sm" @click="emit('close')">DONE</WButton>
     </div>
-    <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
+    <div class="relative flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden bg-[#0a0a0a]">
       
       <!-- CARD 1: GENERAL SETTINGS -->
-      <WCard variant="mica" padding="lg">
+      <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-cog text-gray-400 text-sm"></i>
           <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">General Settings</h3>
@@ -192,7 +195,7 @@ const handleApplyCustomColor = () => {
       </WCard>
 
       <!-- CARD 2: CONFIGURATION -->
-      <WCard variant="mica" padding="lg">
+      <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-file-code text-gray-400 text-sm"></i>
           <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Configuration</h3>
@@ -212,7 +215,7 @@ const handleApplyCustomColor = () => {
       </WCard>
 
       <!-- CARD 3: APPEARANCE -->
-      <WCard variant="mica" padding="lg">
+      <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-palette text-gray-400 text-sm"></i>
           <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Appearance</h3>
