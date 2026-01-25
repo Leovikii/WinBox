@@ -1,6 +1,6 @@
 # WinBox
 
-A minimal, modern, and lightweight Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), built with [Wails](https://wails.io) and React.
+A minimal, modern, and lightweight Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), built with [Wails](https://wails.io) and Vue 3.
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
