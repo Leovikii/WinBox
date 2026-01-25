@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ComputedRef } from 'vue'
+import { WButton, WIconButton, WSwitch, WDivider } from '@/components/ui'
 
 defineProps<{
   running: boolean
@@ -17,6 +18,7 @@ defineProps<{
 
 const emit = defineEmits<{
   'toggle': [target: 'tun' | 'proxy']
+  'toggle-service': []
   'open-drawer': [drawer: 'settings' | 'profiles' | 'logs']
   'open-dashboard': []
   'quit': []
@@ -26,7 +28,7 @@ const emit = defineEmits<{
 <template>
   <div class="w-full pt-4">
     <div class="text-[9px] font-bold text-[#444] mb-2 tracking-widest uppercase ml-1">Active Configuration</div>
-    <div @click="emit('open-drawer', 'profiles')" class="w-full bg-[#131313] border border-[#222] rounded-2xl p-4 cursor-pointer group relative overflow-hidden h-20 flex items-center transition-all duration-300 hover:border-[#333] hover:shadow-[0_0_20px_rgba(255,255,255,0.03)] active:scale-[0.98]">
+    <div @click="emit('open-drawer', 'profiles')" class="w-full bg-[#131313] border border-[#222] rounded-xl p-4 cursor-pointer group relative overflow-hidden h-20 flex items-center transition-all duration-300 hover:border-[#333] hover:shadow-[0_0_20px_rgba(255,255,255,0.03)] active:scale-[0.98]">
       <div class="flex justify-between items-center w-full z-10 relative">
         <div class="overflow-hidden mr-4">
           <div class="text-sm font-bold text-white mb-1 truncate">{{ activeProfile ? activeProfile.name : "Select Profile" }}</div>
@@ -34,23 +36,35 @@ const emit = defineEmits<{
         </div>
         <div class="text-[#333] group-hover:text-blue-500 transition-colors duration-300"><i class="fas fa-chevron-down text-xs"></i></div>
       </div>
-      <div v-if="running" class="absolute inset-0 bg-blue-500/5 animate-pulse pointer-events-none"></div>
     </div>
   </div>
 
   <div class="w-full flex-1 flex flex-col justify-center relative">
-    <div :class="['w-full bg-[#111] border border-[#222] rounded-4xl p-8 flex flex-col gap-6 relative overflow-hidden transition-all duration-500', isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100']">
+    <div :class="['w-full bg-[#111] border border-[#222] rounded-xl p-8 flex flex-col gap-6 relative overflow-hidden transition-all duration-500', isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100']">
       <div :class="['absolute inset-0 blur-[60px] opacity-40 pointer-events-none transition-all duration-1000', getControlBg]"></div>
-      <div class="text-center z-10 cursor-pointer" @click="() => { if (msg === 'ERROR' || errorLog) emit('open-drawer', 'logs') }">
-        <div :class="['text-4xl font-black tracking-tighter transition-all duration-500 whitespace-nowrap', getStatusGlow]">{{ getStatusText }}</div>
-        <div class="text-[9px] text-[#444] group-hover:text-[#666] font-mono uppercase tracking-widest mt-2 h-3 transition-colors">{{ msg === "ERROR" ? "VIEW ERROR LOGS" : msg }}</div>
+      <!-- TUN Mode Glow -->
+      <div v-if="tunMode" class="absolute inset-0 bg-blue-500/10 blur-[80px] pointer-events-none transition-opacity duration-1000"></div>
+      <!-- Proxy Mode Glow -->
+      <div v-if="sysProxy" class="absolute inset-0 bg-purple-500/10 blur-[80px] pointer-events-none transition-opacity duration-1000"></div>
+      <div class="text-center z-10 cursor-pointer group relative" @click="() => { if (msg === 'ERROR' || errorLog) { emit('open-drawer', 'logs') } else { emit('toggle-service') } }">
+        <!-- Hover Glow Effect -->
+        <div v-if="running && tunMode && sysProxy" class="absolute inset-0 bg-linear-to-r from-blue-500/20 to-purple-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div v-else-if="running && tunMode" class="absolute inset-0 bg-blue-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div v-else-if="running && sysProxy" class="absolute inset-0 bg-purple-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div v-else-if="running" class="absolute inset-0 bg-emerald-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div v-else-if="msg === 'ERROR'" class="absolute inset-0 bg-red-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div v-else class="absolute inset-0 bg-gray-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+        <div :class="['text-4xl font-black tracking-tighter transition-all duration-500 whitespace-nowrap relative z-10', getStatusGlow, 'group-hover:scale-105']">{{ getStatusText }}</div>
+        <div class="text-[9px] text-[#444] group-hover:text-[#666] font-mono uppercase tracking-widest mt-2 h-3 transition-colors relative z-10">{{ msg === "ERROR" ? "VIEW ERROR LOGS" : (running ? "TAP TO STOP" : "TAP TO START") }}</div>
       </div>
-      <div class="h-px bg-[#222]/80 z-10 mx-auto w-[90%]"></div>
+      
+      <WDivider class="mx-auto w-[90%]" />
+      
       <div class="flex flex-col gap-6 z-10 px-1">
         <!-- TUN MODE -->
         <div @click="emit('toggle', 'tun')" class="flex items-center justify-between cursor-pointer group select-none py-1">
           <div class="flex items-center gap-4">
-            <div :class="['w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-sm transition-all duration-500', tunMode ? 'bg-blue-600 text-white shadow-[0_0_20px_2px_rgba(37,99,235,0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
+            <div :class="['w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm transition-all duration-500', tunMode ? 'bg-blue-600 text-white shadow-[0_0_20px_2px_rgba(37,99,235,0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
               <i class="fas fa-shield-alt"></i>
             </div>
             <div class="flex flex-col min-w-0">
@@ -58,14 +72,13 @@ const emit = defineEmits<{
               <div class="text-[9px] text-[#444] whitespace-nowrap group-hover:text-[#555] transition-colors">Virtual Network Interface</div>
             </div>
           </div>
-          <div :class="['w-11 h-6 shrink-0 rounded-full transition-colors duration-300 relative', tunMode ? 'bg-blue-600' : 'bg-[#222] group-hover:bg-[#2a2a2a]']">
-            <div :class="['absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-md', tunMode ? 'translate-x-5' : 'translate-x-0']"></div>
-          </div>
+          <WSwitch :model-value="tunMode" color="blue" />
         </div>
+
         <!-- SYSTEM PROXY -->
         <div @click="emit('toggle', 'proxy')" class="flex items-center justify-between cursor-pointer group select-none py-1">
           <div class="flex items-center gap-4">
-            <div :class="['w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-sm transition-all duration-500', sysProxy ? 'bg-purple-600 text-white shadow-[0_0_20px_2px_rgba(147,51,234,0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
+            <div :class="['w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm transition-all duration-500', sysProxy ? 'bg-purple-600 text-white shadow-[0_0_20px_2px_rgba(147,51,234,0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
               <i class="fas fa-globe"></i>
             </div>
             <div class="flex flex-col min-w-0">
@@ -73,18 +86,36 @@ const emit = defineEmits<{
               <div class="text-[9px] text-[#444] whitespace-nowrap group-hover:text-[#555] transition-colors">Global HTTP Proxy</div>
             </div>
           </div>
-          <div :class="['w-11 h-6 shrink-0 rounded-full transition-colors duration-300 relative', sysProxy ? 'bg-purple-600' : 'bg-[#222] group-hover:bg-[#2a2a2a]']">
-            <div :class="['absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-md', sysProxy ? 'translate-x-5' : 'translate-x-0']"></div>
-          </div>
+          <WSwitch :model-value="sysProxy" color="purple" />
         </div>
       </div>
     </div>
   </div>
 
   <div class="w-full flex gap-3 z-10 pt-4">
-    <button @click="emit('open-dashboard')" :disabled="!running" :class="['flex-1 h-12 rounded-xl text-xs font-bold tracking-wide border border-transparent transition-all duration-300 active:scale-95', running ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_30px_rgba(37,99,235,0.4)]' : 'bg-[#1a1a1a] text-[#444] border-[#222] cursor-not-allowed']">DASHBOARD</button>
-    <button @click="emit('open-drawer', 'logs')" :class="['w-12 h-12 rounded-xl border bg-[#1a1a1a] text-[#666] flex items-center justify-center transition-all duration-300 hover:bg-[#222] hover:text-white active:scale-95', msg === 'ERROR' ? 'border-red-500 text-red-500 bg-red-900/10 shadow-[0_0_15px_rgba(220,38,38,0.3)]' : 'border-[#222]']"><i class="fas fa-file-lines"></i></button>
-    <button @click="emit('open-drawer', 'settings')" class="w-12 h-12 rounded-xl border border-[#222] bg-[#1a1a1a] text-[#666] flex items-center justify-center transition-all duration-300 hover:bg-[#222] hover:text-white active:scale-95"><i class="fas fa-cog"></i></button>
-    <button @click="emit('quit')" class="w-12 h-12 rounded-xl border border-[#222] bg-[#1a1a1a] text-[#666] flex items-center justify-center transition-all duration-300 hover:border-red-900/50 hover:text-red-500 hover:bg-red-900/10 active:scale-95"><i class="fas fa-power-off"></i></button>
+    <WButton
+      variant="primary"
+      size="lg"
+      class="flex-2"
+      :disabled="!running"
+      @click="emit('open-dashboard')"
+    >
+      DASHBOARD
+    </WButton>
+
+    <WIconButton
+      icon="fas fa-file-lines"
+      size="lg"
+      class="flex-1"
+      :variant="msg === 'ERROR' ? 'danger' : 'default'"
+      @click="emit('open-drawer', 'logs')"
+    />
+
+    <WIconButton
+      icon="fas fa-cog"
+      size="lg"
+      class="flex-1"
+      @click="emit('open-drawer', 'settings')"
+    />
   </div>
 </template>

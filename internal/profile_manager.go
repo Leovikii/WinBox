@@ -162,3 +162,33 @@ func (pm *ProfileManager) Update() error {
 
 	return pm.storage.SaveMeta(meta)
 }
+
+// Edit edits a profile's name and URL
+func (pm *ProfileManager) Edit(id, name, url string) error {
+	if name == "" || url == "" {
+		return fmt.Errorf("name and url cannot be empty")
+	}
+
+	meta, err := pm.storage.LoadMeta()
+	if err != nil {
+		return err
+	}
+
+	var target *Profile
+	for i := range meta.Profiles {
+		if meta.Profiles[i].ID == id {
+			target = &meta.Profiles[i]
+			break
+		}
+	}
+
+	if target == nil {
+		return fmt.Errorf("profile not found")
+	}
+
+	// Update name and URL
+	target.Name = name
+	target.Url = url
+
+	return pm.storage.SaveMeta(meta)
+}

@@ -6,16 +6,20 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
   const profiles = shallowRef<any[]>([])
   const activeProfile = ref<any>(null)
   const isUpdatingProfile = ref(false)
-  const isProfileListExpanded = ref(false)
 
   const showAddProfileModal = ref(false)
   const newName = ref("")
   const newUrl = ref("")
   const isAddingProfile = ref(false)
 
-  const otherProfiles = computed(() =>
-    profiles.value.filter(p => activeProfile.value && p.id !== activeProfile.value.id)
-  )
+  const showEditProfileModal = ref(false)
+  const editingProfileId = ref("")
+  const editName = ref("")
+  const editUrl = ref("")
+  const isEditingProfile = ref(false)
+
+  const showDeleteConfirm = ref(false)
+  const deletingProfileId = ref("")
 
   const cleanLog = (text: string) =>
     text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
@@ -46,10 +50,10 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
 
   const switchProfile = async (id: string, e: any) => {
     e.stopPropagation()
+    if (activeProfile.value && id === activeProfile.value.id) return
     const res = await Backend.SelectProfile(id)
     if (res === "Success") {
       appState.msg.value = "Switched"
-      isProfileListExpanded.value = false
       await appState.refreshData()
       const data = await Backend.GetInitData()
       profiles.value = data.profiles || []
@@ -60,14 +64,53 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
     }
   }
 
-  const deleteProfile = async (id: string, e: any) => {
+  const deleteProfile = (id: string, e: any) => {
     e.stopPropagation()
-    if (confirm("Delete?")) {
-      await Backend.DeleteProfile(id)
+    deletingProfileId.value = id
+    showDeleteConfirm.value = true
+  }
+
+  const confirmDelete = async () => {
+    showDeleteConfirm.value = false
+    if (deletingProfileId.value) {
+      await Backend.DeleteProfile(deletingProfileId.value)
       await appState.refreshData()
       const data = await Backend.GetInitData()
       profiles.value = data.profiles || []
       activeProfile.value = data.activeProfile || null
+      deletingProfileId.value = ""
+    }
+  }
+
+  const editProfile = async (id: string, e: any) => {
+    e.stopPropagation()
+    const profile = profiles.value.find(p => p.id === id)
+    if (profile) {
+      editingProfileId.value = id
+      editName.value = profile.name
+      editUrl.value = profile.url
+      showEditProfileModal.value = true
+    }
+  }
+
+  const saveEditProfile = async () => {
+    if (!editName.value || !editUrl.value) {
+      appState.msg.value = "Input missing"
+      return
+    }
+    isEditingProfile.value = true
+    const res = await Backend.EditProfile(editingProfileId.value, editName.value, editUrl.value)
+    isEditingProfile.value = false
+    if (res === "Success") {
+      appState.msg.value = "Updated"
+      showEditProfileModal.value = false
+      await appState.refreshData()
+      const data = await Backend.GetInitData()
+      profiles.value = data.profiles || []
+      activeProfile.value = data.activeProfile || null
+    } else {
+      appState.msg.value = "Error"
+      appState.errorLog.value = cleanLog(res)
     }
   }
 
@@ -91,9 +134,10 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
   }
 
   return {
-    profiles, activeProfile, isUpdatingProfile, isProfileListExpanded,
+    profiles, activeProfile, isUpdatingProfile,
     showAddProfileModal, newName, newUrl, isAddingProfile,
-    otherProfiles,
-    addProfile, switchProfile, deleteProfile, updateActive
+    showEditProfileModal, editingProfileId, editName, editUrl, isEditingProfile,
+    showDeleteConfirm, deletingProfileId,
+    addProfile, switchProfile, deleteProfile, confirmDelete, updateActive, editProfile, saveEditProfile
   }
 }

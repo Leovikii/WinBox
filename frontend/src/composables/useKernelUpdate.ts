@@ -14,6 +14,10 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   const editorContent = ref("")
   const saveBtnText = ref("SAVE")
 
+  const showResetConfirm = ref(false)
+  const showErrorAlert = ref(false)
+  const errorAlertMessage = ref("")
+
   const cleanLog = (text: string) =>
     text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
 
@@ -82,23 +86,27 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
         showEditor.value = false
       }, 800)
     } else {
-      alert(res)
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
     }
   }
 
-  const resetEditor = async () => {
-    if (confirm("Reset to default?")) {
-      if (editingType.value === 'mirror') {
-        editorContent.value = "https://gh-proxy.com/"
-      } else {
-        const res = await Backend.ResetOverride(editingType.value)
-        try {
-          const content = res === "Success" ? await Backend.GetOverride(editingType.value) : "{}"
-          const obj = JSON.parse(content)
-          editorContent.value = JSON.stringify(obj, null, 2)
-        } catch {
-          editorContent.value = "Error"
-        }
+  const resetEditor = () => {
+    showResetConfirm.value = true
+  }
+
+  const confirmReset = async () => {
+    showResetConfirm.value = false
+    if (editingType.value === 'mirror') {
+      editorContent.value = "https://gh-proxy.com/"
+    } else {
+      const res = await Backend.ResetOverride(editingType.value)
+      try {
+        const content = res === "Success" ? await Backend.GetOverride(editingType.value) : "{}"
+        const obj = JSON.parse(content)
+        editorContent.value = JSON.stringify(obj, null, 2)
+      } catch {
+        editorContent.value = "Error"
       }
     }
   }
@@ -112,6 +120,7 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   return {
     localVer, remoteVer, updateState, downloadProgress,
     showEditor, editingType, editorContent, saveBtnText,
-    checkUpdate, performUpdate, openEditor, saveEditor, resetEditor
+    showResetConfirm, showErrorAlert, errorAlertMessage,
+    checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset
   }
 }

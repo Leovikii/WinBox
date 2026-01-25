@@ -49,6 +49,16 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	appDir := a.getAppDir()
 
+	// Set window rounded corners for Windows 11
+	if runtime.GOOS == "windows" {
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			if hwnd, err := GetWindowHandle("WinBox"); err == nil && hwnd != 0 {
+				SetWindowCorners(hwnd)
+			}
+		}()
+	}
+
 	// Initialize managers
 	a.httpClient = NewHTTPClient()
 	a.storage = NewStorage(filepath.Join(appDir, "data", "meta.json"))
@@ -301,6 +311,13 @@ func (a *App) SelectProfile(id string) string {
 
 func (a *App) UpdateActiveProfile() string {
 	if err := a.profileManager.Update(); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) EditProfile(id, name, url string) string {
+	if err := a.profileManager.Edit(id, name, url); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
