@@ -2,6 +2,7 @@ import { ref, computed, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { cleanLog } from '../utils/logUtils'
+import { getModeColor } from '../utils/modeColors'
 
 export function useAppState() {
   const running = ref(false)
@@ -19,7 +20,7 @@ export function useAppState() {
   const mirrorEnabled = ref(false)
 
   const getStatusText = computed(() => {
-    if (!coreExists.value) return "MISSING"
+    if (!coreExists.value) return "WARNING"
     if (msg.value === "ERROR") return "ERROR"
     if (!running.value) return "OFFLINE"
     if (tunMode.value && sysProxy.value) return "FULL MODE"
@@ -28,18 +29,48 @@ export function useAppState() {
     return "ONLINE"
   })
 
-  const getStatusGlow = computed(() => {
-    if (!coreExists.value || msg.value === "ERROR")
-      return "text-red-500 drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]"
-    if (!running.value) return "text-[#333] drop-shadow-none"
-    if (tunMode.value || sysProxy.value)
-      return "text-white drop-shadow-[0_0_35px_rgba(var(--accent-color-rgb),0.8)]"
-    return "text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.5)]"
+  const getStatusStyle = computed(() => {
+    if (!coreExists.value)
+      return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.8))' }
+
+    if (msg.value === "ERROR")
+      return { color: '#F4A7B0 !important', filter: 'drop-shadow(0 0 25px rgba(233, 84, 100, 0.8))' }
+
+    if (!running.value)
+      return { color: '#9E9E9E !important', filter: 'none' }
+
+    if (tunMode.value && sysProxy.value)
+      return { color: '#C5A3BF !important', filter: 'drop-shadow(0 0 35px rgba(139, 127, 168, 0.8))' }
+
+    if (tunMode.value)
+      return { color: '#89C3EB !important', filter: 'drop-shadow(0 0 35px rgba(83, 131, 195, 0.8))' }
+
+    if (sysProxy.value)
+      return { color: '#7EBEAB !important', filter: 'drop-shadow(0 0 35px rgba(56, 180, 139, 0.8))' }
+
+    return { color: '#F0F0F0 !important', filter: 'drop-shadow(0 0 25px rgba(224, 224, 224, 0.5))' }
   })
 
   const getControlBg = computed(() => {
+    const color = getModeColor(
+      tunMode.value,
+      sysProxy.value,
+      msg.value === "ERROR" || !coreExists.value,
+      running.value
+    )
+
+    if (!coreExists.value)
+      return `bg-[#F8B500]/20`
+
+    if (msg.value === "ERROR")
+      return `bg-[${color.hex}]/20`
+
+    if (tunMode.value && sysProxy.value)
+      return `bg-[${color.hex}]/20`
+
     if (tunMode.value || sysProxy.value)
-      return "bg-[var(--accent-color)]/20"
+      return `bg-[${color.hex}]/20`
+
     return "bg-transparent"
   })
 
@@ -73,31 +104,33 @@ export function useAppState() {
       sysProxy.value = true
       msg.value = "STARTING..."
       const res = await Backend.ApplyState(true, true)
-      isProcessing.value = false
 
       if (res === "Success") {
         msg.value = "RUNNING"
         running.value = true
+        await new Promise(resolve => setTimeout(resolve, 1500))
       } else {
         msg.value = "ERROR"
         errorLog.value = res
         tunMode.value = false
         sysProxy.value = false
       }
+      isProcessing.value = false
     } else {
       tunMode.value = false
       sysProxy.value = false
       msg.value = "STOPPING..."
       const res = await Backend.ApplyState(false, false)
-      isProcessing.value = false
 
       if (res === "Success" || res === "Stopped") {
         msg.value = "STOPPED"
         running.value = false
+        await new Promise(resolve => setTimeout(resolve, 1500))
       } else {
         msg.value = "ERROR"
         errorLog.value = res
       }
+      isProcessing.value = false
     }
   }
 
@@ -120,17 +153,18 @@ export function useAppState() {
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
-    isProcessing.value = false
 
     if (res === "Success" || res === "Stopped") {
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
+      await new Promise(resolve => setTimeout(resolve, 1500))
     } else {
       msg.value = "ERROR"
       errorLog.value = res
       tunMode.value = !newTun
       sysProxy.value = !newProxy
     }
+    isProcessing.value = false
   }
 
   const handleMirrorToggle = async () => {
@@ -206,7 +240,7 @@ export function useAppState() {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnect, autoConnectMode,
     mirrorUrl, mirrorEnabled,
-    getStatusText, getStatusGlow, getControlBg,
+    getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectToggle,
     handleAutoConnectModeChange

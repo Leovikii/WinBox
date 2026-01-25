@@ -12,10 +12,20 @@ export const ACCENT_COLORS = [
   { name: 'Cyan', value: '#06b6d4' },
 ]
 
+// Cache for hexToRgb conversions to avoid repeated regex operations
+const rgbCache = new Map<string, string>()
+
 function hexToRgb(hex: string): string {
+  if (rgbCache.has(hex)) {
+    return rgbCache.get(hex)!
+  }
+
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return '37, 99, 235'
-  return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+
+  const rgb = `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+  rgbCache.set(hex, rgb)
+  return rgb
 }
 
 export function useTheme() {

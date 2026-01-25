@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import type { useAppState } from './useAppState'
@@ -18,6 +18,10 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   const showResetConfirm = ref(false)
   const showErrorAlert = ref(false)
   const errorAlertMessage = ref("")
+
+  // Store timeout IDs for cleanup
+  let updateStateTimeout: number | null = null
+  let editorCloseTimeout: number | null = null
 
   const checkUpdate = async () => {
     updateState.value = "checking"
@@ -42,7 +46,8 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
       appState.msg.value = "Updated!"
       localVer.value = remoteVer.value.replace("v", "")
       updateState.value = "success"
-      setTimeout(() => updateState.value = "idle", 2000)
+      if (updateStateTimeout) clearTimeout(updateStateTimeout)
+      updateStateTimeout = window.setTimeout(() => updateState.value = "idle", 2000)
     } else {
       appState.msg.value = "Failed"
       appState.errorLog.value = cleanLog(res)
@@ -80,7 +85,8 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
     if (res === "Success") {
       saveBtnText.value = "SAVED"
       if (appState.running.value && editingType.value !== 'mirror') appState.msg.value = "RESTART TO APPLY"
-      setTimeout(() => {
+      if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
+      editorCloseTimeout = window.setTimeout(() => {
         showEditor.value = false
       }, 800)
     } else {
@@ -113,6 +119,12 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
     EventsOn("download-progress", (pct: number) => {
       downloadProgress.value = pct
     })
+  })
+
+  onUnmounted(() => {
+    // Clean up any pending timeouts
+    if (updateStateTimeout) clearTimeout(updateStateTimeout)
+    if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
   })
 
   return {

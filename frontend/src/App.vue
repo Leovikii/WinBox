@@ -67,7 +67,7 @@ const handleAccentColorChange = (color: string) => {
       </div>
     </div>
 
-    <div :class="['absolute inset-0 pt-20 px-6 pb-8 flex flex-col justify-between items-center transition-all duration-500', isDrawerOpen ? 'scale-95 opacity-50' : 'scale-100 opacity-100']">
+    <div :class="['absolute inset-0 pt-20 px-6 pb-8 flex flex-col justify-between items-center transition-all duration-300', isDrawerOpen ? 'scale-95 opacity-50' : 'scale-100 opacity-100']">
       <DashboardControl
         :running="appState.running.value"
         :coreExists="appState.coreExists.value"
@@ -77,9 +77,9 @@ const handleAccentColorChange = (color: string) => {
         :isProcessing="appState.isProcessing.value"
         :activeProfile="profilesState.activeProfile.value"
         :errorLog="appState.errorLog.value"
-        :getStatusText="appState.getStatusText"
-        :getStatusGlow="appState.getStatusGlow"
-        :getControlBg="appState.getControlBg"
+        :getStatusText="appState.getStatusText.value"
+        :getStatusStyle="appState.getStatusStyle.value"
+        :getControlBg="appState.getControlBg.value"
         @toggle="handleToggle"
         @toggle-service="appState.handleServiceToggle"
         @open-drawer="activeDrawer = $event"

@@ -63,6 +63,7 @@ const modalClasses = computed(() => {
       'flex items-center justify-center transition-opacity duration-300',
       modelValue ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
     ]"
+    :style="{ contentVisibility: modelValue ? 'auto' : 'hidden' }"
     @click="handleBackdropClick"
   >
     <div :class="modalClasses" @click.stop class="flex flex-col">
