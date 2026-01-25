@@ -116,18 +116,22 @@ function App() {
     useEffect(() => {
         refreshData();
         const unsubStatus = EventsOn("status", (state: boolean) => setRunning(state));
+        const unsubStateSync = EventsOn("state-sync", (state: any) => {
+            setTunMode(state.tunMode);
+            setSysProxy(state.sysProxy);
+        });
         const unsubLog = EventsOn("log", (logMsg: string) => {
             const cleaned = cleanLog(logMsg);
             const ignoreKeywords = ["forcibly closed", "connection upload closed", "raw-read tcp", "use of closed network connection", "context canceled"];
             if (ignoreKeywords.some(k => cleaned.includes(k))) return;
             if (cleaned.includes("ERROR") || cleaned.includes("FATAL") || cleaned.includes("bind: address already in use") || cleaned.includes("Access is denied")) {
-                setMsg("ERROR"); setRunning(false); setErrorLog(cleaned); 
+                setMsg("ERROR"); setRunning(false); setErrorLog(cleaned);
             } else { setMsg(cleaned); }
         });
         const unsubProgress = EventsOn("download-progress", (pct: number) => {
             setDownloadProgress(pct);
         });
-        return () => { unsubStatus(); unsubLog(); unsubProgress(); };
+        return () => { unsubStatus(); unsubStateSync(); unsubLog(); unsubProgress(); };
     }, []);
 
     const refreshData = async () => {

@@ -56,6 +56,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.profileManager = NewProfileManager(a.storage, a.httpClient, appDir)
 	a.settingsManager = NewSettingsManager(a.storage)
 
+	// Clean up any residual processes/network configs from previous session
+	a.stopCore()
+
 	// Create directories
 	coreDir := filepath.Join(appDir, "data", "core")
 	profilesDir := filepath.Join(appDir, "data", "profiles")
@@ -63,6 +66,10 @@ func (a *App) Startup(ctx context.Context) {
 	os.MkdirAll(profilesDir, 0755)
 
 	meta, _ := a.storage.LoadMeta()
+
+	// Save previous state to detect mode changes
+	prevTunMode := meta.TunMode
+	prevSysProxy := meta.SysProxy
 
 	// Check if can auto start
 	coreExe := filepath.Join(coreDir, "sing-box.exe")
@@ -95,6 +102,10 @@ func (a *App) Startup(ctx context.Context) {
 		meta.TunMode = false
 		meta.SysProxy = false
 	}
+
+	// Detect mode change: if switching from proxy to tun, need to clean system proxy
+	modeChanged := (prevSysProxy && !meta.SysProxy) || (prevTunMode && !meta.TunMode)
+
 	a.storage.SaveMeta(meta)
 
 	a.StartTray()
@@ -112,13 +123,56 @@ func (a *App) Startup(ctx context.Context) {
 				time.Sleep(3 * time.Second)
 			}
 
+			// If switching from proxy mode to tun/off, need to clean system proxy first
+			if modeChanged && prevSysProxy {
+				// Temporarily restore old config to let sing-box clean system proxy
+				tempMeta := *meta
+				tempMeta.TunMode = prevTunMode
+				tempMeta.SysProxy = prevSysProxy
+				a.storage.SaveMeta(&tempMeta)
+
+				// Start with old config to trigger cleanup
+				a.startCore()
+				time.Sleep(500 * time.Millisecond)
+				a.stopCore()
+				time.Sleep(500 * time.Millisecond)
+
+				// Restore new config
+				a.storage.SaveMeta(meta)
+			}
+
 			if res := a.startCore(); res == "Success" {
+				meta, _ := a.storage.LoadMeta()
 				wailsRuntime.EventsEmit(a.ctx, "status", true)
+				wailsRuntime.EventsEmit(a.ctx, "state-sync", map[string]interface{}{
+					"tunMode":  meta.TunMode,
+					"sysProxy": meta.SysProxy,
+				})
 			} else {
 				wailsRuntime.EventsEmit(a.ctx, "status", false)
 				wailsRuntime.EventsEmit(a.ctx, "log", "AutoStart Failed: "+res)
 			}
 		}()
+	} else {
+		// If not auto-starting but had proxy enabled, clean it
+		if modeChanged && prevSysProxy {
+			go func() {
+				time.Sleep(1 * time.Second)
+				// Temporarily restore old config to clean system proxy
+				tempMeta := *meta
+				tempMeta.SysProxy = true
+				a.storage.SaveMeta(&tempMeta)
+
+				a.startCore()
+				time.Sleep(500 * time.Millisecond)
+				a.stopCore()
+
+				// Restore new config
+				a.storage.SaveMeta(meta)
+			}()
+		}
+		// Ensure frontend syncs with backend state when not auto-starting
+		wailsRuntime.EventsEmit(a.ctx, "status", false)
 	}
 }
 
