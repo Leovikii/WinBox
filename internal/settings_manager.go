@@ -115,3 +115,16 @@ func (sm *SettingsManager) SaveOverride(name, content string) error {
 
 	return sm.storage.SaveMeta(meta)
 }
+
+// SaveTheme saves theme settings
+func (sm *SettingsManager) SaveTheme(mode, accentColor string) error {
+	meta, err := sm.storage.LoadMeta()
+	if err != nil {
+		return err
+	}
+
+	meta.ThemeMode = mode
+	meta.AccentColor = accentColor
+
+	return sm.storage.SaveMeta(meta)
+}

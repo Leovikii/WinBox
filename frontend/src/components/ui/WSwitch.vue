@@ -34,7 +34,7 @@ const containerClasses = computed(() => {
   else classes.push('w-11 h-6')
 
   if (props.modelValue) {
-    if (props.color === 'blue') classes.push('bg-blue-600')
+    if (props.color === 'blue') classes.push('bg-[var(--accent-color)]')
     else if (props.color === 'purple') classes.push('bg-purple-600')
     else if (props.color === 'green') classes.push('bg-emerald-600')
   } else {

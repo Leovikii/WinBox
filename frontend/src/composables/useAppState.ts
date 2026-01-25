@@ -34,20 +34,14 @@ export function useAppState() {
     if (!coreExists.value || msg.value === "ERROR")
       return "text-red-500 drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]"
     if (!running.value) return "text-[#333] drop-shadow-none"
-    if (tunMode.value && sysProxy.value)
-      return "text-white drop-shadow-[0_0_35px_rgba(147,51,234,0.8)]"
-    if (tunMode.value)
-      return "text-white drop-shadow-[0_0_35px_rgba(37,99,235,0.8)]"
-    if (sysProxy.value)
-      return "text-white drop-shadow-[0_0_35px_rgba(168,85,247,0.8)]"
+    if (tunMode.value || sysProxy.value)
+      return "text-white drop-shadow-[0_0_35px_rgba(var(--accent-color-rgb),0.8)]"
     return "text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.5)]"
   })
 
   const getControlBg = computed(() => {
-    if (tunMode.value && sysProxy.value)
-      return "bg-gradient-to-br from-blue-600/40 via-purple-600/40 to-blue-900/40"
-    if (tunMode.value) return "bg-blue-600/20"
-    if (sysProxy.value) return "bg-purple-600/20"
+    if (tunMode.value || sysProxy.value)
+      return "bg-(--accent-color)/20"
     return "bg-transparent"
   })
 

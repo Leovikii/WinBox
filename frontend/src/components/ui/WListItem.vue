@@ -21,7 +21,7 @@ const itemClasses = computed(() => {
   if (props.clickable) classes.push('cursor-pointer')
 
   if (props.active) {
-    classes.push('bg-blue-600/10 border-blue-500/50 shadow-[0_0_20px_rgba(37,99,235,0.4)]')
+    classes.push('bg-[var(--accent-color)]/10 border-[var(--accent-color)]/50 shadow-[0_0_20px_rgba(var(--accent-color-rgb),0.4)]')
   } else {
     classes.push('bg-[#0f0f0f] border-[#2a2a2a] hover:bg-[#161616] hover:border-[#333]')
   }
@@ -31,7 +31,7 @@ const itemClasses = computed(() => {
 
 const titleClasses = computed(() => {
   const classes = ['text-xs font-bold truncate mb-0.5']
-  if (props.active) classes.push('text-blue-400')
+  if (props.active) classes.push('text-[var(--accent-color)]')
   else classes.push('text-gray-300')
   return classes.join(' ')
 })

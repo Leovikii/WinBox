@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea } from '@/components/ui'
+import { WButton, WSwitch, WSelect, WCard, WExpandable, WDivider, WModal, WTextarea } from '@/components/ui'
 import WColorPicker from '@/components/ui/WColorPicker.vue'
 
 defineProps<{
@@ -42,51 +42,22 @@ const emit = defineEmits<{
   'close-reset-confirm': []
   'close-error-alert': []
   'change-accent-color': [value: string]
+  'open-theme-modal': []
 }>()
 
 const showThemeModal = ref(false)
 const customColor = ref('#2563eb')
 
-const handleOpenThemeModal = () => {
-  showThemeModal.value = true
-}
-
-const handleCloseThemeModal = () => {
-  showThemeModal.value = false
-}
-
-const handleSelectPresetColor = (color: string) => {
-  customColor.value = color
-  emit('change-accent-color', color)
-}
-
-const handleCustomColorChange = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  customColor.value = target.value
-}
-
-const handleApplyCustomColor = () => {
-  emit('change-accent-color', customColor.value)
-  showThemeModal.value = false
-}
-
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 mica-bg border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : 'translate-y-full']">
-    <div class="h-12 shrink-0 flex justify-between items-center px-6 pt-2">
+  <div :class="['absolute inset-x-0 top-10 bottom-0 z-40 mica-bg border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : 'translate-y-full']">
+    <div class="h-10 shrink-0 flex justify-between items-center px-6">
       <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">System Settings</h2>
       <WButton variant="link" size="sm" @click="emit('close')">DONE</WButton>
     </div>
     <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
-      
-      <!-- CARD 1: GENERAL SETTINGS -->
       <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-cog text-gray-400 text-sm"></i>
-          <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">General Settings</h3>
-        </div>
-
         <!-- Local Kernel -->
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Local Kernel</span>
@@ -175,7 +146,7 @@ const handleApplyCustomColor = () => {
         </div>
 
         <WExpandable :expanded="autoConnect">
-          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a] min-h-10">
+          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
             <span class="text-xs font-bold text-gray-400">Startup Mode</span>
             <WSelect
               :model-value="autoConnectMode"
@@ -189,14 +160,8 @@ const handleApplyCustomColor = () => {
             />
           </div>
         </WExpandable>
-      </WCard>
 
-      <!-- CARD 2: CONFIGURATION -->
-      <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-file-code text-gray-400 text-sm"></i>
-          <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Configuration</h3>
-        </div>
+        <WDivider spacing="md" />
 
         <!-- TUN Config -->
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -209,24 +174,45 @@ const handleApplyCustomColor = () => {
           <span class="text-xs font-bold text-gray-400">Mixed Config</span>
           <WButton variant="secondary" size="sm" @click="emit('open-editor', 'mixed')">EDIT</WButton>
         </div>
-      </WCard>
 
-      <!-- CARD 3: APPEARANCE -->
-      <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-palette text-gray-400 text-sm"></i>
-          <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Appearance</h3>
+        <WDivider spacing="md" />
+
+        <!-- Theme Settings -->
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Theme Settings</span>
         </div>
 
-        <!-- Theme Color -->
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
-            <div class="flex items-center gap-2">
-              <div class="w-4 h-4 rounded-full border border-gray-600" :style="{ backgroundColor: accentColor }"></div>
-              <span>SELECT</span>
-            </div>
-          </WButton>
+        <!-- Theme Mode -->
+        <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
+          <span class="text-xs font-bold text-gray-400">Mode</span>
+          <WSelect
+            :model-value="themeMode"
+            @update:model-value="emit('change-theme-mode', $event)"
+            :options="[
+              { value: 'dark', label: 'DARK' },
+              { value: 'light', label: 'LIGHT' }
+            ]"
+            class="w-20"
+          />
+        </div>
+
+        <!-- Accent Color -->
+        <div class="flex flex-col gap-2 py-2 pl-4 border-l-2 border-[#2a2a2a]">
+          <span class="text-xs font-bold text-gray-400">Accent Color</span>
+          <WColorPicker
+            :model-value="accentColor"
+            @update:model-value="emit('change-accent-color', $event)"
+            :colors="[
+              { name: 'Blue', value: '#2563eb' },
+              { name: 'Purple', value: '#a855f7' },
+              { name: 'Pink', value: '#ec4899' },
+              { name: 'Red', value: '#ef4444' },
+              { name: 'Orange', value: '#f97316' },
+              { name: 'Green', value: '#10b981' },
+              { name: 'Teal', value: '#14b8a6' },
+              { name: 'Cyan', value: '#06b6d4' }
+            ]"
+          />
         </div>
       </WCard>
     </div>
@@ -280,64 +266,6 @@ const handleApplyCustomColor = () => {
       </div>
     </template>
   </WModal>
-
-  <!-- THEME COLOR MODAL -->
-  <WModal
-    :model-value="showThemeModal"
-    @update:model-value="handleCloseThemeModal"
-    title="THEME COLOR"
-    width="md"
-  >
-    <div class="space-y-4">
-      <!-- Preset Colors -->
-      <div>
-        <h4 class="text-xs font-bold text-gray-400 mb-3">PRESET COLORS</h4>
-        <WColorPicker
-          :model-value="accentColor"
-          @update:model-value="handleSelectPresetColor"
-          :colors="[
-            { name: 'Blue', value: '#2563eb' },
-            { name: 'Purple', value: '#a855f7' },
-            { name: 'Pink', value: '#ec4899' },
-            { name: 'Red', value: '#ef4444' },
-            { name: 'Orange', value: '#f97316' },
-            { name: 'Green', value: '#10b981' },
-            { name: 'Teal', value: '#14b8a6' },
-            { name: 'Cyan', value: '#06b6d4' }
-          ]"
-        />
-      </div>
-
-      <!-- Custom Color -->
-      <div>
-        <h4 class="text-xs font-bold text-gray-400 mb-3">CUSTOM COLOR</h4>
-        <div class="flex items-center gap-3">
-          <label class="relative cursor-pointer">
-            <input
-              type="color"
-              :value="customColor"
-              @input="handleCustomColorChange"
-              class="absolute inset-0 opacity-0 cursor-pointer"
-            />
-            <div class="w-12 h-12 rounded-full border-2 border-gray-600 flex items-center justify-center bg-linear-to-br from-red-500 via-green-500 to-blue-500 hover:border-gray-400 transition-colors">
-              <i class="fa-solid fa-edit text-white text-sm drop-shadow-lg"></i>
-            </div>
-          </label>
-          <div class="flex-1">
-            <div class="text-xs text-gray-400 mb-1">Click the circle to pick a custom color</div>
-            <div class="text-xs text-gray-500 font-mono">{{ customColor }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <template #footer>
-      <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" @click="handleCloseThemeModal">CANCEL</WButton>
-        <WButton variant="primary" class="flex-1" @click="handleApplyCustomColor">APPLY</WButton>
-      </div>
-    </template>
-  </WModal>
-
 
   <!-- ERROR ALERT MODAL -->
   <WModal

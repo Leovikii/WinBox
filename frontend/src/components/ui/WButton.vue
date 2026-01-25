@@ -32,7 +32,7 @@ const buttonClasses = computed(() => {
   else if (props.size === 'lg') classes.push('h-12 px-6 text-xs')
 
   if (props.variant === 'primary') {
-    classes.push('bg-blue-600 text-white hover:bg-blue-500 shadow-[0_4px_12px_rgba(37,99,235,0.4)] border border-blue-500')
+    classes.push('bg-[var(--accent-color)] text-white hover:brightness-110 shadow-[0_4px_12px_rgba(var(--accent-color-rgb),0.4)] border border-[var(--accent-color)]')
   } else if (props.variant === 'secondary') {
     classes.push('bg-[#1a1a1a] border border-[#333] text-gray-300 hover:bg-[#222]')
   } else if (props.variant === 'danger') {
@@ -44,7 +44,7 @@ const buttonClasses = computed(() => {
   } else if (props.variant === 'ghost') {
     classes.push('bg-transparent border border-[#333] text-gray-300 hover:bg-[#222]')
   } else if (props.variant === 'link') {
-    classes.push('bg-blue-500/10 text-blue-500 border-none hover:bg-blue-500/20')
+    classes.push('bg-[var(--accent-color)]/10 text-[var(--accent-color)] border-none hover:bg-[var(--accent-color)]/20')
   }
 
   if (props.disabled || props.loading) classes.push('opacity-60 cursor-not-allowed')

@@ -4,6 +4,7 @@ import * as Backend from '../wailsjs/go/internal/App';
 import { useAppState } from './composables/useAppState';
 import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
+import { useTheme } from './composables/useTheme';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import ProfilesDrawer from './components/ProfilesDrawer.vue';
@@ -18,6 +19,7 @@ const showQuitConfirm = ref(false);
 const appState = useAppState();
 const profilesState = useProfiles(appState);
 const kernelState = useKernelUpdate(appState);
+const themeState = useTheme();
 
 const minimize = () => Backend.Minimize();
 const minimizeToTray = () => Backend.MinimizeToTray();
@@ -38,6 +40,10 @@ const handleToggle = async (target: 'tun' | 'proxy') => {
   if (result && result.error === 'kernel-missing') {
     activeDrawer.value = 'settings';
   }
+};
+
+const handleAccentColorChange = (color: string) => {
+  themeState.setTheme(color);
 };
 </script>
 
@@ -100,6 +106,7 @@ const handleToggle = async (target: 'tun' | 'proxy') => {
       :showResetConfirm="kernelState.showResetConfirm.value"
       :showErrorAlert="kernelState.showErrorAlert.value"
       :errorAlertMessage="kernelState.errorAlertMessage.value"
+      :accentColor="themeState.accentColor.value"
       @close="activeDrawer = 'none'"
       @check-update="kernelState.checkUpdate"
       @perform-update="kernelState.performUpdate"
@@ -115,6 +122,7 @@ const handleToggle = async (target: 'tun' | 'proxy') => {
       @confirm-reset="kernelState.confirmReset"
       @close-reset-confirm="kernelState.showResetConfirm.value = false"
       @close-error-alert="kernelState.showErrorAlert.value = false"
+      @change-accent-color="handleAccentColorChange"
     />
 
     <ProfilesDrawer

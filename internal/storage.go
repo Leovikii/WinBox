@@ -72,6 +72,12 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	if meta.AutoConnectMode == "" {
 		meta.AutoConnectMode = "full"
 	}
+	if meta.ThemeMode == "" {
+		meta.ThemeMode = "dark"
+	}
+	if meta.AccentColor == "" {
+		meta.AccentColor = "#2563eb"
+	}
 
 	s.cache = &meta
 	s.cacheValid = true
@@ -152,5 +158,7 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		AutoConnect:     false,
 		AutoConnectMode: "full",
 		StartOnBoot:     false,
+		ThemeMode:       "dark",
+		AccentColor:     "#2563eb",
 	}
 }

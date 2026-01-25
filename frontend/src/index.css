@@ -1,12 +1,17 @@
 @import "tailwindcss";
 
+:root {
+    --accent-color: #2563eb;
+    --accent-color-rgb: 37, 99, 235;
+}
+
 body {
     background: transparent;
     overflow: hidden;
     user-select: none;
 }
 
-/* Windows 11 Mica Material Effect */
+/* Windows 11 Mica Material Effect - Dark Mode Only */
 @supports (backdrop-filter: blur(40px)) {
     .mica-bg {
         background: linear-gradient(135deg,

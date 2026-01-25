@@ -38,8 +38,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 top-10 bottom-0 z-40 mica-bg border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : '-translate-y-full']">
-    <div class="h-10 shrink-0 flex justify-between items-center px-6">
+  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 mica-bg border-t border-[#2a2a2a]/50 flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]', isOpen ? 'translate-y-0' : '-translate-y-full']">
+    <div class="h-12 shrink-0 flex justify-between items-center px-6 pt-2">
       <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">Profiles Manager</h2>
       <WButton variant="link" size="sm" @click="emit('close')">DONE</WButton>
     </div>
@@ -48,7 +48,7 @@ const emit = defineEmits<{
       <WCard variant="mica" padding="none">
         <div class="p-4 flex justify-between items-center">
           <span class="text-xs font-bold text-gray-400">Current Profile</span>
-          <span class="text-xs text-blue-400 font-bold font-mono truncate max-w-xs">{{ activeProfile ? activeProfile.name : "None" }}</span>
+          <span class="text-xs text-(--accent-color) font-bold font-mono truncate max-w-xs">{{ activeProfile ? activeProfile.name : "None" }}</span>
         </div>
         <div class="px-4 pb-4 pt-3">
           <div class="flex justify-between items-center h-10">
