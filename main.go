@@ -4,6 +4,8 @@ import (
 	"embed"
 	"os"
 
+	"WinBox/internal"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -25,7 +27,7 @@ func main() {
 		}
 	}
 
-	app := NewApp(icon, startMinimized)
+	app := internal.NewApp(icon, startMinimized)
 
 	err := wails.Run(&options.App{
 		Title:         "WinBox",
@@ -37,8 +39,8 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 0},
-		OnStartup:        app.startup,
-		OnShutdown:       app.onShutdown,
+		OnStartup:        app.Startup,
+		OnShutdown:       app.OnShutdown,
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId: "c79c67f4-c24c-4e4b-8c67-0e6e7e112345",
 			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {

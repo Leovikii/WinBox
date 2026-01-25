@@ -17,6 +17,7 @@ go.sum
 # User Data & Local Configs
 data/
 core/
+.claude/
 
 # IDE settings
 .vscode/
