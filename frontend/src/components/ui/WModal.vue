@@ -37,7 +37,7 @@ const modalClasses = computed(() => {
   const classes = [
     'mica-card border border-[#333] rounded-xl',
     'shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden',
-    'transform transition-all duration-300'
+    'transform transition-transform duration-300'
   ]
 
   if (props.width === 'sm') classes.push('w-[70%]')
@@ -59,7 +59,7 @@ const modalClasses = computed(() => {
 <template>
   <div
     :class="[
-      'absolute inset-0 z-80 bg-black/60 backdrop-blur-sm',
+      'absolute inset-0 z-80 bg-black/90',
       'flex items-center justify-center transition-opacity duration-300',
       modelValue ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
     ]"
