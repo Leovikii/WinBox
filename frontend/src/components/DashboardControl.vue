@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ComputedRef } from 'vue'
-import { WButton, WIconButton, WSwitch, WDivider } from '@/components/ui'
+import { WButton, WIconButton, WDivider } from '@/components/ui'
 
 defineProps<{
   running: boolean
@@ -42,17 +42,18 @@ const emit = defineEmits<{
   <div class="w-full flex-1 flex flex-col justify-center relative">
     <div :class="['w-full bg-[#111] border border-[#222] rounded-xl p-8 flex flex-col gap-6 relative overflow-hidden transition-opacity duration-500', isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100']">
       <div :class="['absolute inset-0 blur-[32px] opacity-40 pointer-events-none transition-opacity duration-1000', getControlBg]"></div>
-      <!-- TUN Mode Glow -->
-      <div v-if="tunMode" class="absolute inset-0 bg-(--accent-color)/10 blur-[40px] pointer-events-none transition-opacity duration-1000"></div>
-      <!-- Proxy Mode Glow -->
-      <div v-if="sysProxy" class="absolute inset-0 bg-(--accent-color)/10 blur-[40px] pointer-events-none transition-opacity duration-1000"></div>
+      <!-- Mode-specific glows -->
+      <div v-if="tunMode && sysProxy" class="absolute inset-0 bg-[#a855f7]/10 blur-2xl pointer-events-none transition-opacity duration-1000"></div>
+      <div v-else-if="tunMode" class="absolute inset-0 bg-[#3b82f6]/10 blur-2xl pointer-events-none transition-opacity duration-1000"></div>
+      <div v-else-if="sysProxy" class="absolute inset-0 bg-[#10b981]/10 blur-2xl pointer-events-none transition-opacity duration-1000"></div>
       <div class="text-center z-10 cursor-pointer group relative" @click="() => { if (msg === 'ERROR' || errorLog) { emit('open-drawer', 'logs') } else { emit('toggle-service') } }">
         <!-- Hover Glow Effect -->
         <div :class="[
           'absolute inset-0 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none',
-          (running && (tunMode || sysProxy)) ? 'bg-(--accent-color)/20' :
-          running ? 'bg-emerald-500/20' :
-          msg === 'ERROR' ? 'bg-red-500/20' :
+          (tunMode && sysProxy) ? 'bg-[#a855f7]/20' :
+          tunMode ? 'bg-[#3b82f6]/20' :
+          sysProxy ? 'bg-[#10b981]/20' :
+          msg === 'ERROR' ? 'bg-[#ef4444]/20' :
           'bg-gray-500/20'
         ]"></div>
         <div :class="['text-4xl font-black tracking-tighter transition-transform duration-500 whitespace-nowrap relative z-10', getStatusGlow, 'group-hover:scale-105']">{{ getStatusText }}</div>
@@ -65,7 +66,7 @@ const emit = defineEmits<{
         <!-- TUN MODE -->
         <div @click="emit('toggle', 'tun')" class="flex items-center justify-between cursor-pointer group select-none py-1">
           <div class="flex items-center gap-4">
-            <div :class="['w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm transition-colors duration-500', tunMode ? 'bg-(--accent-color) text-white shadow-[0_0_12px_1px_rgba(var(--accent-color-rgb),0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
+            <div :class="['w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm transition-colors duration-500', tunMode ? 'bg-[#3b82f6] text-white shadow-[0_0_12px_1px_rgba(59,130,246,0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
               <i class="fas fa-shield-alt"></i>
             </div>
             <div class="flex flex-col min-w-0">
@@ -73,13 +74,15 @@ const emit = defineEmits<{
               <div class="text-[9px] text-[#444] whitespace-nowrap group-hover:text-[#555] transition-colors">Virtual Network Interface</div>
             </div>
           </div>
-          <WSwitch :model-value="tunMode" />
+          <div class="rounded-full p-0.5 cursor-pointer transition-colors duration-300 relative w-11 h-6" :class="tunMode ? 'bg-[#3b82f6]' : 'bg-[#2a2a2a]'">
+            <div class="bg-white rounded-full transition-transform duration-300 shadow-lg absolute top-1 left-1 w-4 h-4" :class="tunMode ? 'translate-x-5' : 'translate-x-0'"></div>
+          </div>
         </div>
 
         <!-- SYSTEM PROXY -->
         <div @click="emit('toggle', 'proxy')" class="flex items-center justify-between cursor-pointer group select-none py-1">
           <div class="flex items-center gap-4">
-            <div :class="['w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm transition-colors duration-500', sysProxy ? 'bg-(--accent-color) text-white shadow-[0_0_12px_1px_rgba(var(--accent-color-rgb),0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
+            <div :class="['w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-sm transition-colors duration-500', sysProxy ? 'bg-[#10b981] text-white shadow-[0_0_12px_1px_rgba(16,185,129,0.6)]' : 'bg-[#1a1a1a] text-[#444] group-hover:text-[#666] group-hover:bg-[#222]']">
               <i class="fas fa-globe"></i>
             </div>
             <div class="flex flex-col min-w-0">
@@ -87,7 +90,9 @@ const emit = defineEmits<{
               <div class="text-[9px] text-[#444] whitespace-nowrap group-hover:text-[#555] transition-colors">Global HTTP Proxy</div>
             </div>
           </div>
-          <WSwitch :model-value="sysProxy" />
+          <div class="rounded-full p-0.5 cursor-pointer transition-colors duration-300 relative w-11 h-6" :class="sysProxy ? 'bg-[#10b981]' : 'bg-[#2a2a2a]'">
+            <div class="bg-white rounded-full transition-transform duration-300 shadow-lg absolute top-1 left-1 w-4 h-4" :class="sysProxy ? 'translate-x-5' : 'translate-x-0'"></div>
+          </div>
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { ref, computed, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { cleanLog } from '../utils/logUtils'
+import { getModeColor, getTunModeColor, getProxyModeColor } from '../utils/modeColors'
 
 export function useAppState() {
   const running = ref(false)
@@ -29,17 +30,44 @@ export function useAppState() {
   })
 
   const getStatusGlow = computed(() => {
+    const color = getModeColor(
+      tunMode.value,
+      sysProxy.value,
+      msg.value === "ERROR" || !coreExists.value,
+      running.value
+    )
+
     if (!coreExists.value || msg.value === "ERROR")
-      return "text-red-500 drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]"
+      return `text-[${color.hex}] drop-shadow-[0_0_25px_rgba(${color.rgb},0.8)]`
+
     if (!running.value) return "text-[#333] drop-shadow-none"
+
+    if (tunMode.value && sysProxy.value)
+      return `text-white drop-shadow-[0_0_35px_rgba(${color.rgb},0.8)]`
+
     if (tunMode.value || sysProxy.value)
-      return "text-white drop-shadow-[0_0_35px_rgba(var(--accent-color-rgb),0.8)]"
+      return `text-white drop-shadow-[0_0_35px_rgba(${color.rgb},0.8)]`
+
     return "text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.5)]"
   })
 
   const getControlBg = computed(() => {
+    const color = getModeColor(
+      tunMode.value,
+      sysProxy.value,
+      msg.value === "ERROR" || !coreExists.value,
+      running.value
+    )
+
+    if (msg.value === "ERROR" || !coreExists.value)
+      return `bg-[${color.hex}]/20`
+
+    if (tunMode.value && sysProxy.value)
+      return `bg-[${color.hex}]/20`
+
     if (tunMode.value || sysProxy.value)
-      return "bg-[var(--accent-color)]/20"
+      return `bg-[${color.hex}]/20`
+
     return "bg-transparent"
   })
 
