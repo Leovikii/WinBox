@@ -20,8 +20,8 @@
   "info": {
     "productName": "WinBox",
     "companyName": "WB Inc.",
-    "productVersion": "1.4.2",
-    "fileVersion": "1.4.2",
+    "productVersion": "1.4.1",
+    "fileVersion": "1.4.1",
     "copyright": "Copyright © 2025",
     "comments": "Built using Wails",
     "fileDescription": "Sing-Box Windows GUI"

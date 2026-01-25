@@ -529,7 +529,12 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 
 	if wasRunning {
 		a.startCore()
+		meta, _ := a.storage.LoadMeta()
 		wailsRuntime.EventsEmit(a.ctx, "status", true)
+		wailsRuntime.EventsEmit(a.ctx, "state-sync", map[string]interface{}{
+			"tunMode":  meta.TunMode,
+			"sysProxy": meta.SysProxy,
+		})
 	}
 
 	return "Success"
