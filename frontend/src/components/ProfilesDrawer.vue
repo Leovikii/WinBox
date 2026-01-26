@@ -38,23 +38,22 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 top-12 bottom-0 z-40 bg-[#090909]/95 backdrop-blur-3xl flex flex-col transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] backface-hidden contain-[layout_style_paint]', isOpen ? 'translate-y-0' : '-translate-y-full']">
-    <div class="h-10 shrink-0 flex justify-between items-center px-6 border-b border-[#222]">
-      <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">Profiles Manager</h2>
-      <WButton variant="link" size="sm" @click="emit('close')">DONE</WButton>
+  <div class="w-full h-full flex flex-col bg-[#090909]">
+    <div class="h-16 shrink-0 flex items-center px-6">
+      <h2 class="text-xs font-bold text-[#555] uppercase tracking-[0.2em]">Profiles Manager</h2>
     </div>
 
-    <div class="relative flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar [&::-webkit-scrollbar]:hidden bg-[#0a0a0a]">
-      <WCard variant="default" padding="none">
-        <div class="p-4 flex justify-between items-center">
+    <div class="flex-1 overflow-y-auto px-4 pb-28 space-y-6 custom-scrollbar [&::-webkit-scrollbar]:hidden">
+      <WCard variant="default" padding="none" class="overflow-hidden">
+        <div class="p-4 flex justify-between items-center bg-[#111]">
           <span class="text-xs font-bold text-gray-400">Current Profile</span>
           <span class="text-xs text-(--accent-color) font-bold font-mono truncate max-w-xs">{{ activeProfile ? activeProfile.name : "None" }}</span>
         </div>
-        <div class="px-4 pb-4 pt-3">
+        <div class="px-4 pb-4 pt-4 bg-[#0a0a0a]">
           <div class="flex justify-between items-center h-10">
-            <span class="text-xs font-bold text-gray-400">Subscription</span>
+            <span class="text-xs font-bold text-gray-500">Last Updated</span>
             <div class="flex items-center gap-3">
-              <span class="text-[10px] text-[#666] font-mono">{{ activeProfile && activeProfile.updated ? activeProfile.updated : "Never" }}</span>
+              <span class="text-[10px] text-[#444] font-mono">{{ activeProfile && activeProfile.updated ? activeProfile.updated : "Never" }}</span>
               <WButton 
                 variant="secondary" 
                 size="sm" 
@@ -70,9 +69,9 @@ const emit = defineEmits<{
         </div>
       </WCard>
 
-      <WCard variant="default" padding="none">
-        <div class="p-4 flex justify-between items-center">
-          <span class="text-xs font-bold text-gray-400">Add New Profile</span>
+      <WCard variant="default" padding="none" class="overflow-hidden">
+        <div class="p-4 flex justify-between items-center bg-[#111] border-b border-[#222]">
+          <span class="text-xs font-bold text-gray-400">All Profiles</span>
           <WButton 
             variant="primary" 
             size="sm" 
@@ -83,7 +82,7 @@ const emit = defineEmits<{
             ADD
           </WButton>
         </div>
-        <div class="p-3">
+        <div class="p-2 bg-[#0a0a0a]">
           <WListItem
             v-for="p in profiles"
             :key="p.id"
@@ -112,7 +111,6 @@ const emit = defineEmits<{
     </div>
   </div>
 
-  <!-- ADD PROFILE MODAL -->
   <WModal 
     :model-value="showAddProfileModal"
     @update:model-value="emit('update:showAddProfileModal', $event)"
@@ -142,7 +140,6 @@ const emit = defineEmits<{
     </template>
   </WModal>
 
-  <!-- EDIT PROFILE MODAL -->
   <WModal 
     :model-value="showEditProfileModal"
     @update:model-value="emit('update:showEditProfileModal', $event)"
@@ -172,7 +169,6 @@ const emit = defineEmits<{
     </template>
   </WModal>
 
-  <!-- DELETE CONFIRMATION MODAL -->
   <WModal
     :model-value="showDeleteConfirm"
     @update:model-value="emit('close-delete-confirm')"

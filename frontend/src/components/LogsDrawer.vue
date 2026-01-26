@@ -21,21 +21,20 @@ const copyLog = () => {
 </script>
 
 <template>
-  <div :class="['absolute inset-x-0 bottom-0 top-12 z-60 flex flex-col transition-transform duration-500 backface-hidden contain-[layout_style_paint]', isOpen ? 'translate-y-0' : 'translate-y-full']">
-    <!-- Fixed backdrop-filter background layer -->
-    <div class="absolute inset-0 bg-[#090909]/95 backdrop-blur-xl pointer-events-none"></div>
+  <div class="w-full h-full flex flex-col bg-[#090909]">
+    <div class="h-16 shrink-0 flex items-center justify-between px-6 border-b border-[#222]/50">
+      <h2 class="text-xs font-bold text-[#555] uppercase tracking-[0.2em]">Runtime Logs</h2>
+    </div>
+    
+    <div class="flex-1 overflow-y-auto p-4 pb-28 custom-scrollbar [&::-webkit-scrollbar]:hidden">
+      <pre class="text-[10px] text-gray-400 font-mono whitespace-pre-wrap break-all leading-relaxed">{{ errorLog || "> No active logs available." }}</pre>
+    </div>
 
-    <div class="relative h-12 border-b border-[#222] flex items-center justify-between px-6">
-      <h2 class="text-xs font-bold text-[#666] uppercase tracking-widest">LOGS</h2>
-      <WButton variant="secondary" size="sm" @click="emit('close')">CLOSE</WButton>
-    </div>
-    <div class="relative flex-1 overflow-y-auto p-6 bg-[#050505] custom-scrollbar [&::-webkit-scrollbar]:hidden">
-      <pre class="text-[10px] text-gray-400 font-mono whitespace-pre-wrap break-all">{{ errorLog || "No logs." }}</pre>
-    </div>
-    <div class="relative p-4 border-t border-[#222] flex justify-end">
+    <div class="absolute bottom-24 right-4 z-10">
       <WButton
         :variant="copyState === 'COPIED!' ? 'success' : 'secondary'"
         size="sm"
+        class="shadow-lg backdrop-blur-md bg-[#222]/80"
         @click="copyLog"
       >
         {{ copyState }}
