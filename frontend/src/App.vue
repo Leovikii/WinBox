@@ -116,6 +116,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :getControlBg="appState.getControlBg.value"
             :localVer="kernelState.localVer.value"
             :accentColor="themeState.accentColor.value"
+            :hasDashboard="true"
             @toggle="handleToggle"
             @toggle-service="appState.handleServiceToggle"
             @switch-mode="handleSwitchMode"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { WCapsuleSwitch } from './ui'
+import { WCapsuleSwitch, WButton } from './ui'
 
 const props = defineProps<{
   running: boolean
@@ -12,11 +12,13 @@ const props = defineProps<{
   getStatusStyle: { color: string; filter: string }
   localVer: string
   accentColor: string
+  hasDashboard: boolean
 }>()
 
 const emit = defineEmits<{
   'toggle-service': []
   'switch-mode': [{ tunMode: boolean, sysProxy: boolean }]
+  'open-dashboard': []
 }>()
 </script>
 
@@ -52,6 +54,28 @@ const emit = defineEmits<{
             {{ activeProfile?.name || 'No Profile Selected' }}
           </span>
         </div>
+      </div>
+
+      <div class="relative h-0">
+        <Transition
+          enter-active-class="transition-all duration-300"
+          enter-from-class="opacity-0 scale-90"
+          enter-to-class="opacity-100 scale-100"
+          leave-active-class="transition-all duration-200"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-90"
+        >
+          <div v-if="running && (tunMode || sysProxy) && !isProcessing && hasDashboard" class="absolute left-1/2 -translate-x-1/2 top-4">
+            <WButton
+              variant="link"
+              size="sm"
+              icon="fas fa-gauge"
+              @click="emit('open-dashboard')"
+            >
+              DASHBOARD
+            </WButton>
+          </div>
+        </Transition>
       </div>
     </div>
 
