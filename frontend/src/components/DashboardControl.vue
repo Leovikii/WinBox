@@ -41,7 +41,7 @@ const emit = defineEmits<{
   <div class="w-full flex-1 flex flex-col justify-center relative">
     <div :class="['w-full bg-[#111] border border-[#222] rounded-xl p-8 flex flex-col gap-6 relative overflow-hidden transition-opacity duration-300', isProcessing ? 'opacity-80 pointer-events-none grayscale' : 'opacity-100']">
       <div class="text-center z-10 cursor-pointer group relative" @click="() => { if (msg === 'ERROR' || errorLog) { emit('open-drawer', 'logs') } else { emit('toggle-service') } }">
-        <div :class="['text-4xl font-black tracking-tighter whitespace-nowrap relative z-10 transition-all duration-300 group-hover:scale-[1.02]', running ? '[text-shadow:0_0_20px_currentColor,0_0_10px_currentColor]' : '']" :style="getStatusStyle">{{ getStatusText }}</div>
+        <div class="text-4xl font-black tracking-tighter whitespace-nowrap relative z-10 transition-all duration-300 group-hover:scale-[1.02]" :style="getStatusStyle">{{ getStatusText }}</div>
         <div class="text-[9px] text-[#444] group-hover:text-[#666] font-mono uppercase tracking-widest mt-2 h-3 transition-colors duration-200 relative z-10">{{ msg === "ERROR" ? "VIEW ERROR LOGS" : (running ? "TAP TO STOP" : "TAP TO START") }}</div>
       </div>
       

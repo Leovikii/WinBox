@@ -39,6 +39,8 @@ const handleToggle = async (target: 'tun' | 'proxy') => {
   const result = await appState.handleToggle(target);
   if (result && result.error === 'kernel-missing') {
     activeDrawer.value = 'settings';
+  } else if (result && result.error === 'config-missing') {
+    activeDrawer.value = 'profiles';
   }
 };
 

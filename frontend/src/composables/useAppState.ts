@@ -40,13 +40,13 @@ export function useAppState() {
       return { color: '#9E9E9E !important', filter: 'none' }
 
     if (tunMode.value && sysProxy.value)
-      return { color: '#C5A3BF !important', filter: 'drop-shadow(0 0 35px rgba(139, 127, 168, 0.8))' }
+      return { color: '#C5A3BF !important', filter: 'drop-shadow(0 0 25px rgba(139, 127, 168, 0.8))' }
 
     if (tunMode.value)
-      return { color: '#89C3EB !important', filter: 'drop-shadow(0 0 35px rgba(83, 131, 195, 0.8))' }
+      return { color: '#89C3EB !important', filter: 'drop-shadow(0 0 25px rgba(83, 131, 195, 0.8))' }
 
     if (sysProxy.value)
-      return { color: '#7EBEAB !important', filter: 'drop-shadow(0 0 35px rgba(56, 180, 139, 0.8))' }
+      return { color: '#7EBEAB !important', filter: 'drop-shadow(0 0 25px rgba(56, 180, 139, 0.8))' }
 
     return { color: '#F0F0F0 !important', filter: 'drop-shadow(0 0 25px rgba(224, 224, 224, 0.5))' }
   })
@@ -148,21 +148,28 @@ export function useAppState() {
     if (target === 'tun') newTun = !tunMode.value
     if (target === 'proxy') newProxy = !sysProxy.value
 
-    tunMode.value = newTun
-    sysProxy.value = newProxy
+    // Don't update UI state optimistically - wait for backend confirmation
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
     if (res === "Success" || res === "Stopped") {
+      // Only update state after backend confirms success
+      tunMode.value = newTun
+      sysProxy.value = newProxy
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
+    } else if (res === "config-missing") {
+      // Config missing - don't change state, return error to open settings
+      msg.value = "ERROR"
+      errorLog.value = "No active configuration selected"
+      isProcessing.value = false
+      return { error: 'config-missing' }
     } else {
+      // Other errors - don't change state
       msg.value = "ERROR"
       errorLog.value = res
-      tunMode.value = !newTun
-      sysProxy.value = !newProxy
     }
     isProcessing.value = false
   }
