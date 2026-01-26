@@ -44,6 +44,58 @@ func (a *App) getAppDir() string {
 	return filepath.Dir(exe)
 }
 
+// Helper: Configure auto-start mode settings
+func (a *App) configureAutoStartMode(meta *MetaData, mode string) {
+	switch mode {
+	case "tun":
+		meta.TunMode = true
+		meta.SysProxy = false
+	case "proxy":
+		meta.TunMode = false
+		meta.SysProxy = true
+	default:
+		meta.TunMode = true
+		meta.SysProxy = true
+	}
+}
+
+// Helper: Clean system proxy by temporarily starting with old config
+func (a *App) cleanSystemProxy(meta *MetaData, prevTunMode, prevSysProxy bool) {
+	tempMeta := *meta
+	tempMeta.TunMode = prevTunMode
+	tempMeta.SysProxy = prevSysProxy
+	a.storage.SaveMeta(&tempMeta)
+
+	a.startCore()
+	time.Sleep(500 * time.Millisecond)
+	a.stopCore()
+	time.Sleep(500 * time.Millisecond)
+
+	a.storage.SaveMeta(meta)
+}
+
+// Helper: Handle auto-start process
+func (a *App) handleAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunMode bool) {
+	go func() {
+		if a.startMinimized {
+			time.Sleep(3 * time.Second)
+		}
+
+		if modeChanged && prevSysProxy {
+			a.cleanSystemProxy(meta, prevTunMode, prevSysProxy)
+		}
+
+		if res := a.startCore(); res == "Success" {
+			meta, _ := a.storage.LoadMeta()
+			wailsRuntime.EventsEmit(a.ctx, "status", true)
+			a.emitStateSync(meta)
+		} else {
+			wailsRuntime.EventsEmit(a.ctx, "status", false)
+			wailsRuntime.EventsEmit(a.ctx, "log", "AutoStart Failed: "+res)
+		}
+	}()
+}
+
 // Startup is called when the app starts
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
@@ -76,20 +128,19 @@ func (a *App) Startup(ctx context.Context) {
 	os.MkdirAll(profilesDir, 0755)
 
 	meta, _ := a.storage.LoadMeta()
-
-	// Save previous state to detect mode changes
 	prevTunMode := meta.TunMode
 	prevSysProxy := meta.SysProxy
 
 	// Check if can auto start
 	coreExe := filepath.Join(coreDir, "sing-box.exe")
-	_, errCore := os.Stat(coreExe)
-	kernelExists := errCore == nil
+	kernelExists := true
+	if _, err := os.Stat(coreExe); os.IsNotExist(err) {
+		kernelExists = false
+	}
 
 	profileExists := false
 	if meta.ActiveID != "" {
-		realProfilePath := filepath.Join(profilesDir, meta.ActiveID+".json")
-		if _, err := os.Stat(realProfilePath); err == nil {
+		if _, err := a.findActiveProfilePath(meta); err == nil {
 			profileExists = true
 		}
 	}
@@ -97,25 +148,13 @@ func (a *App) Startup(ctx context.Context) {
 	canAutoStart := kernelExists && profileExists && meta.AutoConnect
 
 	if canAutoStart {
-		switch meta.AutoConnectMode {
-		case "tun":
-			meta.TunMode = true
-			meta.SysProxy = false
-		case "proxy":
-			meta.TunMode = false
-			meta.SysProxy = true
-		default:
-			meta.TunMode = true
-			meta.SysProxy = true
-		}
+		a.configureAutoStartMode(meta, meta.AutoConnectMode)
 	} else {
 		meta.TunMode = false
 		meta.SysProxy = false
 	}
 
-	// Detect mode change: if switching from proxy to tun, need to clean system proxy
 	modeChanged := (prevSysProxy && !meta.SysProxy) || (prevTunMode && !meta.TunMode)
-
 	a.storage.SaveMeta(meta)
 
 	a.StartTray()
@@ -128,60 +167,20 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	if canAutoStart {
-		go func() {
-			if a.startMinimized {
-				time.Sleep(3 * time.Second)
-			}
-
-			// If switching from proxy mode to tun/off, need to clean system proxy first
-			if modeChanged && prevSysProxy {
-				// Temporarily restore old config to let sing-box clean system proxy
-				tempMeta := *meta
-				tempMeta.TunMode = prevTunMode
-				tempMeta.SysProxy = prevSysProxy
-				a.storage.SaveMeta(&tempMeta)
-
-				// Start with old config to trigger cleanup
-				a.startCore()
-				time.Sleep(500 * time.Millisecond)
-				a.stopCore()
-				time.Sleep(500 * time.Millisecond)
-
-				// Restore new config
-				a.storage.SaveMeta(meta)
-			}
-
-			if res := a.startCore(); res == "Success" {
-				meta, _ := a.storage.LoadMeta()
-				wailsRuntime.EventsEmit(a.ctx, "status", true)
-				wailsRuntime.EventsEmit(a.ctx, "state-sync", map[string]interface{}{
-					"tunMode":  meta.TunMode,
-					"sysProxy": meta.SysProxy,
-				})
-			} else {
-				wailsRuntime.EventsEmit(a.ctx, "status", false)
-				wailsRuntime.EventsEmit(a.ctx, "log", "AutoStart Failed: "+res)
-			}
-		}()
+		a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
 	} else {
-		// If not auto-starting but had proxy enabled, clean it
 		if modeChanged && prevSysProxy {
 			go func() {
 				time.Sleep(1 * time.Second)
-				// Temporarily restore old config to clean system proxy
 				tempMeta := *meta
 				tempMeta.SysProxy = true
 				a.storage.SaveMeta(&tempMeta)
-
 				a.startCore()
 				time.Sleep(500 * time.Millisecond)
 				a.stopCore()
-
-				// Restore new config
 				a.storage.SaveMeta(meta)
 			}()
 		}
-		// Ensure frontend syncs with backend state when not auto-starting
 		wailsRuntime.EventsEmit(a.ctx, "status", false)
 	}
 }
@@ -251,28 +250,41 @@ func (a *App) Quit() {
 	wailsRuntime.Quit(a.ctx)
 }
 
+// Helper: Find active profile path
+func (a *App) findActiveProfilePath(meta *MetaData) (string, error) {
+	for _, p := range meta.Profiles {
+		if p.ID == meta.ActiveID {
+			profilePath := filepath.Join(a.getAppDir(), "data", "profiles", p.ID+".json")
+			if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+				return "", os.ErrNotExist
+			}
+			return profilePath, nil
+		}
+	}
+	return "", os.ErrNotExist
+}
+
+// Helper: Emit state sync event
+func (a *App) emitStateSync(meta *MetaData) {
+	wailsRuntime.EventsEmit(a.ctx, "state-sync", map[string]interface{}{
+		"tunMode":  meta.TunMode,
+		"sysProxy": meta.SysProxy,
+	})
+}
+
 // Core management methods
 func (a *App) startCore() string {
 	meta, _ := a.storage.LoadMeta()
 
-	var activeProfilePath string
-	found := false
-	for _, p := range meta.Profiles {
-		if p.ID == meta.ActiveID {
-			activeProfilePath = filepath.Join(a.getAppDir(), "data", "profiles", p.ID+".json")
-			found = true
-			break
+	activeProfilePath, err := a.findActiveProfilePath(meta)
+	if err != nil {
+		if err == os.ErrNotExist {
+			return "Error: No active profile selected"
 		}
+		return "Error: Profile file missing"
 	}
 
-	if !found {
-		return "Error: No active profile selected"
-	}
-	if _, err := os.Stat(activeProfilePath); os.IsNotExist(err) {
-		return "Error: Profile file missing at " + activeProfilePath
-	}
-
-	err := a.coreManager.Start(activeProfilePath, meta.TunMode, meta.SysProxy, meta.TunConfig, meta.MixedConfig)
+	err = a.coreManager.Start(activeProfilePath, meta.TunMode, meta.SysProxy, meta.TunConfig, meta.MixedConfig)
 	if err != nil {
 		return "Error: " + err.Error()
 	}
@@ -380,6 +392,13 @@ func (a *App) SaveTheme(mode, accentColor string) string {
 func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 	meta, _ := a.storage.LoadMeta()
 
+	// Check if active profile exists before attempting to start
+	if targetTun || targetProxy {
+		if _, err := a.findActiveProfilePath(meta); err != nil {
+			return "config-missing"
+		}
+	}
+
 	needsRestart := (meta.TunMode != targetTun) || (meta.SysProxy != targetProxy)
 	if !a.coreManager.IsRunning() {
 		needsRestart = true
@@ -456,31 +475,22 @@ func (a *App) OpenDashboard() {
 	wailsRuntime.BrowserOpenURL(a.ctx, "http://127.0.0.1:9090/ui")
 }
 
-func (a *App) UpdateKernel(mirrorUrl string) string {
-	wasRunning := a.coreManager.IsRunning()
-	if wasRunning {
-		a.stopCore()
-		time.Sleep(1 * time.Second)
-	}
-
+// Helper: Download kernel release from GitHub
+func (a *App) downloadKernelRelease(mirrorUrl string) (string, error) {
 	appDir := a.getAppDir()
 	coreDir := filepath.Join(appDir, "data", "core")
 	tmpFile := filepath.Join(coreDir, "update.zip")
 
-	defer func() {
-		os.Remove(tmpFile)
-	}()
-
 	wailsRuntime.EventsEmit(a.ctx, "log", "Fetching release info...")
 	resp, err := a.httpClient.Get("https://api.github.com/repos/SagerNet/sing-box/releases/latest")
 	if err != nil {
-		return "Network Error"
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	var res ReleaseInfo
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "Parse Error"
+		return "", err
 	}
 
 	targetArch := runtime.GOARCH
@@ -490,7 +500,7 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	case "arm64":
 		targetArch = "windows-arm64"
 	default:
-		return "Unsupported Arch: " + targetArch
+		return "", os.ErrInvalid
 	}
 
 	var downloadUrl string
@@ -502,7 +512,7 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	}
 
 	if downloadUrl == "" {
-		return "No matching asset found"
+		return "", os.ErrNotExist
 	}
 
 	if mirrorUrl != "" {
@@ -516,25 +526,29 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	wailsRuntime.EventsEmit(a.ctx, "download-progress", 0)
 
 	if err := a.httpClient.Download(downloadUrl, tmpFile, a.ctx); err != nil {
-		return "Download Fail"
+		return "", err
 	}
 
+	return tmpFile, nil
+}
+
+// Helper: Extract kernel executable from zip file
+func (a *App) extractKernelFromZip(zipPath, targetDir string) error {
 	wailsRuntime.EventsEmit(a.ctx, "log", "Extracting...")
 
-	zipReader, err := zip.OpenReader(tmpFile)
+	zipReader, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return "Zip Error"
+		return err
 	}
 	defer zipReader.Close()
 
-	foundExe := false
 	for _, f := range zipReader.File {
 		if strings.HasSuffix(f.Name, ".exe") && strings.Contains(filepath.Base(f.Name), "sing-box") {
 			src, err := f.Open()
 			if err != nil {
 				continue
 			}
-			dstPath := filepath.Join(coreDir, "sing-box.exe")
+			dstPath := filepath.Join(targetDir, "sing-box.exe")
 			dst, err := os.Create(dstPath)
 			if err != nil {
 				src.Close()
@@ -543,12 +557,36 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 			io.Copy(dst, src)
 			src.Close()
 			dst.Close()
-			foundExe = true
-			break
+			return nil
 		}
 	}
 
-	if !foundExe {
+	return os.ErrNotExist
+}
+
+func (a *App) UpdateKernel(mirrorUrl string) string {
+	wasRunning := a.coreManager.IsRunning()
+	if wasRunning {
+		a.stopCore()
+		time.Sleep(1 * time.Second)
+	}
+
+	appDir := a.getAppDir()
+	coreDir := filepath.Join(appDir, "data", "core")
+
+	tmpFile, err := a.downloadKernelRelease(mirrorUrl)
+	if err != nil {
+		if err == os.ErrInvalid {
+			return "Unsupported Arch: " + runtime.GOARCH
+		}
+		if err == os.ErrNotExist {
+			return "No matching asset found"
+		}
+		return "Download Fail"
+	}
+	defer os.Remove(tmpFile)
+
+	if err := a.extractKernelFromZip(tmpFile, coreDir); err != nil {
 		return "exe not found in zip"
 	}
 
@@ -556,10 +594,7 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 		a.startCore()
 		meta, _ := a.storage.LoadMeta()
 		wailsRuntime.EventsEmit(a.ctx, "status", true)
-		wailsRuntime.EventsEmit(a.ctx, "state-sync", map[string]interface{}{
-			"tunMode":  meta.TunMode,
-			"sysProxy": meta.SysProxy,
-		})
+		a.emitStateSync(meta)
 	}
 
 	return "Success"
