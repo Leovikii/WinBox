@@ -62,6 +62,15 @@ const handleToggle = async (target: 'tun' | 'proxy') => {
   }
 };
 
+const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean }) => {
+  const result = await appState.handleSwitchMode(target);
+  if (result && result.error === 'kernel-missing') {
+    switchTab('settings');
+  } else if (result && result.error === 'config-missing') {
+    switchTab('profiles');
+  }
+};
+
 const handleAccentColorChange = (color: string) => {
   themeState.setTheme(color);
 };
@@ -73,7 +82,9 @@ const transitionName = computed(() => `slide-${direction.value}`);
   <div class="h-screen w-screen relative bg-[#090909] text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-[#0a0a0a] z-60 relative border-b border-white/5" style="--wails-draggable: drag">
       <div class="text-xs font-bold tracking-[0.2em] text-[#888] flex items-center gap-2.5">
-        <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div> WINBOX
+        <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
+        WINBOX
+        <span class="text-xs font-medium text-white/30 tracking-normal">v2.5.0</span>
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
@@ -103,9 +114,12 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :getStatusText="appState.getStatusText.value"
             :getStatusStyle="appState.getStatusStyle.value"
             :getControlBg="appState.getControlBg.value"
+            :localVer="kernelState.localVer.value"
+            :accentColor="themeState.accentColor.value"
             @toggle="handleToggle"
             @toggle-service="appState.handleServiceToggle"
-            @open-drawer="(target) => switchTab(target as TabType)"
+            @switch-mode="handleSwitchMode"
+            @open-drawer="(target: string) => switchTab(target as TabType)"
             @open-dashboard="Backend.OpenDashboard"
           />
         </div>

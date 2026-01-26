@@ -1,61 +1,61 @@
 <script setup lang="ts">
-import * as Backend from '../../wailsjs/go/internal/App'
 import { WCapsuleSwitch } from './ui'
 
-defineProps<{
+const props = defineProps<{
   running: boolean
   coreExists: boolean
-  msg: string
   tunMode: boolean
   sysProxy: boolean
   isProcessing: boolean
   activeProfile: any
-  errorLog: string
   getStatusText: string
   getStatusStyle: { color: string; filter: string }
-  getControlBg: string
+  localVer: string
+  accentColor: string
 }>()
 
 const emit = defineEmits<{
-  'toggle': [target: 'tun' | 'proxy']
   'toggle-service': []
-  'open-drawer': [drawer: 'settings' | 'profiles' | 'logs']
-  'open-dashboard': []
-  'quit': []
+  'switch-mode': [{ tunMode: boolean, sysProxy: boolean }]
 }>()
-
-const handleLeftClick = () => {
-  Backend.ApplyState(true, false)
-}
-
-const handleRightClick = () => {
-  Backend.ApplyState(false, true)
-}
-
-const handleCenterClick = (running: boolean) => {
-  if (running) {
-    emit('toggle-service')
-  } else {
-    Backend.ApplyState(true, true)
-  }
-}
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col items-center justify-center relative pb-32">
-    
-    <div class="flex flex-col items-center justify-center mb-16 relative z-10 pointer-events-none">
-      <div 
-        class="text-6xl font-black tracking-tighter whitespace-nowrap transition-all duration-500 select-none flex flex-col items-center pointer-events-auto" 
+  <div class="w-full h-full flex flex-col items-center relative pb-28">
+    <div class="flex-1"></div>
+
+    <div class="relative z-10 pointer-events-auto flex flex-col items-center">
+      <div
+        class="text-5xl font-black tracking-tighter whitespace-nowrap transition-all duration-500 select-none mb-5"
         :style="getStatusStyle"
       >
         {{ getStatusText }}
       </div>
-      
-      <div class="text-[10px] font-mono tracking-[0.4em] text-white/30 mt-6 uppercase h-4">
-        {{ msg === 'ERROR' ? 'Check Logs' : (running ? 'Active Service' : 'Ready to Connect') }}
+
+      <div class="flex flex-col gap-2.5 w-auto">
+        <div class="flex items-center justify-between gap-8 group cursor-default">
+          <span class="text-[10px] text-white/25 uppercase tracking-[0.15em] font-medium transition-colors duration-200 group-hover:text-white/40">Kernel Version</span>
+          <span
+            class="text-[10px] uppercase tracking-[0.15em] font-medium transition-all duration-200 group-hover:brightness-110"
+            :style="{ color: accentColor }"
+          >
+            {{ localVer || 'Not Installed' }}
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between gap-8 group cursor-default">
+          <span class="text-[10px] text-white/25 uppercase tracking-[0.15em] font-medium transition-colors duration-200 group-hover:text-white/40">Active Profile</span>
+          <span
+            class="text-[10px] uppercase tracking-[0.15em] font-medium transition-all duration-200 group-hover:brightness-110"
+            :style="{ color: accentColor }"
+          >
+            {{ activeProfile?.name || 'No Profile Selected' }}
+          </span>
+        </div>
       </div>
     </div>
+
+    <div class="flex-1"></div>
 
     <div class="w-full px-8 max-w-sm z-20 relative">
       <WCapsuleSwitch
@@ -63,11 +63,10 @@ const handleCenterClick = (running: boolean) => {
         :sys-proxy="sysProxy"
         :running="running"
         :is-processing="isProcessing"
-        @click-left="handleLeftClick"
-        @click-right="handleRightClick"
-        @click-center="() => handleCenterClick(running)"
+        @switch-mode="(target) => emit('switch-mode', target)"
       />
     </div>
 
+    <div class="flex-1"></div>
   </div>
 </template>

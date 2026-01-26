@@ -135,6 +135,9 @@ export function useAppState() {
   }
 
   const handleToggle = async (target: 'tun' | 'proxy') => {
+    console.log('handleToggle called with target:', target)
+    console.log('Current state - running:', running.value, 'tunMode:', tunMode.value, 'sysProxy:', sysProxy.value)
+
     if (isProcessing.value) return
     if (!coreExists.value) {
       msg.value = "KERNEL MISSING!"
@@ -148,10 +151,13 @@ export function useAppState() {
     if (target === 'tun') newTun = !tunMode.value
     if (target === 'proxy') newProxy = !sysProxy.value
 
+    console.log('New state will be - tunMode:', newTun, 'sysProxy:', newProxy)
+
     // Don't update UI state optimistically - wait for backend confirmation
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
+    console.log('Backend.ApplyState response:', res)
 
     if (res === "Success" || res === "Stopped") {
       // Only update state after backend confirms success
@@ -168,6 +174,45 @@ export function useAppState() {
       return { error: 'config-missing' }
     } else {
       // Other errors - don't change state
+      msg.value = "ERROR"
+      errorLog.value = res
+    }
+    isProcessing.value = false
+  }
+
+  const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean }) => {
+    console.log('handleSwitchMode called with target:', target)
+    console.log('Current state - running:', running.value, 'tunMode:', tunMode.value, 'sysProxy:', sysProxy.value)
+
+    if (isProcessing.value) return
+    if (!coreExists.value) {
+      msg.value = "KERNEL MISSING!"
+      return { error: 'kernel-missing' }
+    }
+
+    isProcessing.value = true
+    const newTun = target.tunMode
+    const newProxy = target.sysProxy
+
+    console.log('New state will be - tunMode:', newTun, 'sysProxy:', newProxy)
+
+    msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
+
+    const res = await Backend.ApplyState(newTun, newProxy)
+    console.log('Backend.ApplyState response:', res)
+
+    if (res === "Success" || res === "Stopped") {
+      tunMode.value = newTun
+      sysProxy.value = newProxy
+      msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
+      running.value = newTun || newProxy
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    } else if (res === "config-missing") {
+      msg.value = "ERROR"
+      errorLog.value = "No active configuration selected"
+      isProcessing.value = false
+      return { error: 'config-missing' }
+    } else {
       msg.value = "ERROR"
       errorLog.value = res
     }
@@ -248,7 +293,7 @@ export function useAppState() {
     errorLog, startOnBoot, autoConnect, autoConnectMode,
     mirrorUrl, mirrorEnabled,
     getStatusText, getStatusStyle, getControlBg,
-    handleToggle, handleServiceToggle, refreshData, handleMirrorToggle,
+    handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectToggle,
     handleAutoConnectModeChange
   }
