@@ -1,16 +1,29 @@
-// WinBox UI Component Library
-// Barrel export file for all UI components
+import WButton from './WButton.vue'
+import WIconButton from './WIconButton.vue'
+import WInput from './WInput.vue'
+import WSelect from './WSelect.vue'
+import WSwitch from './WSwitch.vue'
+import WModal from './WModal.vue'
+import WCard from './WCard.vue'
+import WDivider from './WDivider.vue'
+import WListItem from './WListItem.vue'
+import WTextarea from './WTextarea.vue'
+import WExpandable from './WExpandable.vue'
+import WNavBar from './WNavBar.vue'
+import WCapsuleSwitch from './WCapsuleSwitch.vue'
 
-export { default as WButton } from './WButton.vue'
-export { default as WIconButton } from './WIconButton.vue'
-export { default as WCard } from './WCard.vue'
-export { default as WInput } from './WInput.vue'
-export { default as WTextarea } from './WTextarea.vue'
-export { default as WSelect } from './WSelect.vue'
-export { default as WSwitch } from './WSwitch.vue'
-export { default as WModal } from './WModal.vue'
-export { default as WDivider } from './WDivider.vue'
-export { default as WListItem } from './WListItem.vue'
-export { default as WExpandable } from './WExpandable.vue'
-
-export * from './types'
+export {
+  WButton,
+  WIconButton,
+  WInput,
+  WSelect,
+  WSwitch,
+  WModal,
+  WCard,
+  WDivider,
+  WListItem,
+  WTextarea,
+  WExpandable,
+  WNavBar,
+  WCapsuleSwitch
+}
