@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import * as Backend from '../wailsjs/go/internal/App';
+import wailsConfig from '@wails';
 import { useAppState } from './composables/useAppState';
 import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
@@ -84,7 +85,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
       <div class="text-xs font-bold tracking-[0.2em] text-[#888] flex items-center gap-2.5">
         <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
         WINBOX
-        <span class="text-xs font-medium text-white/30 tracking-normal">v2.5.0</span>
+        <span class="text-xs font-medium text-white/30 tracking-normal">v{{ wailsConfig.info.productVersion }}</span>
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
