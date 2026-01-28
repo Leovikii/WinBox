@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,23 +18,69 @@ import (
 
 // CoreManager manages the sing-box core process with thread safety
 type CoreManager struct {
-	mu      sync.RWMutex
-	cmd     *exec.Cmd
-	running bool
-	ctx     context.Context
-	appDir  string
+	mu         sync.RWMutex
+	cmd        *exec.Cmd
+	running    bool
+	ctx        context.Context
+	appDir     string
+	logBuffer  *LogBuffer // Buffer for real-time logs
+}
+
+// LogBuffer stores recent log lines in memory
+type LogBuffer struct {
+	mu    sync.RWMutex
+	lines []string
+	max   int
+}
+
+// NewLogBuffer creates a new log buffer
+func NewLogBuffer(maxLines int) *LogBuffer {
+	return &LogBuffer{
+		lines: make([]string, 0, maxLines),
+		max:   maxLines,
+	}
+}
+
+// Append adds a line to the buffer
+func (lb *LogBuffer) Append(line string) {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+
+	lb.lines = append(lb.lines, line)
+	if len(lb.lines) > lb.max {
+		lb.lines = lb.lines[len(lb.lines)-lb.max:]
+	}
+}
+
+// GetAll returns all buffered lines
+func (lb *LogBuffer) GetAll() string {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	if len(lb.lines) == 0 {
+		return ""
+	}
+	return strings.Join(lb.lines, "\n")
+}
+
+// Clear clears the buffer
+func (lb *LogBuffer) Clear() {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+	lb.lines = make([]string, 0, lb.max)
 }
 
 // NewCoreManager creates a new core manager
 func NewCoreManager(appDir string, ctx context.Context) *CoreManager {
 	return &CoreManager{
-		appDir: appDir,
-		ctx:    ctx,
+		appDir:    appDir,
+		ctx:       ctx,
+		logBuffer: NewLogBuffer(5000), // Store last 5000 lines
 	}
 }
 
 // Start starts the core process with thread safety
-func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConfig, mixedConfig string) error {
+func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConfig, mixedConfig string, ipv6Enabled bool, logLevel string, logToFile bool) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -50,7 +97,7 @@ func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConf
 	}
 
 	// Process config
-	if err := cm.processConfig(profilePath, runtimeConfig, tunMode, sysProxy, tunConfig, mixedConfig); err != nil {
+	if err := cm.processConfig(profilePath, runtimeConfig, tunMode, sysProxy, tunConfig, mixedConfig, ipv6Enabled, logLevel, logToFile); err != nil {
 		return fmt.Errorf("config gen error: %w", err)
 	}
 
@@ -59,8 +106,16 @@ func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConf
 
 	SetCmdWindowHidden(cm.cmd)
 
-	var stderr bytes.Buffer
-	cm.cmd.Stderr = &stderr
+	// Capture both stdout and stderr
+	stdoutPipe, err := cm.cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("stdout pipe error: %w", err)
+	}
+
+	stderrPipe, err := cm.cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("stderr pipe error: %w", err)
+	}
 
 	if err := cm.cmd.Start(); err != nil {
 		return fmt.Errorf("start error: %w", err)
@@ -68,8 +123,12 @@ func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConf
 
 	cm.running = true
 
+	// Monitor stdout in background
+	go cm.captureOutput(stdoutPipe)
+	// Monitor stderr in background
+	go cm.captureOutput(stderrPipe)
 	// Monitor process in background
-	go cm.monitorProcess(&stderr)
+	go cm.monitorProcess()
 
 	return nil
 }
@@ -129,7 +188,7 @@ func (cm *CoreManager) GetLocalVersion() string {
 }
 
 // processConfig processes the configuration file
-func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, enableProxy bool, tunConfig, mixedConfig string) error {
+func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, enableProxy bool, tunConfig, mixedConfig string, ipv6Enabled bool, logLevel string, logToFile bool) error {
 	content, err := os.ReadFile(srcPath)
 	if err != nil {
 		return err
@@ -140,11 +199,27 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 		return err
 	}
 
+	// Process inbounds
 	newInbounds := make([]interface{}, 0)
 
 	if enableTun {
 		var tunMap map[string]interface{}
 		if json.Unmarshal([]byte(tunConfig), &tunMap) == nil {
+			// Handle IPv6 support
+			if !ipv6Enabled {
+				if addresses, ok := tunMap["address"].([]interface{}); ok {
+					filtered := make([]interface{}, 0)
+					for _, addr := range addresses {
+						if addrStr, ok := addr.(string); ok {
+							// Remove IPv6 address (fdfe:dcba:9876::1/126)
+							if addrStr != "fdfe:dcba:9876::1/126" {
+								filtered = append(filtered, addr)
+							}
+						}
+					}
+					tunMap["address"] = filtered
+				}
+			}
 			newInbounds = append(newInbounds, tunMap)
 		}
 	}
@@ -158,6 +233,16 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 
 	config["inbounds"] = newInbounds
 
+	// Process log configuration
+	logConfig := map[string]interface{}{
+		"level":     logLevel,
+		"timestamp": true,
+	}
+	if logToFile {
+		logConfig["output"] = "box.log"
+	}
+	config["log"] = logConfig
+
 	newContent, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
@@ -169,7 +254,7 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 }
 
 // monitorProcess monitors the core process and emits events
-func (cm *CoreManager) monitorProcess(stderr *bytes.Buffer) {
+func (cm *CoreManager) monitorProcess() {
 	cm.cmd.Wait()
 
 	cm.mu.Lock()
@@ -177,7 +262,23 @@ func (cm *CoreManager) monitorProcess(stderr *bytes.Buffer) {
 	cm.mu.Unlock()
 
 	wailsRuntime.EventsEmit(cm.ctx, "status", false)
-	if stderr.Len() > 0 {
-		wailsRuntime.EventsEmit(cm.ctx, "log", "CORE STOPPED: "+stderr.String())
+}
+
+// captureOutput captures output from stdout/stderr and stores in buffer
+func (cm *CoreManager) captureOutput(pipe interface{}) {
+	scanner := bufio.NewScanner(pipe.(interface{ Read([]byte) (int, error) }))
+	for scanner.Scan() {
+		line := scanner.Text()
+		cm.logBuffer.Append(line)
 	}
+}
+
+// GetLogBuffer returns the current log buffer content
+func (cm *CoreManager) GetLogBuffer() string {
+	return cm.logBuffer.GetAll()
+}
+
+// ClearLogBuffer clears the log buffer
+func (cm *CoreManager) ClearLogBuffer() {
+	cm.logBuffer.Clear()
 }

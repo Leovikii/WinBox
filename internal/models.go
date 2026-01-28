@@ -33,6 +33,9 @@ type MetaData struct {
 	StartOnBoot     bool      `json:"start_on_boot"`
 	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"
 	AccentColor     string    `json:"accent_color"`      // hex color code
+	IPv6Enabled     bool      `json:"ipv6_enabled"`      // IPv6 support toggle
+	LogLevel        string    `json:"log_level"`         // Log level: debug, info, warning, error
+	LogToFile       bool      `json:"log_to_file"`       // Save logs to file
 	Profiles        []Profile `json:"profiles"`
 }
 

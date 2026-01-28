@@ -19,6 +19,10 @@ export function useAppState() {
   const mirrorUrl = ref("")
   const mirrorEnabled = ref(false)
 
+  const ipv6Enabled = ref(true)
+  const logLevel = ref("warning")
+  const logToFile = ref(true)
+
   const getStatusText = computed(() => {
     if (!coreExists.value) return "WARNING"
     if (msg.value === "ERROR") return "ERROR"
@@ -86,6 +90,9 @@ export function useAppState() {
     autoConnectMode.value = data.autoConnectMode
     mirrorUrl.value = data.mirror
     mirrorEnabled.value = data.mirrorEnabled
+    ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
+    logLevel.value = data.log_level || "warning"
+    logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
     return data
   }
 
@@ -252,6 +259,23 @@ export function useAppState() {
     if (res === "Success") autoConnectMode.value = mode
   }
 
+  const handleIPv6Toggle = async () => {
+    const newState = !ipv6Enabled.value
+    const res = await Backend.ToggleIPv6(newState)
+    if (res === "Success") ipv6Enabled.value = newState
+    else alert(res)
+  }
+
+  const handleLogConfigChange = async (level: string, toFile: boolean) => {
+    const res = await Backend.SetLogConfig(level, toFile)
+    if (res === "Success") {
+      logLevel.value = level
+      logToFile.value = toFile
+    } else {
+      alert(res)
+    }
+  }
+
   const setupEventListeners = () => {
     EventsOn("status", (state: boolean) => {
       running.value = state
@@ -263,19 +287,13 @@ export function useAppState() {
     })
 
     EventsOn("log", (logMsg: string) => {
+      // Only handle app-level messages, not kernel logs
+      // App-level messages: "STARTING...", "STOPPED", "ERROR", etc.
       const cleaned = cleanLog(logMsg)
-      const ignoreKeywords = [
-        "forcibly closed", "connection upload closed", "raw-read tcp",
-        "use of closed network connection", "context canceled"
-      ]
 
-      if (ignoreKeywords.some(k => cleaned.includes(k))) return
-
-      if (cleaned.includes("ERROR") || cleaned.includes("FATAL") ||
-          cleaned.includes("bind: address already in use") ||
-          cleaned.includes("Access is denied")) {
+      // Check if this is an app-level error message
+      if (cleaned.startsWith("Error:") || cleaned.includes("failed")) {
         msg.value = "ERROR"
-        running.value = false
         errorLog.value = cleaned
       } else {
         msg.value = cleaned
@@ -291,10 +309,10 @@ export function useAppState() {
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnect, autoConnectMode,
-    mirrorUrl, mirrorEnabled,
+    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectToggle,
-    handleAutoConnectModeChange
+    handleAutoConnectModeChange, handleIPv6Toggle, handleLogConfigChange
   }
 }

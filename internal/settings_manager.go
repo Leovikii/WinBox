@@ -128,3 +128,65 @@ func (sm *SettingsManager) SaveTheme(mode, accentColor string) error {
 
 	return sm.storage.SaveMeta(meta)
 }
+
+// SetIPv6Enabled sets IPv6 support and updates TunConfig accordingly
+func (sm *SettingsManager) SetIPv6Enabled(enabled bool) error {
+	meta, err := sm.storage.LoadMeta()
+	if err != nil {
+		return err
+	}
+
+	meta.IPv6Enabled = enabled
+
+	// Update TunConfig to add/remove IPv6 address
+	var tunMap map[string]interface{}
+	if err := json.Unmarshal([]byte(meta.TunConfig), &tunMap); err == nil {
+		if addresses, ok := tunMap["address"].([]interface{}); ok {
+			ipv6Addr := "fdfe:dcba:9876::1/126"
+
+			if enabled {
+				// Add IPv6 address if not present
+				hasIPv6 := false
+				for _, addr := range addresses {
+					if addrStr, ok := addr.(string); ok && addrStr == ipv6Addr {
+						hasIPv6 = true
+						break
+					}
+				}
+				if !hasIPv6 {
+					addresses = append(addresses, ipv6Addr)
+					tunMap["address"] = addresses
+				}
+			} else {
+				// Remove IPv6 address
+				filtered := make([]interface{}, 0)
+				for _, addr := range addresses {
+					if addrStr, ok := addr.(string); ok && addrStr != ipv6Addr {
+						filtered = append(filtered, addr)
+					}
+				}
+				tunMap["address"] = filtered
+			}
+
+			// Save updated TunConfig back to meta
+			if updatedConfig, err := json.MarshalIndent(tunMap, "", "  "); err == nil {
+				meta.TunConfig = string(updatedConfig)
+			}
+		}
+	}
+
+	return sm.storage.SaveMeta(meta)
+}
+
+// SetLogConfig sets log configuration
+func (sm *SettingsManager) SetLogConfig(level string, toFile bool) error {
+	meta, err := sm.storage.LoadMeta()
+	if err != nil {
+		return err
+	}
+
+	meta.LogLevel = level
+	meta.LogToFile = toFile
+
+	return sm.storage.SaveMeta(meta)
+}

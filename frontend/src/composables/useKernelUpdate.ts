@@ -115,6 +115,18 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
     }
   }
 
+  const switchEditorTab = async (type: "tun" | "mixed") => {
+    editingType.value = type
+    saveBtnText.value = "SAVE"
+    const content = await Backend.GetOverride(type)
+    try {
+      const obj = JSON.parse(content)
+      editorContent.value = JSON.stringify(obj, null, 2)
+    } catch {
+      editorContent.value = content
+    }
+  }
+
   onMounted(() => {
     EventsOn("download-progress", (pct: number) => {
       downloadProgress.value = pct
@@ -131,6 +143,6 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
     localVer, remoteVer, updateState, downloadProgress,
     showEditor, editingType, editorContent, saveBtnText,
     showResetConfirm, showErrorAlert, errorAlertMessage,
-    checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset
+    checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
   }
 }

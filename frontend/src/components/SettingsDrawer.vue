@@ -27,6 +27,9 @@ defineProps<{
   showErrorAlert: boolean
   errorAlertMessage: string
   accentColor: string
+  ipv6Enabled: boolean
+  logLevel: string
+  logToFile: boolean
 }>()
 
 const emit = defineEmits<{
@@ -48,6 +51,9 @@ const emit = defineEmits<{
   'close-reset-confirm': []
   'close-error-alert': []
   'change-accent-color': [value: string]
+  'toggle-ipv6': []
+  'change-log-config': [level: string, toFile: boolean]
+  'switch-editor-tab': [type: 'tun' | 'mixed']
 }>()
 
 const showThemeModal = ref(false)
@@ -255,17 +261,37 @@ const handleApplyCustomColor = () => {
       <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-file-code text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Parameters</h3>
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Config Overrides</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">TUN Config</span>
+          <span class="text-xs font-bold text-gray-400">Inbound Config</span>
           <WButton variant="secondary" size="sm" @click="emit('open-editor', 'tun')">EDIT</WButton>
         </div>
-        
+
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Mixed Config</span>
-          <WButton variant="secondary" size="sm" @click="emit('open-editor', 'mixed')">EDIT</WButton>
+          <span class="text-xs font-bold text-gray-400">IPv6 Support</span>
+          <WSwitch :model-value="ipv6Enabled" @update:model-value="emit('toggle-ipv6')" />
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Log Level</span>
+          <WSelect
+            :model-value="logLevel"
+            @update:model-value="emit('change-log-config', $event, logToFile)"
+            :options="[
+              { value: 'debug', label: 'DEBUG' },
+              { value: 'info', label: 'INFO' },
+              { value: 'warning', label: 'WARNING' },
+              { value: 'error', label: 'ERROR' }
+            ]"
+            class="w-24"
+          />
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Save Logs</span>
+          <WSwitch :model-value="logToFile" @update:model-value="emit('change-log-config', logLevel, $event)" />
         </div>
       </WCard>
 
@@ -295,7 +321,27 @@ const handleApplyCustomColor = () => {
     height="lg"
   >
     <template #header>
-      <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest whitespace-nowrap">EDIT {{ editingType.toUpperCase() }}</h2>
+      <div class="flex items-center gap-4">
+        <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest whitespace-nowrap">
+          EDIT {{ editingType === 'mirror' ? 'MIRROR' : 'INBOUND' }}
+        </h2>
+        <div v-if="editingType !== 'mirror'" class="flex gap-2">
+          <WButton
+            :variant="editingType === 'tun' ? 'primary' : 'secondary'"
+            size="sm"
+            @click="emit('switch-editor-tab', 'tun')"
+          >
+            TUN
+          </WButton>
+          <WButton
+            :variant="editingType === 'mixed' ? 'primary' : 'secondary'"
+            size="sm"
+            @click="emit('switch-editor-tab', 'mixed')"
+          >
+            MIXED
+          </WButton>
+        </div>
+      </div>
     </template>
     <div class="relative h-full flex flex-col">
       <WTextarea

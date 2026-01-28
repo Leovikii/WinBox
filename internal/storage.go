@@ -74,6 +74,10 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	if meta.AccentColor == "" {
 		meta.AccentColor = "#2563eb"
 	}
+	if meta.LogLevel == "" {
+		meta.LogLevel = "warning"
+	}
+	// IPv6 enabled by default (no check needed, bool defaults to false)
 
 	s.cache = &meta
 	s.cacheValid = true
@@ -129,5 +133,8 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		StartOnBoot:     false,
 		ThemeMode:       "dark",
 		AccentColor:     "#2563eb",
+		IPv6Enabled:     true,
+		LogLevel:        "warning",
+		LogToFile:       true,
 	}
 }

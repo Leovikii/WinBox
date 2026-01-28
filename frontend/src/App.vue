@@ -195,6 +195,9 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :showErrorAlert="kernelState.showErrorAlert.value"
             :errorAlertMessage="kernelState.errorAlertMessage.value"
             :accentColor="themeState.accentColor.value"
+            :ipv6Enabled="appState.ipv6Enabled.value"
+            :logLevel="appState.logLevel.value"
+            :logToFile="appState.logToFile.value"
             @close="switchTab('home')"
             @check-program-update="programState.checkProgramUpdate"
             @perform-program-update="programState.performProgramUpdate"
@@ -213,6 +216,9 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @close-reset-confirm="kernelState.showResetConfirm.value = false"
             @close-error-alert="kernelState.showErrorAlert.value = false"
             @change-accent-color="handleAccentColorChange"
+            @toggle-ipv6="appState.handleIPv6Toggle"
+            @change-log-config="appState.handleLogConfigChange"
+            @switch-editor-tab="kernelState.switchEditorTab"
           />
         </div>
       </Transition>
