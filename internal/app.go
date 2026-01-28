@@ -16,6 +16,14 @@ import (
 // App Structure
 // ============================================================================
 
+// TrayIcons holds all tray icon data
+type TrayIcons struct {
+	Default []byte
+	Tun     []byte
+	Proxy   []byte
+	Full    []byte
+}
+
 // App struct represents the main application
 type App struct {
 	ctx                context.Context
@@ -27,13 +35,20 @@ type App struct {
 	httpClient         *HTTPClient
 	appLogger          *AppLogger
 	iconData           []byte
+	trayIcons          *TrayIcons
 	startMinimized     bool
 }
 
 // NewApp creates a new App application struct
-func NewApp(icon []byte, startMinimized bool) *App {
+func NewApp(icon []byte, trayDefault, trayTun, trayProxy, trayFull []byte, startMinimized bool) *App {
 	return &App{
-		iconData:       icon,
+		iconData: icon,
+		trayIcons: &TrayIcons{
+			Default: trayDefault,
+			Tun:     trayTun,
+			Proxy:   trayProxy,
+			Full:    trayFull,
+		},
 		startMinimized: startMinimized,
 	}
 }
@@ -109,6 +124,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.storage.SaveMeta(meta)
 
 	a.StartTray()
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		a.UpdateTrayIcon()
+	}()
 
 	if a.startMinimized {
 		go func() {

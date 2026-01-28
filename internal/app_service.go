@@ -101,6 +101,7 @@ func (a *App) startCore() string {
 		return "Error: " + err.Error()
 	}
 	a.appLogger.Info("Core started successfully")
+	go a.UpdateTrayIcon()
 	return "Success"
 }
 
@@ -112,6 +113,7 @@ func (a *App) stopCore() string {
 		return "Error: " + err.Error()
 	}
 	a.appLogger.Info("Core stopped")
+	go a.UpdateTrayIcon()
 	return "Stopped"
 }
 
@@ -153,6 +155,7 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 		return a.startCore()
 	}
 
+	go a.UpdateTrayIcon()
 	return "Success"
 }
 

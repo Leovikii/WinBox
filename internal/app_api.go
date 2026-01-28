@@ -136,6 +136,19 @@ func (a *App) SetLogConfig(level string, toFile bool) string {
 	return "Success"
 }
 
+// SetLogAutoRefresh sets log auto-refresh preference
+func (a *App) SetLogAutoRefresh(enabled bool) string {
+	meta, err := a.storage.LoadMeta()
+	if err != nil {
+		return "Error: " + err.Error()
+	}
+	meta.LogAutoRefresh = enabled
+	if err := a.storage.SaveMeta(meta); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
 // ============================================================================
 // Log Management API
 // ============================================================================
@@ -250,6 +263,7 @@ func (a *App) GetInitData() map[string]interface{} {
 		"ipv6_enabled":      meta.IPv6Enabled,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
+		"log_auto_refresh":  meta.LogAutoRefresh,
 	}
 }
 
@@ -259,15 +273,22 @@ func (a *App) GetInitData() map[string]interface{} {
 
 // limitLogLines limits log content to the last N lines
 func limitLogLines(content string, maxLines int) string {
-	lines := strings.Split(content, "\n")
-	if len(lines) <= maxLines {
+	if content == "" {
 		return content
 	}
 
-	// Return last maxLines
-	startIndex := len(lines) - maxLines
-	limitedLines := lines[startIndex:]
-	return strings.Join(limitedLines, "\n")
+	lineCount := 0
+
+	for i := len(content) - 1; i >= 0; i-- {
+		if content[i] == '\n' {
+			lineCount++
+			if lineCount == maxLines {
+				return content[i+1:]
+			}
+		}
+	}
+
+	return content
 }
 
 // ============================================================================
@@ -286,51 +307,37 @@ func (a *App) GetUWPApps() []UWPApp {
 
 // SetUWPLoopbackExemptions sets UWP loopback exemptions
 func (a *App) SetUWPLoopbackExemptions(selectedSIDs []string) string {
-	// Get current exempt list
 	apps, err := a.uwpLoopbackManager.GetUWPApps()
 	if err != nil {
 		return "Error: " + err.Error()
 	}
 
-	// Find which SIDs to add and which to remove
-	currentExempt := make([]string, 0)
+	currentExemptMap := make(map[string]bool)
 	for _, app := range apps {
 		if app.IsExempt {
-			currentExempt = append(currentExempt, app.SID)
+			currentExemptMap[app.SID] = true
 		}
 	}
 
-	// SIDs to add (in selected but not in current)
+	selectedMap := make(map[string]bool)
+	for _, sid := range selectedSIDs {
+		selectedMap[sid] = true
+	}
+
 	toAdd := make([]string, 0)
 	for _, sid := range selectedSIDs {
-		found := false
-		for _, current := range currentExempt {
-			if sid == current {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !currentExemptMap[sid] {
 			toAdd = append(toAdd, sid)
 		}
 	}
 
-	// SIDs to remove (in current but not in selected)
 	toRemove := make([]string, 0)
-	for _, current := range currentExempt {
-		found := false
-		for _, sid := range selectedSIDs {
-			if current == sid {
-				found = true
-				break
-			}
-		}
-		if !found {
-			toRemove = append(toRemove, current)
+	for sid := range currentExemptMap {
+		if !selectedMap[sid] {
+			toRemove = append(toRemove, sid)
 		}
 	}
 
-	// Add exemptions
 	if len(toAdd) > 0 {
 		if err := a.uwpLoopbackManager.AddLoopbackExempt(toAdd); err != nil {
 			return "Error: " + err.Error()
@@ -338,7 +345,6 @@ func (a *App) SetUWPLoopbackExemptions(selectedSIDs []string) string {
 		a.appLogger.Info("Added UWP loopback exemptions: " + strings.Join(toAdd, ", "))
 	}
 
-	// Remove exemptions
 	if len(toRemove) > 0 {
 		if err := a.uwpLoopbackManager.RemoveLoopbackExempt(toRemove); err != nil {
 			return "Error: " + err.Error()

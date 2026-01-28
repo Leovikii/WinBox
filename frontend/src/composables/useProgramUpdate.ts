@@ -3,6 +3,7 @@ import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import wailsConfig from '@wails'
 import type { useAppState } from './useAppState'
+import { isNewerVersion } from '../utils/versionCompare'
 
 export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
   const programLocalVer = ref(wailsConfig.info.productVersion)
@@ -20,9 +21,12 @@ export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
       return
     }
     programRemoteVer.value = ver
-    const remoteClean = ver.replace("v", "").replace("V", "")
-    const localClean = programLocalVer.value.replace("v", "").replace("V", "")
-    programUpdateState.value = remoteClean !== localClean ? "available" : "latest"
+
+    if (isNewerVersion(ver, programLocalVer.value)) {
+      programUpdateState.value = "available"
+    } else {
+      programUpdateState.value = "latest"
+    }
   }
 
   const performProgramUpdate = async () => {

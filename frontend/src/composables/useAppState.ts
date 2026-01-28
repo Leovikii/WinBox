@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { cleanLog } from '../utils/logUtils'
@@ -22,6 +22,11 @@ export function useAppState() {
   const ipv6Enabled = ref(true)
   const logLevel = ref("warning")
   const logToFile = ref(true)
+  const logAutoRefresh = ref(true)
+
+  let unsubscribeStatus: (() => void) | null = null
+  let unsubscribeStateSync: (() => void) | null = null
+  let unsubscribeLog: (() => void) | null = null
 
   const getStatusText = computed(() => {
     if (!coreExists.value) return "WARNING"
@@ -142,9 +147,6 @@ export function useAppState() {
   }
 
   const handleToggle = async (target: 'tun' | 'proxy') => {
-    console.log('handleToggle called with target:', target)
-    console.log('Current state - running:', running.value, 'tunMode:', tunMode.value, 'sysProxy:', sysProxy.value)
-
     if (isProcessing.value) return
     if (!coreExists.value) {
       msg.value = "KERNEL MISSING!"
@@ -158,29 +160,22 @@ export function useAppState() {
     if (target === 'tun') newTun = !tunMode.value
     if (target === 'proxy') newProxy = !sysProxy.value
 
-    console.log('New state will be - tunMode:', newTun, 'sysProxy:', newProxy)
-
-    // Don't update UI state optimistically - wait for backend confirmation
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
-    console.log('Backend.ApplyState response:', res)
 
     if (res === "Success" || res === "Stopped") {
-      // Only update state after backend confirms success
       tunMode.value = newTun
       sysProxy.value = newProxy
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
-      // Config missing - don't change state, return error to open settings
       msg.value = "ERROR"
       errorLog.value = "No active configuration selected"
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
-      // Other errors - don't change state
       msg.value = "ERROR"
       errorLog.value = res
     }
@@ -188,9 +183,6 @@ export function useAppState() {
   }
 
   const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean }) => {
-    console.log('handleSwitchMode called with target:', target)
-    console.log('Current state - running:', running.value, 'tunMode:', tunMode.value, 'sysProxy:', sysProxy.value)
-
     if (isProcessing.value) return
     if (!coreExists.value) {
       msg.value = "KERNEL MISSING!"
@@ -201,12 +193,9 @@ export function useAppState() {
     const newTun = target.tunMode
     const newProxy = target.sysProxy
 
-    console.log('New state will be - tunMode:', newTun, 'sysProxy:', newProxy)
-
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
-    console.log('Backend.ApplyState response:', res)
 
     if (res === "Success" || res === "Stopped") {
       tunMode.value = newTun
@@ -277,21 +266,18 @@ export function useAppState() {
   }
 
   const setupEventListeners = () => {
-    EventsOn("status", (state: boolean) => {
+    unsubscribeStatus = EventsOn("status", (state: boolean) => {
       running.value = state
     })
 
-    EventsOn("state-sync", (state: any) => {
+    unsubscribeStateSync = EventsOn("state-sync", (state: any) => {
       tunMode.value = state.tunMode
       sysProxy.value = state.sysProxy
     })
 
-    EventsOn("log", (logMsg: string) => {
-      // Only handle app-level messages, not kernel logs
-      // App-level messages: "STARTING...", "STOPPED", "ERROR", etc.
+    unsubscribeLog = EventsOn("log", (logMsg: string) => {
       const cleaned = cleanLog(logMsg)
 
-      // Check if this is an app-level error message
       if (cleaned.startsWith("Error:") || cleaned.includes("failed")) {
         msg.value = "ERROR"
         errorLog.value = cleaned
@@ -306,10 +292,16 @@ export function useAppState() {
     setupEventListeners()
   })
 
+  onUnmounted(() => {
+    if (unsubscribeStatus) unsubscribeStatus()
+    if (unsubscribeStateSync) unsubscribeStateSync()
+    if (unsubscribeLog) unsubscribeLog()
+  })
+
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnect, autoConnectMode,
-    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile,
+    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile, logAutoRefresh,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectToggle,

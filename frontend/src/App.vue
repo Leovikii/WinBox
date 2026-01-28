@@ -45,6 +45,7 @@ onMounted(async () => {
   profilesState.profiles.value = data.profiles || [];
   profilesState.activeProfile.value = data.activeProfile || null;
   kernelState.localVer.value = data.localVersion;
+  appState.logAutoRefresh.value = data.log_auto_refresh !== false;
 });
 
 const switchTab = (id: string) => {
@@ -151,6 +152,8 @@ const transitionName = computed(() => `slide-${direction.value}`);
           <LogsDrawer
             :isOpen="true"
             :errorLog="appState.errorLog.value"
+            :logAutoRefresh="appState.logAutoRefresh.value"
+            @update:logAutoRefresh="(val) => appState.logAutoRefresh.value = val"
             @close="switchTab('home')"
           />
         </div>

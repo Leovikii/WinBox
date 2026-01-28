@@ -14,9 +14,8 @@ func (a *App) StartTray() {
 		defer runtime.UnlockOSThread()
 
 		systray.Run(func() {
-			// Set tray icon or title
-			if len(a.iconData) > 0 {
-				systray.SetIcon(a.iconData)
+			if len(a.trayIcons.Default) > 0 {
+				systray.SetIcon(a.trayIcons.Default)
 			} else {
 				systray.SetTitle("WinBox")
 			}
@@ -72,7 +71,36 @@ func (a *App) Minimize() {
 func (a *App) Show() {
 	wailsRuntime.WindowShow(a.ctx)
 	wailsRuntime.WindowUnminimise(a.ctx)
-	// Trick to bring window to front
 	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, true)
 	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, false)
+}
+
+// UpdateTrayIcon updates the tray icon based on current core state
+func (a *App) UpdateTrayIcon() {
+	if !a.coreManager.IsRunning() {
+		systray.SetIcon(a.trayIcons.Default)
+		systray.SetTooltip("WinBox - Stopped")
+		return
+	}
+
+	meta, err := a.storage.LoadMeta()
+	if err != nil {
+		systray.SetIcon(a.trayIcons.Default)
+		systray.SetTooltip("WinBox - Stopped")
+		return
+	}
+
+	if meta.TunMode && meta.SysProxy {
+		systray.SetIcon(a.trayIcons.Full)
+		systray.SetTooltip("WinBox - Full Mode (TUN + Proxy)")
+	} else if meta.TunMode {
+		systray.SetIcon(a.trayIcons.Tun)
+		systray.SetTooltip("WinBox - TUN Mode")
+	} else if meta.SysProxy {
+		systray.SetIcon(a.trayIcons.Proxy)
+		systray.SetTooltip("WinBox - Proxy Mode")
+	} else {
+		systray.SetIcon(a.trayIcons.Default)
+		systray.SetTooltip("WinBox - Stopped")
+	}
 }

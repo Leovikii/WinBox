@@ -77,7 +77,6 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	if meta.LogLevel == "" {
 		meta.LogLevel = "warning"
 	}
-	// IPv6 enabled by default (no check needed, bool defaults to false)
 
 	s.cache = &meta
 	s.cacheValid = true
@@ -136,5 +135,6 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		IPv6Enabled:     true,
 		LogLevel:        "warning",
 		LogToFile:       true,
+		LogAutoRefresh:  true,
 	}
 }

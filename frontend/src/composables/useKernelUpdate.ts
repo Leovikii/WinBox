@@ -3,6 +3,7 @@ import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import type { useAppState } from './useAppState'
 import { cleanLog } from '../utils/logUtils'
+import { isNewerVersion } from '../utils/versionCompare'
 
 export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   const localVer = ref("Unknown")
@@ -33,7 +34,12 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
       return
     }
     remoteVer.value = ver
-    updateState.value = ver.replace("v", "") !== localVer.value.replace("v", "") ? "available" : "latest"
+
+    if (isNewerVersion(ver, localVer.value)) {
+      updateState.value = "available"
+    } else {
+      updateState.value = "latest"
+    }
   }
 
   const performUpdate = async () => {

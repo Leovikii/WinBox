@@ -33,7 +33,6 @@ type LogBuffer struct {
 	max   int
 }
 
-// NewLogBuffer creates a new log buffer
 func NewLogBuffer(maxLines int) *LogBuffer {
 	return &LogBuffer{
 		lines: make([]string, 0, maxLines),
@@ -41,7 +40,6 @@ func NewLogBuffer(maxLines int) *LogBuffer {
 	}
 }
 
-// Append adds a line to the buffer
 func (lb *LogBuffer) Append(line string) {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
@@ -52,7 +50,6 @@ func (lb *LogBuffer) Append(line string) {
 	}
 }
 
-// GetAll returns all buffered lines
 func (lb *LogBuffer) GetAll() string {
 	lb.mu.RLock()
 	defer lb.mu.RUnlock()
@@ -63,7 +60,6 @@ func (lb *LogBuffer) GetAll() string {
 	return strings.Join(lb.lines, "\n")
 }
 
-// Clear clears the buffer
 func (lb *LogBuffer) Clear() {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
