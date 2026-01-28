@@ -18,15 +18,16 @@ import (
 
 // App struct represents the main application
 type App struct {
-	ctx             context.Context
-	coreManager     *CoreManager
-	profileManager  *ProfileManager
-	settingsManager *SettingsManager
-	storage         *Storage
-	httpClient      *HTTPClient
-	appLogger       *AppLogger
-	iconData        []byte
-	startMinimized  bool
+	ctx                context.Context
+	coreManager        *CoreManager
+	profileManager     *ProfileManager
+	settingsManager    *SettingsManager
+	uwpLoopbackManager *UWPLoopbackManager
+	storage            *Storage
+	httpClient         *HTTPClient
+	appLogger          *AppLogger
+	iconData           []byte
+	startMinimized     bool
 }
 
 // NewApp creates a new App application struct
@@ -62,6 +63,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.coreManager = NewCoreManager(appDir, ctx)
 	a.profileManager = NewProfileManager(a.storage, a.httpClient, appDir)
 	a.settingsManager = NewSettingsManager(a.storage)
+	a.uwpLoopbackManager = NewUWPLoopbackManager()
 	a.appLogger = NewAppLogger(appDir)
 
 	// Log application startup

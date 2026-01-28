@@ -247,7 +247,6 @@ func (a *App) GetInitData() map[string]interface{} {
 		"autoConnectMode":   meta.AutoConnectMode,
 		"themeMode":         meta.ThemeMode,
 		"accentColor":       meta.AccentColor,
-		"accent_color":      meta.AccentColor,
 		"ipv6_enabled":      meta.IPv6Enabled,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
@@ -269,4 +268,83 @@ func limitLogLines(content string, maxLines int) string {
 	startIndex := len(lines) - maxLines
 	limitedLines := lines[startIndex:]
 	return strings.Join(limitedLines, "\n")
+}
+
+// ============================================================================
+// UWP Loopback API
+// ============================================================================
+
+// GetUWPApps returns all UWP applications
+func (a *App) GetUWPApps() []UWPApp {
+	apps, err := a.uwpLoopbackManager.GetUWPApps()
+	if err != nil {
+		a.appLogger.Error("Failed to get UWP apps: " + err.Error())
+		return []UWPApp{}
+	}
+	return apps
+}
+
+// SetUWPLoopbackExemptions sets UWP loopback exemptions
+func (a *App) SetUWPLoopbackExemptions(selectedSIDs []string) string {
+	// Get current exempt list
+	apps, err := a.uwpLoopbackManager.GetUWPApps()
+	if err != nil {
+		return "Error: " + err.Error()
+	}
+
+	// Find which SIDs to add and which to remove
+	currentExempt := make([]string, 0)
+	for _, app := range apps {
+		if app.IsExempt {
+			currentExempt = append(currentExempt, app.SID)
+		}
+	}
+
+	// SIDs to add (in selected but not in current)
+	toAdd := make([]string, 0)
+	for _, sid := range selectedSIDs {
+		found := false
+		for _, current := range currentExempt {
+			if sid == current {
+				found = true
+				break
+			}
+		}
+		if !found {
+			toAdd = append(toAdd, sid)
+		}
+	}
+
+	// SIDs to remove (in current but not in selected)
+	toRemove := make([]string, 0)
+	for _, current := range currentExempt {
+		found := false
+		for _, sid := range selectedSIDs {
+			if current == sid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			toRemove = append(toRemove, current)
+		}
+	}
+
+	// Add exemptions
+	if len(toAdd) > 0 {
+		if err := a.uwpLoopbackManager.AddLoopbackExempt(toAdd); err != nil {
+			return "Error: " + err.Error()
+		}
+		a.appLogger.Info("Added UWP loopback exemptions: " + strings.Join(toAdd, ", "))
+	}
+
+	// Remove exemptions
+	if len(toRemove) > 0 {
+		if err := a.uwpLoopbackManager.RemoveLoopbackExempt(toRemove); err != nil {
+			return "Error: " + err.Error()
+		}
+		a.appLogger.Info("Removed UWP loopback exemptions: " + strings.Join(toRemove, ", "))
+	}
+
+	return "Success"
 }

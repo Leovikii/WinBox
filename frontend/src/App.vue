@@ -7,6 +7,7 @@ import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
 import { useProgramUpdate } from './composables/useProgramUpdate';
 import { useTheme } from './composables/useTheme';
+import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import ProfilesDrawer from './components/ProfilesDrawer.vue';
@@ -25,12 +26,14 @@ const tabs = [
 const currentTab = ref<TabType>('home');
 const direction = ref<'left' | 'right'>('right');
 const showQuitConfirm = ref(false);
+const showUWPModal = ref(false);
 
 const appState = useAppState();
 const profilesState = useProfiles(appState);
 const kernelState = useKernelUpdate(appState);
 const programState = useProgramUpdate(appState);
 const themeState = useTheme();
+const uwpState = useUWPLoopback();
 
 const minimize = () => Backend.Minimize();
 const minimizeToTray = () => Backend.MinimizeToTray();
@@ -76,6 +79,22 @@ const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean })
 
 const handleAccentColorChange = (color: string) => {
   themeState.setTheme(color);
+};
+
+const handleOpenUWPModal = async () => {
+  showUWPModal.value = true;
+  await uwpState.loadApps();
+};
+
+const handleCloseUWPModal = () => {
+  showUWPModal.value = false;
+};
+
+const handleSaveUWPExemptions = async () => {
+  const success = await uwpState.saveExemptions();
+  if (success) {
+    showUWPModal.value = false;
+  }
 };
 
 const transitionName = computed(() => `slide-${direction.value}`);
@@ -198,6 +217,12 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :ipv6Enabled="appState.ipv6Enabled.value"
             :logLevel="appState.logLevel.value"
             :logToFile="appState.logToFile.value"
+            :showUWPModal="showUWPModal"
+            :uwpApps="uwpState.apps.value"
+            :uwpSelectedSIDs="uwpState.selectedSIDs.value"
+            :uwpLoading="uwpState.loading.value"
+            :uwpSaving="uwpState.saving.value"
+            :uwpHasChanges="uwpState.hasChanges()"
             @close="switchTab('home')"
             @check-program-update="programState.checkProgramUpdate"
             @perform-program-update="programState.performProgramUpdate"
@@ -219,6 +244,12 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @toggle-ipv6="appState.handleIPv6Toggle"
             @change-log-config="appState.handleLogConfigChange"
             @switch-editor-tab="kernelState.switchEditorTab"
+            @open-uwp-modal="handleOpenUWPModal"
+            @close-uwp-modal="handleCloseUWPModal"
+            @toggle-uwp-app="uwpState.toggleApp"
+            @select-all-uwp="uwpState.selectAll"
+            @deselect-all-uwp="uwpState.deselectAll"
+            @save-uwp-exemptions="handleSaveUWPExemptions"
           />
         </div>
       </Transition>
