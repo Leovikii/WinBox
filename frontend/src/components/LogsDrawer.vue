@@ -21,6 +21,7 @@ const copyState = ref("COPY")
 const appLogContent = ref("")
 const kernelLogContent = ref("")
 const isLoading = ref(false)
+const isFetching = ref(false)
 let refreshInterval: number | null = null
 
 const loadAppLog = async () => {
@@ -41,12 +42,11 @@ const loadKernelLog = async () => {
   }
 }
 
-const loadLogs = async () => {
-  if (isLoading.value) return // Prevent concurrent loads
+const loadLogs = async (silent = false) => {
+  if (isFetching.value) return
 
-  // Only update loading state if manually triggered, not during auto-refresh
-  const wasLoading = isLoading.value
-  if (!wasLoading) {
+  isFetching.value = true
+  if (!silent) {
     isLoading.value = true
   }
 
@@ -56,9 +56,10 @@ const loadLogs = async () => {
     await loadKernelLog()
   }
 
-  if (!wasLoading) {
+  if (!silent) {
     isLoading.value = false
   }
+  isFetching.value = false
 }
 
 const switchTab = async (tab: LogTab) => {
@@ -89,7 +90,6 @@ const copyLog = () => {
   setTimeout(() => copyState.value = "COPY", 2000)
 }
 
-// Use computed property to avoid unnecessary re-renders
 const currentLogContent = computed(() => {
   return activeTab.value === 'app' ? appLogContent.value : kernelLogContent.value
 })
@@ -159,12 +159,11 @@ const toggleAutoRefresh = async () => {
 }
 
 const startAutoRefresh = () => {
-  stopAutoRefresh() // Clear any existing interval
+  stopAutoRefresh()
 
-  // Refresh every 3 seconds when auto-refresh is enabled
   refreshInterval = window.setInterval(() => {
     if (props.isOpen && props.logAutoRefresh) {
-      loadLogs()
+      loadLogs(true)
     }
   }, 3000)
 }
@@ -199,7 +198,6 @@ watch(() => props.isOpen, (newVal) => {
 })
 
 watch(() => activeTab.value, () => {
-  // Reload when switching tabs
   loadLogs()
 })
 </script>
@@ -219,7 +217,7 @@ watch(() => activeTab.value, () => {
         <WButton
           variant="secondary"
           size="sm"
-          @click="loadLogs"
+          @click="loadLogs()"
           :disabled="isLoading"
         >
           {{ isLoading ? 'LOADING...' : 'REFRESH' }}
