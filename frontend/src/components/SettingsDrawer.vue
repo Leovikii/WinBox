@@ -5,6 +5,10 @@ import WColorPicker from '@/components/ui/WColorPicker.vue'
 
 defineProps<{
   isOpen: boolean
+  programLocalVer: string
+  programRemoteVer: string
+  programUpdateState: string
+  programDownloadProgress: number
   localVer: string
   remoteVer: string
   updateState: string
@@ -27,6 +31,8 @@ defineProps<{
 
 const emit = defineEmits<{
   'close': []
+  'check-program-update': []
+  'perform-program-update': []
   'check-update': []
   'perform-update': []
   'toggle-mirror': []
@@ -84,6 +90,66 @@ const handleApplyCustomColor = () => {
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Program Version</span>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500 font-mono">{{ programLocalVer }}</span>
+            <WButton
+              v-if="programUpdateState === 'checking'"
+              variant="secondary"
+              size="sm"
+              disabled
+              loading
+            >
+              CHECKING
+            </WButton>
+            <WButton
+              v-else-if="programUpdateState === 'available'"
+              variant="primary"
+              size="sm"
+              class="animate-pulse"
+              @click="emit('perform-program-update')"
+            >
+              UP TO {{ programRemoteVer }}
+            </WButton>
+            <WButton
+              v-else-if="programUpdateState === 'updating'"
+              variant="secondary"
+              size="sm"
+              disabled
+              class="relative overflow-hidden w-24"
+            >
+              <div class="absolute inset-0 bg-blue-600/30 transition-all duration-300" :style="{ width: `${programDownloadProgress}%` }"></div>
+              <span class="relative z-10">{{ programDownloadProgress }}%</span>
+            </WButton>
+            <WButton
+              v-else-if="programUpdateState === 'success'"
+              variant="success"
+              size="sm"
+              disabled
+            >
+              RESTARTING
+            </WButton>
+            <WButton
+              v-else-if="programUpdateState === 'latest'"
+              variant="secondary"
+              size="sm"
+              disabled
+              class="opacity-50"
+            >
+              LATEST
+            </WButton>
+            <WButton
+              v-else
+              variant="secondary"
+              size="sm"
+              @click="emit('check-program-update')"
+            >
+              CHECK
+            </WButton>
+          </div>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">

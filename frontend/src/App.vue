@@ -5,6 +5,7 @@ import wailsConfig from '@wails';
 import { useAppState } from './composables/useAppState';
 import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
+import { useProgramUpdate } from './composables/useProgramUpdate';
 import { useTheme } from './composables/useTheme';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
@@ -28,6 +29,7 @@ const showQuitConfirm = ref(false);
 const appState = useAppState();
 const profilesState = useProfiles(appState);
 const kernelState = useKernelUpdate(appState);
+const programState = useProgramUpdate(appState);
 const themeState = useTheme();
 
 const minimize = () => Backend.Minimize();
@@ -171,6 +173,10 @@ const transitionName = computed(() => `slide-${direction.value}`);
         <div v-else-if="currentTab === 'settings'" class="absolute inset-0 w-full h-full bg-[#090909]">
           <SettingsDrawer
             :isOpen="true"
+            :programLocalVer="programState.programLocalVer.value"
+            :programRemoteVer="programState.programRemoteVer.value"
+            :programUpdateState="programState.programUpdateState.value"
+            :programDownloadProgress="programState.programDownloadProgress.value"
             :localVer="kernelState.localVer.value"
             :remoteVer="kernelState.remoteVer.value"
             :updateState="kernelState.updateState.value"
@@ -190,6 +196,8 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :errorAlertMessage="kernelState.errorAlertMessage.value"
             :accentColor="themeState.accentColor.value"
             @close="switchTab('home')"
+            @check-program-update="programState.checkProgramUpdate"
+            @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
             @perform-update="kernelState.performUpdate"
             @toggle-mirror="appState.handleMirrorToggle"

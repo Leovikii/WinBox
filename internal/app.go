@@ -4,8 +4,10 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -217,6 +219,11 @@ func (a *App) StartTray() {
 				go a.Show()
 			})
 
+			mRestart := systray.AddMenuItem("Restart", "Restart Application")
+			mRestart.Click(func() {
+				go a.Restart()
+			})
+
 			systray.AddSeparator()
 
 			mQuit := systray.AddMenuItem("Quit", "Quit Application")
@@ -247,6 +254,27 @@ func (a *App) Show() {
 
 func (a *App) Quit() {
 	a.stopCore()
+	wailsRuntime.Quit(a.ctx)
+}
+
+// Restart restarts the application
+func (a *App) Restart() {
+	exe, err := os.Executable()
+	if err != nil {
+		a.Quit()
+		return
+	}
+
+	// Stop core gracefully
+	a.stopCore()
+	time.Sleep(500 * time.Millisecond)
+
+	// Start new instance
+	cmd := exec.Command(exe)
+	cmd.Start()
+
+	// Quit current instance
+	systray.Quit()
 	wailsRuntime.Quit(a.ctx)
 }
 
@@ -469,6 +497,97 @@ func (a *App) CheckUpdate() string {
 		return "Error: " + err.Error()
 	}
 	return version
+}
+
+func (a *App) GetProgramVersion() string {
+	return "2.5.1"
+}
+
+func (a *App) CheckProgramUpdate() string {
+	resp, err := a.httpClient.Get("https://api.github.com/repos/Leovikii/WinBox/releases/latest")
+	if err != nil {
+		return "Error: " + err.Error()
+	}
+	defer resp.Body.Close()
+
+	var res ReleaseInfo
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "Error: Parse failed"
+	}
+
+	if res.TagName == "" {
+		return "Error: No tag found"
+	}
+
+	return res.TagName
+}
+
+func (a *App) UpdateProgram(mirrorUrl string) string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "Error: Cannot get executable path"
+	}
+	exeDir := filepath.Dir(exe)
+
+	wailsRuntime.EventsEmit(a.ctx, "log", "Fetching WinBox release info...")
+	resp, err := a.httpClient.Get("https://api.github.com/repos/Leovikii/WinBox/releases/latest")
+	if err != nil {
+		return "Error: " + err.Error()
+	}
+	defer resp.Body.Close()
+
+	var res ReleaseInfo
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "Error: Parse failed"
+	}
+
+	version := strings.TrimPrefix(res.TagName, "v")
+	version = strings.TrimPrefix(version, "V")
+	downloadUrl := fmt.Sprintf("https://github.com/Leovikii/WinBox/releases/download/V%s/WinBox.exe", version)
+
+	if mirrorUrl != "" {
+		if !strings.HasSuffix(mirrorUrl, "/") {
+			mirrorUrl += "/"
+		}
+		downloadUrl = mirrorUrl + downloadUrl
+	}
+
+	newExePath := filepath.Join(exeDir, "WinBox.exe.new")
+	wailsRuntime.EventsEmit(a.ctx, "log", "Downloading WinBox update...")
+	wailsRuntime.EventsEmit(a.ctx, "download-progress", 0)
+
+	if err := a.httpClient.Download(downloadUrl, newExePath, a.ctx); err != nil {
+		return "Error: Download failed"
+	}
+
+	wailsRuntime.EventsEmit(a.ctx, "log", "Update ready. Restarting...")
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		a.launchUpdaterAndRestart(newExePath)
+	}()
+
+	return "Success"
+}
+
+func (a *App) launchUpdaterAndRestart(newExePath string) {
+	exe, _ := os.Executable()
+
+	psCommand := fmt.Sprintf(
+		"Start-Sleep -Seconds 2; "+
+			"Remove-Item '%s' -Force; "+
+			"Rename-Item '%s' 'WinBox.exe'; "+
+			"Start-Process '%s'",
+		exe, newExePath, exe,
+	)
+
+	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
+	cmd.Start()
+
+	a.stopCore()
+	time.Sleep(300 * time.Millisecond)
+	systray.Quit()
+	wailsRuntime.Quit(a.ctx)
 }
 
 func (a *App) OpenDashboard() {
