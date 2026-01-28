@@ -18,6 +18,18 @@ var assets embed.FS
 //go:embed build/windows/icon.ico
 var icon []byte
 
+//go:embed frontend/icon/tray.ico
+var trayDefault []byte
+
+//go:embed frontend/icon/tray_tun.ico
+var trayTun []byte
+
+//go:embed frontend/icon/tray_proxy.ico
+var trayProxy []byte
+
+//go:embed frontend/icon/tray_full.ico
+var trayFull []byte
+
 func main() {
 	startMinimized := false
 	for _, arg := range os.Args {
@@ -27,7 +39,7 @@ func main() {
 		}
 	}
 
-	app := internal.NewApp(icon, startMinimized)
+	app := internal.NewApp(icon, trayDefault, trayTun, trayProxy, trayFull, startMinimized)
 
 	err := wails.Run(&options.App{
 		Title:         "WinBox",

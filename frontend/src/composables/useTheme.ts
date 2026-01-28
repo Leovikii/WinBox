@@ -51,8 +51,8 @@ export function useTheme() {
   const loadTheme = async () => {
     try {
       const meta = await Backend.GetInitData()
-      if (meta.accent_color) {
-        accentColor.value = meta.accent_color
+      if (meta.accentColor) {
+        accentColor.value = meta.accentColor
       }
       applyTheme()
     } catch (error) {

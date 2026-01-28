@@ -3,6 +3,7 @@ import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import type { useAppState } from './useAppState'
 import { cleanLog } from '../utils/logUtils'
+import { isNewerVersion } from '../utils/versionCompare'
 
 export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   const localVer = ref("Unknown")
@@ -33,7 +34,12 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
       return
     }
     remoteVer.value = ver
-    updateState.value = ver.replace("v", "") !== localVer.value.replace("v", "") ? "available" : "latest"
+
+    if (isNewerVersion(ver, localVer.value)) {
+      updateState.value = "available"
+    } else {
+      updateState.value = "latest"
+    }
   }
 
   const performUpdate = async () => {
@@ -115,6 +121,18 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
     }
   }
 
+  const switchEditorTab = async (type: "tun" | "mixed") => {
+    editingType.value = type
+    saveBtnText.value = "SAVE"
+    const content = await Backend.GetOverride(type)
+    try {
+      const obj = JSON.parse(content)
+      editorContent.value = JSON.stringify(obj, null, 2)
+    } catch {
+      editorContent.value = content
+    }
+  }
+
   onMounted(() => {
     EventsOn("download-progress", (pct: number) => {
       downloadProgress.value = pct
@@ -131,6 +149,6 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
     localVer, remoteVer, updateState, downloadProgress,
     showEditor, editingType, editorContent, saveBtnText,
     showResetConfirm, showErrorAlert, errorAlertMessage,
-    checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset
+    checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
   }
 }

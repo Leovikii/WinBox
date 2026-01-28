@@ -23,8 +23,7 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
   const deletingProfileId = ref("")
 
   const refreshProfiles = async () => {
-    await appState.refreshData()
-    const data = await Backend.GetInitData()
+    const data = await appState.refreshData()
     profiles.value = data.profiles || []
     activeProfile.value = data.activeProfile || null
   }

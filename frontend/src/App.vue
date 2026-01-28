@@ -5,7 +5,9 @@ import wailsConfig from '@wails';
 import { useAppState } from './composables/useAppState';
 import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
+import { useProgramUpdate } from './composables/useProgramUpdate';
 import { useTheme } from './composables/useTheme';
+import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import ProfilesDrawer from './components/ProfilesDrawer.vue';
@@ -24,11 +26,14 @@ const tabs = [
 const currentTab = ref<TabType>('home');
 const direction = ref<'left' | 'right'>('right');
 const showQuitConfirm = ref(false);
+const showUWPModal = ref(false);
 
 const appState = useAppState();
 const profilesState = useProfiles(appState);
 const kernelState = useKernelUpdate(appState);
+const programState = useProgramUpdate(appState);
 const themeState = useTheme();
+const uwpState = useUWPLoopback();
 
 const minimize = () => Backend.Minimize();
 const minimizeToTray = () => Backend.MinimizeToTray();
@@ -40,6 +45,7 @@ onMounted(async () => {
   profilesState.profiles.value = data.profiles || [];
   profilesState.activeProfile.value = data.activeProfile || null;
   kernelState.localVer.value = data.localVersion;
+  appState.logAutoRefresh.value = data.log_auto_refresh !== false;
 });
 
 const switchTab = (id: string) => {
@@ -74,6 +80,22 @@ const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean })
 
 const handleAccentColorChange = (color: string) => {
   themeState.setTheme(color);
+};
+
+const handleOpenUWPModal = async () => {
+  showUWPModal.value = true;
+  await uwpState.loadApps();
+};
+
+const handleCloseUWPModal = () => {
+  showUWPModal.value = false;
+};
+
+const handleSaveUWPExemptions = async () => {
+  const success = await uwpState.saveExemptions();
+  if (success) {
+    showUWPModal.value = false;
+  }
 };
 
 const transitionName = computed(() => `slide-${direction.value}`);
@@ -130,6 +152,8 @@ const transitionName = computed(() => `slide-${direction.value}`);
           <LogsDrawer
             :isOpen="true"
             :errorLog="appState.errorLog.value"
+            :logAutoRefresh="appState.logAutoRefresh.value"
+            @update:logAutoRefresh="(val) => appState.logAutoRefresh.value = val"
             @close="switchTab('home')"
           />
         </div>
@@ -171,6 +195,10 @@ const transitionName = computed(() => `slide-${direction.value}`);
         <div v-else-if="currentTab === 'settings'" class="absolute inset-0 w-full h-full bg-[#090909]">
           <SettingsDrawer
             :isOpen="true"
+            :programLocalVer="programState.programLocalVer.value"
+            :programRemoteVer="programState.programRemoteVer.value"
+            :programUpdateState="programState.programUpdateState.value"
+            :programDownloadProgress="programState.programDownloadProgress.value"
             :localVer="kernelState.localVer.value"
             :remoteVer="kernelState.remoteVer.value"
             :updateState="kernelState.updateState.value"
@@ -189,7 +217,18 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :showErrorAlert="kernelState.showErrorAlert.value"
             :errorAlertMessage="kernelState.errorAlertMessage.value"
             :accentColor="themeState.accentColor.value"
+            :ipv6Enabled="appState.ipv6Enabled.value"
+            :logLevel="appState.logLevel.value"
+            :logToFile="appState.logToFile.value"
+            :showUWPModal="showUWPModal"
+            :uwpApps="uwpState.apps.value"
+            :uwpSelectedSIDs="uwpState.selectedSIDs.value"
+            :uwpLoading="uwpState.loading.value"
+            :uwpSaving="uwpState.saving.value"
+            :uwpHasChanges="uwpState.hasChanges()"
             @close="switchTab('home')"
+            @check-program-update="programState.checkProgramUpdate"
+            @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
             @perform-update="kernelState.performUpdate"
             @toggle-mirror="appState.handleMirrorToggle"
@@ -205,6 +244,15 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @close-reset-confirm="kernelState.showResetConfirm.value = false"
             @close-error-alert="kernelState.showErrorAlert.value = false"
             @change-accent-color="handleAccentColorChange"
+            @toggle-ipv6="appState.handleIPv6Toggle"
+            @change-log-config="appState.handleLogConfigChange"
+            @switch-editor-tab="kernelState.switchEditorTab"
+            @open-uwp-modal="handleOpenUWPModal"
+            @close-uwp-modal="handleCloseUWPModal"
+            @toggle-uwp-app="uwpState.toggleApp"
+            @select-all-uwp="uwpState.selectAll"
+            @deselect-all-uwp="uwpState.deselectAll"
+            @save-uwp-exemptions="handleSaveUWPExemptions"
           />
         </div>
       </Transition>

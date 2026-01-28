@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea } from '@/components/ui'
 import WColorPicker from '@/components/ui/WColorPicker.vue'
-import UWPLoopbackModal from '@/components/UWPLoopbackModal.vue'
 
 defineProps<{
   isOpen: boolean
@@ -31,12 +30,6 @@ defineProps<{
   ipv6Enabled: boolean
   logLevel: string
   logToFile: boolean
-  showUWPModal: boolean
-  uwpApps: any[]
-  uwpSelectedSIDs: string[]
-  uwpLoading: boolean
-  uwpSaving: boolean
-  uwpHasChanges: boolean
 }>()
 
 const emit = defineEmits<{
@@ -61,12 +54,6 @@ const emit = defineEmits<{
   'toggle-ipv6': []
   'change-log-config': [level: string, toFile: boolean]
   'switch-editor-tab': [type: 'tun' | 'mixed']
-  'open-uwp-modal': []
-  'close-uwp-modal': []
-  'toggle-uwp-app': [sid: string]
-  'select-all-uwp': []
-  'deselect-all-uwp': []
-  'save-uwp-exemptions': []
 }>()
 
 const showThemeModal = ref(false)
@@ -104,8 +91,7 @@ const handleApplyCustomColor = () => {
     </div>
 
     <div class="flex-1 overflow-y-auto px-4 pb-28 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
-
-      <!-- General Section -->
+      
       <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
@@ -176,7 +162,7 @@ const handleApplyCustomColor = () => {
           <span class="text-xs font-bold text-gray-400">Local Kernel</span>
           <div class="flex items-center gap-3">
             <span class="text-xs text-gray-500 font-mono">{{ localVer }}</span>
-            <WButton
+            <WButton 
               v-if="updateState === 'checking'"
               variant="secondary"
               size="sm"
@@ -185,7 +171,7 @@ const handleApplyCustomColor = () => {
             >
               CHECKING
             </WButton>
-            <WButton
+            <WButton 
               v-else-if="updateState === 'available'"
               variant="primary"
               size="sm"
@@ -194,7 +180,7 @@ const handleApplyCustomColor = () => {
             >
               UP TO {{ remoteVer }}
             </WButton>
-            <WButton
+            <WButton 
               v-else-if="updateState === 'updating'"
               variant="secondary"
               size="sm"
@@ -204,7 +190,7 @@ const handleApplyCustomColor = () => {
               <div class="absolute inset-0 bg-blue-600/30 transition-all duration-300" :style="{ width: `${downloadProgress}%` }"></div>
               <span class="relative z-10">{{ downloadProgress }}%</span>
             </WButton>
-            <WButton
+            <WButton 
               v-else-if="updateState === 'success'"
               variant="success"
               size="sm"
@@ -212,7 +198,7 @@ const handleApplyCustomColor = () => {
             >
               UPDATED
             </WButton>
-            <WButton
+            <WButton 
               v-else-if="updateState === 'latest'"
               variant="secondary"
               size="sm"
@@ -221,7 +207,7 @@ const handleApplyCustomColor = () => {
             >
               LATEST
             </WButton>
-            <WButton
+            <WButton 
               v-else
               variant="secondary"
               size="sm"
@@ -232,6 +218,18 @@ const handleApplyCustomColor = () => {
             </WButton>
           </div>
         </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">GitHub Mirror</span>
+          <WSwitch :model-value="mirrorEnabled" @update:model-value="emit('toggle-mirror')" />
+        </div>
+
+        <WExpandable :expanded="mirrorEnabled">
+          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
+            <span class="text-xs font-bold text-gray-500">Mirror Config</span>
+            <WButton variant="secondary" size="sm" @click="emit('open-editor', 'mirror')">EDIT</WButton>
+          </div>
+        </WExpandable>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Start With Windows</span>
@@ -258,50 +256,12 @@ const handleApplyCustomColor = () => {
             />
           </div>
         </WExpandable>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
-            <div class="flex items-center gap-2">
-              <div class="w-4 h-4 rounded-full border border-gray-600" :style="{ backgroundColor: accentColor }"></div>
-              <span>SELECT</span>
-            </div>
-          </WButton>
-        </div>
       </WCard>
 
-      <!-- Network Section -->
-      <WCard variant="default" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-network-wired text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Network</h3>
-        </div>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">GitHub Mirror</span>
-          <WSwitch :model-value="mirrorEnabled" @update:model-value="emit('toggle-mirror')" />
-        </div>
-
-        <WExpandable :expanded="mirrorEnabled">
-          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
-            <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" @click="emit('open-editor', 'mirror')">EDIT</WButton>
-          </div>
-        </WExpandable>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" @click="emit('open-uwp-modal')">
-            MANAGE
-          </WButton>
-        </div>
-      </WCard>
-
-      <!-- Config Override Section -->
       <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-file-code text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Config Override</h3>
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Config Overrides</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -312,11 +272,6 @@ const handleApplyCustomColor = () => {
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">IPv6 Support</span>
           <WSwitch :model-value="ipv6Enabled" @update:model-value="emit('toggle-ipv6')" />
-        </div>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Log To File</span>
-          <WSwitch :model-value="logToFile" @update:model-value="emit('change-log-config', logLevel, $event)" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -333,26 +288,32 @@ const handleApplyCustomColor = () => {
             class="w-24"
           />
         </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Save Logs</span>
+          <WSwitch :model-value="logToFile" @update:model-value="emit('change-log-config', logLevel, $event)" />
+        </div>
+      </WCard>
+
+      <WCard variant="default" padding="lg">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fa-solid fa-palette text-gray-500 text-xs"></i>
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Appearance</h3>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Theme Color</span>
+          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
+            <div class="flex items-center gap-2">
+              <div class="w-4 h-4 rounded-full border border-gray-600" :style="{ backgroundColor: accentColor }"></div>
+              <span>SELECT</span>
+            </div>
+          </WButton>
+        </div>
       </WCard>
     </div>
   </div>
 
-  <!-- UWP Loopback Modal -->
-  <UWPLoopbackModal
-    :model-value="showUWPModal"
-    :apps="uwpApps"
-    :selectedSIDs="uwpSelectedSIDs"
-    :loading="uwpLoading"
-    :saving="uwpSaving"
-    :hasChanges="uwpHasChanges"
-    @update:model-value="emit('close-uwp-modal')"
-    @toggle="emit('toggle-uwp-app', $event)"
-    @selectAll="emit('select-all-uwp')"
-    @deselectAll="emit('deselect-all-uwp')"
-    @save="emit('save-uwp-exemptions')"
-  />
-
-  <!-- Editor Modal -->
   <WModal
     :model-value="showEditor"
     @update:model-value="emit('close-editor')"
@@ -405,7 +366,6 @@ const handleApplyCustomColor = () => {
     </div>
   </WModal>
 
-  <!-- Reset Confirmation Modal -->
   <WModal
     :model-value="showResetConfirm"
     @update:model-value="emit('close-reset-confirm')"
@@ -421,7 +381,6 @@ const handleApplyCustomColor = () => {
     </template>
   </WModal>
 
-  <!-- Theme Color Modal -->
   <WModal
     :model-value="showThemeModal"
     @update:model-value="handleCloseThemeModal"
@@ -476,7 +435,7 @@ const handleApplyCustomColor = () => {
     </template>
   </WModal>
 
-  <!-- Error Alert Modal -->
+
   <WModal
     :model-value="showErrorAlert"
     @update:model-value="emit('close-error-alert')"
