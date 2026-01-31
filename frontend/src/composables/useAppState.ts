@@ -38,8 +38,8 @@ export function useAppState() {
 
     if (!running.value) return "OFFLINE"
     if (tunMode.value && sysProxy.value) return "FULL MODE"
-    if (tunMode.value) return "TUN MODE"
-    if (sysProxy.value) return "PROXY MODE"
+    if (tunMode.value) return "TUNNEL"
+    if (sysProxy.value) return "SYS PROXY"
     return "ONLINE"
   })
 

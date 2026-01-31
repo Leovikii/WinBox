@@ -25,5 +25,6 @@
     "copyright": "Copyright © 2026",
     "comments": "Built using Wails",
     "fileDescription": "Sing-Box Windows GUI"
-  }
+  },
+  "ldflags": "-X 'WinBox/internal.Version=2.7.0'"
 }

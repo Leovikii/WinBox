@@ -24,6 +24,7 @@ type CoreManager struct {
 	ctx        context.Context
 	appDir     string
 	logBuffer  *LogBuffer // Buffer for real-time logs
+	apiURL     string     // Clash API URL if available
 }
 
 // LogBuffer stores recent log lines in memory
@@ -92,10 +93,12 @@ func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConf
 		return fmt.Errorf("kernel missing")
 	}
 
-	// Process config
-	if err := cm.processConfig(profilePath, runtimeConfig, tunMode, sysProxy, tunConfig, mixedConfig, ipv6Enabled, logLevel, logToFile); err != nil {
+	// Process config and extract API URL
+	apiURL, err := cm.processConfig(profilePath, runtimeConfig, tunMode, sysProxy, tunConfig, mixedConfig, ipv6Enabled, logLevel, logToFile)
+	if err != nil {
 		return fmt.Errorf("config gen error: %w", err)
 	}
+	cm.apiURL = apiURL
 
 	cm.cmd = exec.Command(coreExe, "run", "-c", "config.json")
 	cm.cmd.Dir = coreDir
@@ -183,17 +186,20 @@ func (cm *CoreManager) GetLocalVersion() string {
 	return "Unknown"
 }
 
-// processConfig processes the configuration file
-func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, enableProxy bool, tunConfig, mixedConfig string, ipv6Enabled bool, logLevel string, logToFile bool) error {
+// processConfig processes the configuration file and returns API URL
+func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, enableProxy bool, tunConfig, mixedConfig string, ipv6Enabled bool, logLevel string, logToFile bool) (string, error) {
 	content, err := os.ReadFile(srcPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var config map[string]interface{}
 	if err := json.Unmarshal(content, &config); err != nil {
-		return err
+		return "", err
 	}
+
+	// Extract API URL before modifying config
+	apiURL := cm.extractAPIURL(config)
 
 	// Process inbounds
 	newInbounds := make([]interface{}, 0)
@@ -241,12 +247,16 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 
 	newContent, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	os.MkdirAll(filepath.Dir(dstPath), 0755)
 
-	return os.WriteFile(dstPath, newContent, 0644)
+	if err := os.WriteFile(dstPath, newContent, 0644); err != nil {
+		return "", err
+	}
+
+	return apiURL, nil
 }
 
 // monitorProcess monitors the core process and emits events
@@ -277,4 +287,28 @@ func (cm *CoreManager) GetLogBuffer() string {
 // ClearLogBuffer clears the log buffer
 func (cm *CoreManager) ClearLogBuffer() {
 	cm.logBuffer.Clear()
+}
+
+// GetAPIURL returns the Clash API URL if available
+func (cm *CoreManager) GetAPIURL() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.apiURL
+}
+
+// extractAPIURL extracts the Clash API URL from config
+func (cm *CoreManager) extractAPIURL(config map[string]interface{}) string {
+	// Check for experimental.clash_api configuration
+	if experimental, ok := config["experimental"].(map[string]interface{}); ok {
+		if clashAPI, ok := experimental["clash_api"].(map[string]interface{}); ok {
+			if externalController, ok := clashAPI["external_controller"].(string); ok && externalController != "" {
+				// Format: "127.0.0.1:9090" or ":9090"
+				if externalController[0] == ':' {
+					return "http://127.0.0.1" + externalController
+				}
+				return "http://" + externalController
+			}
+		}
+	}
+	return ""
 }

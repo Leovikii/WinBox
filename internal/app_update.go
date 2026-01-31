@@ -16,16 +16,15 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// ============================================================================
-// Kernel Update
-// ============================================================================
+var (
+	// Version will be set at build time via ldflags
+	Version = "dev"
+)
 
-// GetLocalVersion returns the local sing-box kernel version
 func (a *App) GetLocalVersion() string {
 	return a.coreManager.GetLocalVersion()
 }
 
-// CheckUpdate checks for kernel updates from GitHub
 func (a *App) CheckUpdate() string {
 	version, err := a.httpClient.CheckUpdate()
 	if err != nil {
@@ -34,7 +33,6 @@ func (a *App) CheckUpdate() string {
 	return version
 }
 
-// UpdateKernel updates the sing-box kernel
 func (a *App) UpdateKernel(mirrorUrl string) string {
 	wasRunning := a.coreManager.IsRunning()
 	if wasRunning {
@@ -71,7 +69,6 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	return "Success"
 }
 
-// downloadKernelRelease downloads kernel release from GitHub
 func (a *App) downloadKernelRelease(mirrorUrl string) (string, error) {
 	appDir := a.getAppDir()
 	coreDir := filepath.Join(appDir, "data", "core")
@@ -128,7 +125,6 @@ func (a *App) downloadKernelRelease(mirrorUrl string) (string, error) {
 	return tmpFile, nil
 }
 
-// extractKernelFromZip extracts kernel executable from zip file
 func (a *App) extractKernelFromZip(zipPath, targetDir string) error {
 	wailsRuntime.EventsEmit(a.ctx, "log", "Extracting...")
 
@@ -160,16 +156,10 @@ func (a *App) extractKernelFromZip(zipPath, targetDir string) error {
 	return os.ErrNotExist
 }
 
-// ============================================================================
-// Program Update
-// ============================================================================
-
-// GetProgramVersion returns the current program version
 func (a *App) GetProgramVersion() string {
-	return "2.5.1"
+	return Version
 }
 
-// CheckProgramUpdate checks for program updates from GitHub
 func (a *App) CheckProgramUpdate() string {
 	resp, err := a.httpClient.Get("https://api.github.com/repos/Leovikii/WinBox/releases/latest")
 	if err != nil {
@@ -189,7 +179,6 @@ func (a *App) CheckProgramUpdate() string {
 	return res.TagName
 }
 
-// UpdateProgram updates the WinBox program
 func (a *App) UpdateProgram(mirrorUrl string) string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -238,7 +227,6 @@ func (a *App) UpdateProgram(mirrorUrl string) string {
 	return "Success"
 }
 
-// launchUpdaterAndRestart launches PowerShell updater and restarts the app
 func (a *App) launchUpdaterAndRestart(newExePath string) {
 	exe, _ := os.Executable()
 
@@ -253,7 +241,6 @@ func (a *App) launchUpdaterAndRestart(newExePath string) {
 	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
 	cmd.Start()
 
-	// OnShutdown will handle stopCore when Quit is called
 	time.Sleep(300 * time.Millisecond)
 	systray.Quit()
 	wailsRuntime.Quit(a.ctx)

@@ -9,11 +9,6 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// ============================================================================
-// Profile Management API
-// ============================================================================
-
-// AddProfile adds a new profile
 func (a *App) AddProfile(name, url string) string {
 	if err := a.profileManager.Add(name, url); err != nil {
 		return "Error: " + err.Error()
@@ -21,12 +16,10 @@ func (a *App) AddProfile(name, url string) string {
 	return "Success"
 }
 
-// DeleteProfile deletes a profile by ID
 func (a *App) DeleteProfile(id string) {
 	a.profileManager.Delete(id)
 }
 
-// SelectProfile selects a profile as active
 func (a *App) SelectProfile(id string) string {
 	if a.coreManager.IsRunning() {
 		return "Stop service first"
@@ -37,7 +30,6 @@ func (a *App) SelectProfile(id string) string {
 	return "Success"
 }
 
-// UpdateActiveProfile updates the active profile from remote
 func (a *App) UpdateActiveProfile() string {
 	if err := a.profileManager.Update(); err != nil {
 		return "Error: " + err.Error()
@@ -45,7 +37,6 @@ func (a *App) UpdateActiveProfile() string {
 	return "Success"
 }
 
-// EditProfile edits a profile's name and URL
 func (a *App) EditProfile(id, name, url string) string {
 	if err := a.profileManager.Edit(id, name, url); err != nil {
 		return "Error: " + err.Error()
@@ -53,17 +44,11 @@ func (a *App) EditProfile(id, name, url string) string {
 	return "Success"
 }
 
-// ============================================================================
-// Configuration Override API
-// ============================================================================
-
-// GetOverride gets the override configuration content
 func (a *App) GetOverride(name string) string {
 	result, _ := a.settingsManager.GetOverride(name)
 	return result
 }
 
-// SaveOverride saves the override configuration
 func (a *App) SaveOverride(name, content string) string {
 	if err := a.settingsManager.SaveOverride(name, content); err != nil {
 		return "Error: " + err.Error()
@@ -71,7 +56,6 @@ func (a *App) SaveOverride(name, content string) string {
 	return "Success"
 }
 
-// ResetOverride resets the override configuration to default
 func (a *App) ResetOverride(name string) string {
 	var content string
 	switch name {
@@ -85,11 +69,6 @@ func (a *App) ResetOverride(name string) string {
 	return a.SaveOverride(name, content)
 }
 
-// ============================================================================
-// Settings API
-// ============================================================================
-
-// SaveSettings saves mirror settings
 func (a *App) SaveSettings(mirror string, enabled bool) string {
 	if err := a.settingsManager.SaveMirror(mirror, enabled); err != nil {
 		return "Error: " + err.Error()
@@ -97,7 +76,6 @@ func (a *App) SaveSettings(mirror string, enabled bool) string {
 	return "Success"
 }
 
-// SetStartOnBoot sets whether to start on boot
 func (a *App) SetStartOnBoot(enabled bool) string {
 	if err := a.settingsManager.SetStartOnBoot(enabled); err != nil {
 		return "Error: " + err.Error()
@@ -105,7 +83,6 @@ func (a *App) SetStartOnBoot(enabled bool) string {
 	return "Success"
 }
 
-// SetAutoConnect sets auto-connect on startup
 func (a *App) SetAutoConnect(enabled bool, mode string) string {
 	if err := a.settingsManager.SetAutoConnect(enabled, mode); err != nil {
 		return "Error: " + err.Error()
@@ -113,7 +90,6 @@ func (a *App) SetAutoConnect(enabled bool, mode string) string {
 	return "Success"
 }
 
-// SaveTheme saves theme settings
 func (a *App) SaveTheme(mode, accentColor string) string {
 	if err := a.settingsManager.SaveTheme(mode, accentColor); err != nil {
 		return "Error: " + err.Error()
@@ -121,7 +97,6 @@ func (a *App) SaveTheme(mode, accentColor string) string {
 	return "Success"
 }
 
-// ToggleIPv6 toggles IPv6 support
 func (a *App) ToggleIPv6(enabled bool) string {
 	if err := a.settingsManager.SetIPv6Enabled(enabled); err != nil {
 		return "Error: " + err.Error()
@@ -129,7 +104,6 @@ func (a *App) ToggleIPv6(enabled bool) string {
 	return "Success"
 }
 
-// SetLogConfig sets log configuration
 func (a *App) SetLogConfig(level string, toFile bool) string {
 	if err := a.settingsManager.SetLogConfig(level, toFile); err != nil {
 		return "Error: " + err.Error()
@@ -137,11 +111,6 @@ func (a *App) SetLogConfig(level string, toFile bool) string {
 	return "Success"
 }
 
-// ============================================================================
-// Log Management API
-// ============================================================================
-
-// GetLogFile gets the kernel log file content (deprecated, use GetKernelLog)
 func (a *App) GetLogFile() string {
 	coreDir := filepath.Join(a.getAppDir(), "data", "core")
 	logPath := filepath.Join(coreDir, "box.log")
@@ -154,16 +123,12 @@ func (a *App) GetLogFile() string {
 	return string(content)
 }
 
-// GetAppLog gets the application log content
 func (a *App) GetAppLog() string {
 	content := a.appLogger.GetLogs()
-	// Limit to last 5000 lines to avoid performance issues
 	return limitLogLines(content, 5000)
 }
 
-// GetKernelLog gets the kernel log content from real-time buffer
 func (a *App) GetKernelLog() string {
-	// Always use real-time buffer for immediate output
 	if a.coreManager != nil {
 		bufferContent := a.coreManager.GetLogBuffer()
 		if bufferContent != "" {
@@ -171,11 +136,9 @@ func (a *App) GetKernelLog() string {
 		}
 	}
 
-	// If no logs available at all
 	return "> No kernel logs available. Kernel may not be running."
 }
 
-// ClearAppLog clears the application log
 func (a *App) ClearAppLog() string {
 	if err := a.appLogger.Clear(); err != nil {
 		return "Error: " + err.Error()
@@ -184,20 +147,16 @@ func (a *App) ClearAppLog() string {
 	return "Success"
 }
 
-// ClearKernelLog clears the kernel log buffer and optionally the log file
 func (a *App) ClearKernelLog() string {
 	coreDir := filepath.Join(a.getAppDir(), "data", "core")
 	logPath := filepath.Join(coreDir, "box.log")
 
-	// Clear log file if it exists
 	if _, err := os.Stat(logPath); err == nil {
 		if err := os.WriteFile(logPath, []byte(""), 0644); err != nil {
-			// Log the error but don't fail - buffer clearing is more important
 			a.appLogger.Warn("Failed to clear kernel log file: " + err.Error())
 		}
 	}
 
-	// Clear real-time buffer
 	if a.coreManager != nil {
 		a.coreManager.ClearLogBuffer()
 	}
@@ -206,16 +165,10 @@ func (a *App) ClearKernelLog() string {
 	return "Success"
 }
 
-// ============================================================================
-// Utility API
-// ============================================================================
-
-// OpenDashboard opens the sing-box dashboard in browser
 func (a *App) OpenDashboard() {
 	wailsRuntime.BrowserOpenURL(a.ctx, "http://127.0.0.1:9090/ui")
 }
 
-// RestartCore restarts the sing-box core process
 func (a *App) RestartCore() string {
 	if !a.coreManager.IsRunning() {
 		return "Error: Core is not running"
@@ -223,29 +176,24 @@ func (a *App) RestartCore() string {
 
 	a.appLogger.Info("Restarting core...")
 
-	// Get current metadata to preserve state
 	meta, err := a.storage.LoadMeta()
 	if err != nil {
 		return "Error: " + err.Error()
 	}
 
-	// Stop current core
 	if err := a.coreManager.Stop(); err != nil {
 		a.appLogger.Error("Core stop failed during restart: " + err.Error())
 		return "Error: " + err.Error()
 	}
 
-	// Wait a moment for clean shutdown
 	time.Sleep(500 * time.Millisecond)
 
-	// Start core with previous settings
 	result := a.startCore()
 	if result != "Success" {
 		a.appLogger.Error("Core start failed during restart: " + result)
 		return result
 	}
 
-	// Emit status and state sync events to update frontend
 	wailsRuntime.EventsEmit(a.ctx, "status", true)
 	a.emitStateSync(meta)
 
@@ -254,7 +202,6 @@ func (a *App) RestartCore() string {
 	return "Success"
 }
 
-// GetInitData returns initial data for frontend
 func (a *App) GetInitData() map[string]interface{} {
 	meta, _ := a.storage.LoadMeta()
 	var active Profile
@@ -286,11 +233,6 @@ func (a *App) GetInitData() map[string]interface{} {
 	}
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-// limitLogLines limits log content to the last N lines
 func limitLogLines(content string, maxLines int) string {
 	if content == "" {
 		return content
@@ -310,11 +252,6 @@ func limitLogLines(content string, maxLines int) string {
 	return content
 }
 
-// ============================================================================
-// UWP Loopback API
-// ============================================================================
-
-// GetUWPApps returns all UWP applications
 func (a *App) GetUWPApps() []UWPApp {
 	apps, err := a.uwpLoopbackManager.GetUWPApps()
 	if err != nil {
@@ -324,7 +261,6 @@ func (a *App) GetUWPApps() []UWPApp {
 	return apps
 }
 
-// SetUWPLoopbackExemptions sets UWP loopback exemptions
 func (a *App) SetUWPLoopbackExemptions(selectedSIDs []string) string {
 	apps, err := a.uwpLoopbackManager.GetUWPApps()
 	if err != nil {

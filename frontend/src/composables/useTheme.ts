@@ -12,7 +12,6 @@ export const ACCENT_COLORS = [
   { name: 'Cyan', value: '#06b6d4' },
 ]
 
-// Cache for hexToRgb conversions to avoid repeated regex operations
 const rgbCache = new Map<string, string>()
 
 function hexToRgb(hex: string): string {
@@ -44,7 +43,7 @@ export function useTheme() {
     try {
       await Backend.SaveTheme('dark', color)
     } catch (error) {
-      console.error('Failed to save theme:', error)
+      // Silent fail
     }
   }
 
@@ -56,7 +55,7 @@ export function useTheme() {
       }
       applyTheme()
     } catch (error) {
-      console.error('Failed to load theme:', error)
+      // Silent fail
     }
   }
 

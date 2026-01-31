@@ -49,9 +49,10 @@ export function useProfiles(appState: ReturnType<typeof useAppState>) {
     }
   }
 
-  const switchProfile = async (id: string, e: any) => {
-    e.stopPropagation()
+  const switchProfile = async (id: string, e?: any) => {
+    if (e) e.stopPropagation()
     if (activeProfile.value && id === activeProfile.value.id) return
+
     const res = await Backend.SelectProfile(id)
     if (res === "Success") {
       appState.msg.value = "Switched"

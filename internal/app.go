@@ -28,6 +28,7 @@ type TrayIcons struct {
 type App struct {
 	ctx                context.Context
 	coreManager        *CoreManager
+	trafficMonitor     *TrafficMonitor
 	profileManager     *ProfileManager
 	settingsManager    *SettingsManager
 	uwpLoopbackManager *UWPLoopbackManager
