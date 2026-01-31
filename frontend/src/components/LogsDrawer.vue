@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { WButton } from '@/components/ui'
 import * as Backend from '../../wailsjs/go/internal/App'
 
 const props = defineProps<{
   isOpen: boolean
   errorLog: string
-  logAutoRefresh: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
-  'update:logAutoRefresh': [value: boolean]
 }>()
 
 type LogTab = 'app' | 'kernel'
@@ -21,7 +19,6 @@ const copyState = ref("COPY")
 const appLogContent = ref("")
 const kernelLogContent = ref("")
 const isLoading = ref(false)
-let refreshInterval: number | null = null
 
 const loadAppLog = async () => {
   try {
@@ -42,13 +39,9 @@ const loadKernelLog = async () => {
 }
 
 const loadLogs = async () => {
-  if (isLoading.value) return // Prevent concurrent loads
+  if (isLoading.value) return
 
-  // Only update loading state if manually triggered, not during auto-refresh
-  const wasLoading = isLoading.value
-  if (!wasLoading) {
-    isLoading.value = true
-  }
+  isLoading.value = true
 
   if (activeTab.value === 'app') {
     await loadAppLog()
@@ -56,9 +49,7 @@ const loadLogs = async () => {
     await loadKernelLog()
   }
 
-  if (!wasLoading) {
-    isLoading.value = false
-  }
+  isLoading.value = false
 }
 
 const switchTab = async (tab: LogTab) => {
@@ -89,7 +80,6 @@ const copyLog = () => {
   setTimeout(() => copyState.value = "COPY", 2000)
 }
 
-// Use computed property to avoid unnecessary re-renders
 const currentLogContent = computed(() => {
   return activeTab.value === 'app' ? appLogContent.value : kernelLogContent.value
 })
@@ -146,60 +136,17 @@ const parseAnsiToHtml = (text: string): Array<{ text: string; color: string }> =
   return result
 }
 
-const toggleAutoRefresh = async () => {
-  const newValue = !props.logAutoRefresh
-  emit('update:logAutoRefresh', newValue)
-  await Backend.SetLogAutoRefresh(newValue)
-
-  if (newValue) {
-    startAutoRefresh()
-  } else {
-    stopAutoRefresh()
-  }
-}
-
-const startAutoRefresh = () => {
-  stopAutoRefresh() // Clear any existing interval
-
-  // Refresh every 3 seconds when auto-refresh is enabled
-  refreshInterval = window.setInterval(() => {
-    if (props.isOpen && props.logAutoRefresh) {
-      loadLogs()
-    }
-  }, 3000)
-}
-
-const stopAutoRefresh = () => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
-  }
-}
-
 onMounted(() => {
   loadLogs()
-  if (props.logAutoRefresh) {
-    startAutoRefresh()
-  }
-})
-
-onUnmounted(() => {
-  stopAutoRefresh()
 })
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     loadLogs()
-    if (props.logAutoRefresh) {
-      startAutoRefresh()
-    }
-  } else {
-    stopAutoRefresh()
   }
 })
 
 watch(() => activeTab.value, () => {
-  // Reload when switching tabs
   loadLogs()
 })
 </script>
@@ -210,16 +157,9 @@ watch(() => activeTab.value, () => {
       <h2 class="text-xs font-bold text-[#555] uppercase tracking-[0.2em]">Runtime Logs</h2>
       <div class="flex gap-2">
         <WButton
-          :variant="logAutoRefresh ? 'primary' : 'secondary'"
-          size="sm"
-          @click="toggleAutoRefresh"
-        >
-          {{ logAutoRefresh ? 'AUTO: ON' : 'AUTO: OFF' }}
-        </WButton>
-        <WButton
           variant="secondary"
           size="sm"
-          @click="loadLogs"
+          @click="loadLogs()"
           :disabled="isLoading"
         >
           {{ isLoading ? 'LOADING...' : 'REFRESH' }}

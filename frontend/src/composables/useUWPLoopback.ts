@@ -20,12 +20,10 @@ export function useUWPLoopback() {
       const result = await Backend.GetUWPApps()
       apps.value = result || []
 
-      // Initialize selected SIDs with currently exempt apps
       selectedSIDs.value = apps.value
         .filter(app => app.isExempt)
         .map(app => app.sid)
     } catch (error) {
-      console.error('Failed to load UWP apps:', error)
       apps.value = []
     } finally {
       loading.value = false
@@ -37,17 +35,14 @@ export function useUWPLoopback() {
     try {
       const result = await Backend.SetUWPLoopbackExemptions(selectedSIDs.value)
       if (result === 'Success') {
-        // Update local state
         apps.value.forEach(app => {
           app.isExempt = selectedSIDs.value.includes(app.sid)
         })
         return true
       } else {
-        console.error('Failed to save exemptions:', result)
         return false
       }
     } catch (error) {
-      console.error('Failed to save exemptions:', error)
       return false
     } finally {
       saving.value = false

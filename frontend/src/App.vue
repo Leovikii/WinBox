@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import * as Backend from '../wailsjs/go/internal/App';
 import wailsConfig from '@wails';
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 import { useAppState } from './composables/useAppState';
 import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
@@ -28,6 +29,10 @@ const direction = ref<'left' | 'right'>('right');
 const showQuitConfirm = ref(false);
 const showUWPModal = ref(false);
 
+// Traffic speed state
+const uploadSpeed = ref(0);
+const downloadSpeed = ref(0);
+
 const appState = useAppState();
 const profilesState = useProfiles(appState);
 const kernelState = useKernelUpdate(appState);
@@ -45,7 +50,16 @@ onMounted(async () => {
   profilesState.profiles.value = data.profiles || [];
   profilesState.activeProfile.value = data.activeProfile || null;
   kernelState.localVer.value = data.localVersion;
-  appState.logAutoRefresh.value = data.log_auto_refresh !== false;
+
+  // Listen for traffic updates
+  EventsOn('traffic-update', (data: { upload: number; download: number }) => {
+    uploadSpeed.value = data.upload;
+    downloadSpeed.value = data.download;
+  });
+});
+
+onUnmounted(() => {
+  EventsOff('traffic-update');
 });
 
 const switchTab = (id: string) => {
@@ -98,6 +112,13 @@ const handleSaveUWPExemptions = async () => {
   }
 };
 
+const handleRestartCore = async () => {
+  const result = await Backend.RestartCore();
+  if (result !== "Success") {
+    alert(result);
+  }
+};
+
 const transitionName = computed(() => `slide-${direction.value}`);
 </script>
 
@@ -124,7 +145,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
 
     <div class="flex-1 relative overflow-hidden w-full">
       <Transition :name="transitionName">
-        <div v-if="currentTab === 'home'" class="absolute inset-0 overflow-y-auto w-full h-full pb-24">
+        <div v-if="currentTab === 'home'" class="absolute inset-0 overflow-y-auto w-full h-full">
           <DashboardControl
             :running="appState.running.value"
             :coreExists="appState.coreExists.value"
@@ -137,14 +158,16 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :getStatusText="appState.getStatusText.value"
             :getStatusStyle="appState.getStatusStyle.value"
             :getControlBg="appState.getControlBg.value"
-            :localVer="kernelState.localVer.value"
             :accentColor="themeState.accentColor.value"
             :hasDashboard="true"
+            :uploadSpeed="uploadSpeed"
+            :downloadSpeed="downloadSpeed"
             @toggle="handleToggle"
             @toggle-service="appState.handleServiceToggle"
             @switch-mode="handleSwitchMode"
             @open-drawer="(target: string) => switchTab(target as TabType)"
             @open-dashboard="Backend.OpenDashboard"
+            @restart-core="handleRestartCore"
           />
         </div>
 
@@ -152,8 +175,6 @@ const transitionName = computed(() => `slide-${direction.value}`);
           <LogsDrawer
             :isOpen="true"
             :errorLog="appState.errorLog.value"
-            :logAutoRefresh="appState.logAutoRefresh.value"
-            @update:logAutoRefresh="(val) => appState.logAutoRefresh.value = val"
             @close="switchTab('home')"
           />
         </div>

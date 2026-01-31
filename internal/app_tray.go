@@ -38,8 +38,20 @@ func (a *App) StartTray() {
 				go a.Show()
 			})
 
-			mRestart := systray.AddMenuItem("Restart", "Restart Application")
-			mRestart.Click(func() {
+			systray.AddSeparator()
+
+			mRestartCore := systray.AddMenuItem("Restart Core", "Restart sing-box kernel")
+			mRestartCore.Click(func() {
+				go func() {
+					result := a.RestartCore()
+					if result != "Success" {
+						a.appLogger.Error("Tray restart core failed: " + result)
+					}
+				}()
+			})
+
+			mRestartApp := systray.AddMenuItem("Restart APP", "Restart WinBox application")
+			mRestartApp.Click(func() {
 				go a.Restart()
 			})
 
