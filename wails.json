@@ -2,7 +2,7 @@
   "name": "WinBox",
   "style": {
     "windows": {
-      "backdropType": "Acrylic",
+      "backdropType": "Mica",
       "theme": "Dark"
     }
   },
@@ -26,5 +26,5 @@
     "comments": "Built using Wails",
     "fileDescription": "Sing-Box Windows GUI"
   },
-  "ldflags": "-X 'WinBox/internal.Version=2.7.0'"
+  "ldflags": "-X 'WinBox/internal.Version=2.7.0' -s -w"
 }
