@@ -45,7 +45,6 @@ onMounted(async () => {
   profilesState.profiles.value = data.profiles || [];
   profilesState.activeProfile.value = data.activeProfile || null;
   kernelState.localVer.value = data.localVersion;
-  appState.logAutoRefresh.value = data.log_auto_refresh !== false;
 });
 
 const switchTab = (id: string) => {
@@ -98,6 +97,13 @@ const handleSaveUWPExemptions = async () => {
   }
 };
 
+const handleRestartCore = async () => {
+  const result = await Backend.RestartCore();
+  if (result !== "Success") {
+    alert(result);
+  }
+};
+
 const transitionName = computed(() => `slide-${direction.value}`);
 </script>
 
@@ -145,6 +151,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @switch-mode="handleSwitchMode"
             @open-drawer="(target: string) => switchTab(target as TabType)"
             @open-dashboard="Backend.OpenDashboard"
+            @restart-core="handleRestartCore"
           />
         </div>
 
@@ -152,8 +159,6 @@ const transitionName = computed(() => `slide-${direction.value}`);
           <LogsDrawer
             :isOpen="true"
             :errorLog="appState.errorLog.value"
-            :logAutoRefresh="appState.logAutoRefresh.value"
-            @update:logAutoRefresh="(val) => appState.logAutoRefresh.value = val"
             @close="switchTab('home')"
           />
         </div>

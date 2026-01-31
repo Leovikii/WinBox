@@ -107,6 +107,11 @@ func (a *App) startCore() string {
 
 // stopCore stops the sing-box core process
 func (a *App) stopCore() string {
+	// Check if core is actually running before logging
+	if !a.coreManager.IsRunning() {
+		return "Already stopped"
+	}
+
 	a.appLogger.Info("Stopping core...")
 	if err := a.coreManager.Stop(); err != nil {
 		a.appLogger.Error("Core stop failed: " + err.Error())

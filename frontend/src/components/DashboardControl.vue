@@ -19,6 +19,7 @@ const emit = defineEmits<{
   'toggle-service': []
   'switch-mode': [{ tunMode: boolean, sysProxy: boolean }]
   'open-dashboard': []
+  'restart-core': []
 }>()
 </script>
 
@@ -65,7 +66,7 @@ const emit = defineEmits<{
           leave-from-class="opacity-100 scale-100"
           leave-to-class="opacity-0 scale-90"
         >
-          <div v-if="running && (tunMode || sysProxy) && !isProcessing && hasDashboard" class="absolute left-1/2 -translate-x-1/2 top-4">
+          <div v-if="running && (tunMode || sysProxy) && !isProcessing && hasDashboard" class="absolute left-1/2 -translate-x-1/2 top-4 flex gap-3">
             <WButton
               variant="link"
               size="sm"
@@ -73,6 +74,14 @@ const emit = defineEmits<{
               @click="emit('open-dashboard')"
             >
               DASHBOARD
+            </WButton>
+            <WButton
+              variant="link"
+              size="sm"
+              icon="fas fa-rotate-right"
+              @click="emit('restart-core')"
+            >
+              RESTART
             </WButton>
           </div>
         </Transition>

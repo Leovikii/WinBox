@@ -146,14 +146,14 @@ function handleClick(area: 'left' | 'center' | 'right') {
         class="flex-1 h-full cursor-pointer flex flex-col items-center justify-center gap-1 transition-all duration-300 group rounded-l-full"
         @click="handleClick('left')"
       >
-        <i 
+        <i
           class="fas fa-network-wired text-sm transition-all duration-300 relative"
           :class="[
             tunMode ? 'text-[#3b82f6]' : 'text-[#444] group-hover:text-[#666]'
           ]"
           :style="tunMode ? 'text-shadow: 0 0 10px rgba(59, 130, 246, 0.6)' : 'text-shadow: 0 1px 1px rgba(0,0,0,0.8), 0 -1px 0 rgba(0,0,0,0.5)'"
         ></i>
-        <span 
+        <span
           class="text-[9px] font-black tracking-widest transition-all duration-300"
           :class="[
             tunMode ? 'text-[#3b82f6]' : 'text-[#333] group-hover:text-[#444]'
@@ -170,21 +170,21 @@ function handleClick(area: 'left' | 'center' | 'right') {
           :class="[
             running ? 'fas fa-power-off' : 'fas fa-bolt',
             'text-sm transition-all duration-300 relative',
-            running 
-              ? (tunMode && sysProxy ? 'text-[#a855f7] scale-110' : 'text-red-500') 
+            running
+              ? (tunMode && sysProxy ? 'text-[#a855f7] scale-110' : 'text-red-500')
               : 'text-[#444] group-hover:text-[#666]'
           ]"
-          :style="running 
-            ? (tunMode && sysProxy 
-                ? 'text-shadow: 0 0 12px rgba(168, 85, 247, 0.8)' 
+          :style="running
+            ? (tunMode && sysProxy
+                ? 'text-shadow: 0 0 12px rgba(168, 85, 247, 0.8)'
                 : 'text-shadow: 0 0 8px rgba(239, 68, 68, 0.5)')
             : 'text-shadow: 0 1px 1px rgba(0,0,0,0.8), 0 -1px 0 rgba(0,0,0,0.5)'"
         ></i>
         <span
           class="text-[9px] font-black tracking-widest transition-all duration-300"
           :class="[
-             running 
-              ? (tunMode && sysProxy ? 'text-[#a855f7]' : 'text-red-500/70') 
+             running
+              ? (tunMode && sysProxy ? 'text-[#a855f7]' : 'text-red-500/70')
               : 'text-[#333] group-hover:text-[#444]'
           ]"
           style="text-shadow: 0 1px 1px rgba(255,255,255,0.03), 0 -1px 1px rgba(0,0,0,0.8);"
@@ -197,14 +197,14 @@ function handleClick(area: 'left' | 'center' | 'right') {
         class="flex-1 h-full cursor-pointer flex flex-col items-center justify-center gap-1 transition-all duration-300 group rounded-r-full"
         @click="handleClick('right')"
       >
-        <i 
+        <i
           class="fas fa-globe text-sm transition-all duration-300 relative"
           :class="[
             sysProxy ? 'text-[#10b981]' : 'text-[#444] group-hover:text-[#666]'
           ]"
           :style="sysProxy ? 'text-shadow: 0 0 10px rgba(16, 185, 129, 0.6)' : 'text-shadow: 0 1px 1px rgba(0,0,0,0.8), 0 -1px 0 rgba(0,0,0,0.5)'"
         ></i>
-        <span 
+        <span
           class="text-[9px] font-black tracking-widest transition-all duration-300"
           :class="[
             sysProxy ? 'text-[#10b981]' : 'text-[#333] group-hover:text-[#444]'

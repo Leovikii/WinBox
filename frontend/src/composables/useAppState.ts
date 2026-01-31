@@ -22,7 +22,6 @@ export function useAppState() {
   const ipv6Enabled = ref(true)
   const logLevel = ref("warning")
   const logToFile = ref(true)
-  const logAutoRefresh = ref(true)
 
   let unsubscribeStatus: (() => void) | null = null
   let unsubscribeStateSync: (() => void) | null = null
@@ -31,6 +30,12 @@ export function useAppState() {
   const getStatusText = computed(() => {
     if (!coreExists.value) return "WARNING"
     if (msg.value === "ERROR") return "ERROR"
+
+    if (isProcessing.value) {
+      if (msg.value === "STARTING...") return "STARTING..."
+      if (msg.value === "STOPPING...") return "STOPPING..."
+    }
+
     if (!running.value) return "OFFLINE"
     if (tunMode.value && sysProxy.value) return "FULL MODE"
     if (tunMode.value) return "TUN MODE"
@@ -44,6 +49,9 @@ export function useAppState() {
 
     if (msg.value === "ERROR")
       return { color: '#F4A7B0 !important', filter: 'drop-shadow(0 0 25px rgba(233, 84, 100, 0.8))' }
+
+    if (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING..."))
+      return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.6))' }
 
     if (!running.value)
       return { color: '#9E9E9E !important', filter: 'none' }
@@ -301,7 +309,7 @@ export function useAppState() {
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnect, autoConnectMode,
-    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile, logAutoRefresh,
+    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectToggle,

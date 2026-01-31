@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -136,19 +137,6 @@ func (a *App) SetLogConfig(level string, toFile bool) string {
 	return "Success"
 }
 
-// SetLogAutoRefresh sets log auto-refresh preference
-func (a *App) SetLogAutoRefresh(enabled bool) string {
-	meta, err := a.storage.LoadMeta()
-	if err != nil {
-		return "Error: " + err.Error()
-	}
-	meta.LogAutoRefresh = enabled
-	if err := a.storage.SaveMeta(meta); err != nil {
-		return "Error: " + err.Error()
-	}
-	return "Success"
-}
-
 // ============================================================================
 // Log Management API
 // ============================================================================
@@ -173,19 +161,9 @@ func (a *App) GetAppLog() string {
 	return limitLogLines(content, 5000)
 }
 
-// GetKernelLog gets the kernel log content
+// GetKernelLog gets the kernel log content from real-time buffer
 func (a *App) GetKernelLog() string {
-	coreDir := filepath.Join(a.getAppDir(), "data", "core")
-	logPath := filepath.Join(coreDir, "box.log")
-
-	// Try to read from log file first (if logging to file is enabled)
-	content, err := os.ReadFile(logPath)
-	if err == nil && len(content) > 0 {
-		// Limit to last 5000 lines to avoid performance issues
-		return limitLogLines(string(content), 5000)
-	}
-
-	// If no log file, try to get from real-time buffer
+	// Always use real-time buffer for immediate output
 	if a.coreManager != nil {
 		bufferContent := a.coreManager.GetLogBuffer()
 		if bufferContent != "" {
@@ -206,14 +184,17 @@ func (a *App) ClearAppLog() string {
 	return "Success"
 }
 
-// ClearKernelLog clears the kernel log
+// ClearKernelLog clears the kernel log buffer and optionally the log file
 func (a *App) ClearKernelLog() string {
 	coreDir := filepath.Join(a.getAppDir(), "data", "core")
 	logPath := filepath.Join(coreDir, "box.log")
 
-	// Clear log file
-	if err := os.WriteFile(logPath, []byte(""), 0644); err != nil {
-		return "Error: " + err.Error()
+	// Clear log file if it exists
+	if _, err := os.Stat(logPath); err == nil {
+		if err := os.WriteFile(logPath, []byte(""), 0644); err != nil {
+			// Log the error but don't fail - buffer clearing is more important
+			a.appLogger.Warn("Failed to clear kernel log file: " + err.Error())
+		}
 	}
 
 	// Clear real-time buffer
@@ -232,6 +213,45 @@ func (a *App) ClearKernelLog() string {
 // OpenDashboard opens the sing-box dashboard in browser
 func (a *App) OpenDashboard() {
 	wailsRuntime.BrowserOpenURL(a.ctx, "http://127.0.0.1:9090/ui")
+}
+
+// RestartCore restarts the sing-box core process
+func (a *App) RestartCore() string {
+	if !a.coreManager.IsRunning() {
+		return "Error: Core is not running"
+	}
+
+	a.appLogger.Info("Restarting core...")
+
+	// Get current metadata to preserve state
+	meta, err := a.storage.LoadMeta()
+	if err != nil {
+		return "Error: " + err.Error()
+	}
+
+	// Stop current core
+	if err := a.coreManager.Stop(); err != nil {
+		a.appLogger.Error("Core stop failed during restart: " + err.Error())
+		return "Error: " + err.Error()
+	}
+
+	// Wait a moment for clean shutdown
+	time.Sleep(500 * time.Millisecond)
+
+	// Start core with previous settings
+	result := a.startCore()
+	if result != "Success" {
+		a.appLogger.Error("Core start failed during restart: " + result)
+		return result
+	}
+
+	// Emit status and state sync events to update frontend
+	wailsRuntime.EventsEmit(a.ctx, "status", true)
+	a.emitStateSync(meta)
+
+	a.appLogger.Info("Core restarted successfully")
+	go a.UpdateTrayIcon()
+	return "Success"
 }
 
 // GetInitData returns initial data for frontend
@@ -263,7 +283,6 @@ func (a *App) GetInitData() map[string]interface{} {
 		"ipv6_enabled":      meta.IPv6Enabled,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
-		"log_auto_refresh":  meta.LogAutoRefresh,
 	}
 }
 

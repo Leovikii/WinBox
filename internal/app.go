@@ -81,10 +81,12 @@ func (a *App) Startup(ctx context.Context) {
 	a.uwpLoopbackManager = NewUWPLoopbackManager()
 	a.appLogger = NewAppLogger(appDir)
 
-	// Log application startup
-	a.appLogger.Info("Application started")
+	// Clear previous session's logs
+	a.appLogger.Clear()
+	kernelLogPath := filepath.Join(appDir, "data", "core", "box.log")
+	os.WriteFile(kernelLogPath, []byte(""), 0644)
 
-	// Clean up any residual processes/network configs from previous session
+	a.appLogger.Info("Application started")
 	a.stopCore()
 
 	// Create directories
@@ -164,7 +166,7 @@ func (a *App) OnShutdown(ctx context.Context) {
 
 // Quit quits the application
 func (a *App) Quit() {
-	a.stopCore()
+	// OnShutdown will be called automatically by Wails, which handles stopCore()
 	wailsRuntime.Quit(a.ctx)
 }
 
@@ -176,15 +178,11 @@ func (a *App) Restart() {
 		return
 	}
 
-	// Stop core gracefully
-	a.stopCore()
-	time.Sleep(500 * time.Millisecond)
-
 	// Start new instance
 	cmd := exec.Command(exe)
 	cmd.Start()
 
-	// Quit current instance
+	// Quit current instance (OnShutdown will handle stopCore)
 	systray.Quit()
 	wailsRuntime.Quit(a.ctx)
 }

@@ -135,6 +135,5 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		IPv6Enabled:     true,
 		LogLevel:        "warning",
 		LogToFile:       true,
-		LogAutoRefresh:  true,
 	}
 }

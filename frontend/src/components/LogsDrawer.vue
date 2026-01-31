@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { WButton } from '@/components/ui'
 import * as Backend from '../../wailsjs/go/internal/App'
 
 const props = defineProps<{
   isOpen: boolean
   errorLog: string
-  logAutoRefresh: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
-  'update:logAutoRefresh': [value: boolean]
 }>()
 
 type LogTab = 'app' | 'kernel'
@@ -21,8 +19,6 @@ const copyState = ref("COPY")
 const appLogContent = ref("")
 const kernelLogContent = ref("")
 const isLoading = ref(false)
-const isFetching = ref(false)
-let refreshInterval: number | null = null
 
 const loadAppLog = async () => {
   try {
@@ -42,13 +38,10 @@ const loadKernelLog = async () => {
   }
 }
 
-const loadLogs = async (silent = false) => {
-  if (isFetching.value) return
+const loadLogs = async () => {
+  if (isLoading.value) return
 
-  isFetching.value = true
-  if (!silent) {
-    isLoading.value = true
-  }
+  isLoading.value = true
 
   if (activeTab.value === 'app') {
     await loadAppLog()
@@ -56,10 +49,7 @@ const loadLogs = async (silent = false) => {
     await loadKernelLog()
   }
 
-  if (!silent) {
-    isLoading.value = false
-  }
-  isFetching.value = false
+  isLoading.value = false
 }
 
 const switchTab = async (tab: LogTab) => {
@@ -146,54 +136,13 @@ const parseAnsiToHtml = (text: string): Array<{ text: string; color: string }> =
   return result
 }
 
-const toggleAutoRefresh = async () => {
-  const newValue = !props.logAutoRefresh
-  emit('update:logAutoRefresh', newValue)
-  await Backend.SetLogAutoRefresh(newValue)
-
-  if (newValue) {
-    startAutoRefresh()
-  } else {
-    stopAutoRefresh()
-  }
-}
-
-const startAutoRefresh = () => {
-  stopAutoRefresh()
-
-  refreshInterval = window.setInterval(() => {
-    if (props.isOpen && props.logAutoRefresh) {
-      loadLogs(true)
-    }
-  }, 3000)
-}
-
-const stopAutoRefresh = () => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
-  }
-}
-
 onMounted(() => {
   loadLogs()
-  if (props.logAutoRefresh) {
-    startAutoRefresh()
-  }
-})
-
-onUnmounted(() => {
-  stopAutoRefresh()
 })
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     loadLogs()
-    if (props.logAutoRefresh) {
-      startAutoRefresh()
-    }
-  } else {
-    stopAutoRefresh()
   }
 })
 
@@ -207,13 +156,6 @@ watch(() => activeTab.value, () => {
     <div class="h-16 shrink-0 flex items-center justify-between px-6 border-b border-[#222]/50">
       <h2 class="text-xs font-bold text-[#555] uppercase tracking-[0.2em]">Runtime Logs</h2>
       <div class="flex gap-2">
-        <WButton
-          :variant="logAutoRefresh ? 'primary' : 'secondary'"
-          size="sm"
-          @click="toggleAutoRefresh"
-        >
-          {{ logAutoRefresh ? 'AUTO: ON' : 'AUTO: OFF' }}
-        </WButton>
         <WButton
           variant="secondary"
           size="sm"

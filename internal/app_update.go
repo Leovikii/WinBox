@@ -253,7 +253,7 @@ func (a *App) launchUpdaterAndRestart(newExePath string) {
 	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
 	cmd.Start()
 
-	a.stopCore()
+	// OnShutdown will handle stopCore when Quit is called
 	time.Sleep(300 * time.Millisecond)
 	systray.Quit()
 	wailsRuntime.Quit(a.ctx)

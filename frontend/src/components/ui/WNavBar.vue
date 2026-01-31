@@ -56,18 +56,22 @@ const activeTextColor = computed(() => '#ffffff')
         v-for="(tab, index) in tabs"
         :key="tab.id"
         @click="emit('change', tab.id)"
-        class="relative flex items-center justify-center h-9 rounded-full overflow-hidden outline-none select-none transition-all duration-300 ease-out shrink-0"
+        class="relative flex items-center justify-center h-9 rounded-full overflow-hidden outline-none select-none transition-all duration-300 ease-out shrink-0 group"
         :class="currentTab === tab.id ? 'px-4' : 'px-3'"
         :style="{
           width: currentTab === tab.id ? '120px' : '48px'
         }"
       >
-        
+        <div
+          v-if="currentTab !== tab.id"
+          class="absolute inset-0 rounded-full bg-white/0 group-hover:bg-white/8 transition-all duration-300 group-hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]"
+        ></div>
+
         <i
           :class="[
             tab.icon,
             'shrink-0 transition-all duration-300 ease-out',
-            currentTab === tab.id ? 'text-base' : 'text-sm text-[#888]'
+            currentTab === tab.id ? 'text-base' : 'text-sm text-[#888] group-hover:text-[#aaa]'
           ]"
           :style="{
             color: currentTab === tab.id ? activeTextColor : '',
@@ -76,7 +80,6 @@ const activeTextColor = computed(() => '#ffffff')
           }"
         ></i>
 
-        
         <span
           class="whitespace-nowrap font-bold text-xs uppercase tracking-wider overflow-hidden transition-all duration-300 ease-out"
           :style="{
