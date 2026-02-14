@@ -45,9 +45,6 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 
 	tmpFile, err := a.downloadKernelRelease(mirrorUrl)
 	if err != nil {
-		if err == os.ErrInvalid {
-			return "Unsupported Arch: " + runtime.GOARCH
-		}
 		if err == os.ErrNotExist {
 			return "No matching asset found"
 		}
@@ -86,15 +83,7 @@ func (a *App) downloadKernelRelease(mirrorUrl string) (string, error) {
 		return "", err
 	}
 
-	targetArch := runtime.GOARCH
-	switch targetArch {
-	case "amd64":
-		targetArch = "windows-amd64"
-	case "arm64":
-		targetArch = "windows-arm64"
-	default:
-		return "", os.ErrInvalid
-	}
+	targetArch := "windows-" + runtime.GOARCH
 
 	var downloadUrl string
 	for _, asset := range res.Assets {

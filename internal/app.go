@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/energye/systray"
@@ -64,14 +63,12 @@ func (a *App) Startup(ctx context.Context) {
 	appDir := a.getAppDir()
 
 	// Set window rounded corners for Windows 11
-	if runtime.GOOS == "windows" {
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			if hwnd, err := GetWindowHandle("WinBox"); err == nil && hwnd != 0 {
-				SetWindowCorners(hwnd)
-			}
-		}()
-	}
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		if hwnd, err := GetWindowHandle("WinBox"); err == nil && hwnd != 0 {
+			SetWindowCorners(hwnd)
+		}
+	}()
 
 	// Initialize managers
 	a.httpClient = NewHTTPClient()
