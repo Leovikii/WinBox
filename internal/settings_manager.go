@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 // SettingsManager manages application settings
@@ -42,8 +43,51 @@ func (sm *SettingsManager) SetStartOnBoot(enabled bool) error {
 	taskName := "WinBoxAutostart"
 
 	if enabled {
-		cmdStr := fmt.Sprintf(`"%s" -minimized`, exePath)
-		cmd := exec.Command("schtasks", "/Create", "/TN", taskName, "/TR", cmdStr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F")
+		taskXML := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT30S</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>%s</Command>
+      <Arguments>-minimized</Arguments>
+    </Exec>
+  </Actions>
+</Task>`, exePath)
+
+		// Write XML to temp file
+		tmpDir := filepath.Dir(exePath)
+		xmlPath := filepath.Join(tmpDir, "task.xml")
+		if err := os.WriteFile(xmlPath, []byte(taskXML), 0644); err != nil {
+			return fmt.Errorf("failed to write task XML: %w", err)
+		}
+		defer os.Remove(xmlPath)
+
+		cmd := exec.Command("schtasks", "/Create", "/TN", taskName, "/XML", xmlPath, "/F")
 		SetCmdWindowHidden(cmd)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("task schedule failed: %s", string(output))
