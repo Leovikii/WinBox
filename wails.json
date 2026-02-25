@@ -20,11 +20,11 @@
   "info": {
     "productName": "WinBox",
     "companyName": "WB Inc.",
-    "productVersion": "2.7.1",
-    "fileVersion": "2.7.1",
+    "productVersion": "2.7.2",
+    "fileVersion": "2.7.2",
     "copyright": "Copyright © 2026",
     "comments": "Built using Wails",
     "fileDescription": "Sing-Box Windows GUI"
   },
-  "ldflags": "-X 'WinBox/internal.Version=2.7.1'"
+  "ldflags": "-X 'WinBox/internal.Version=2.7.2'"
 }

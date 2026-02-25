@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -176,8 +177,14 @@ func (a *App) Restart() {
 		return
 	}
 
-	// Start new instance
-	cmd := exec.Command(exe)
+	// Use PowerShell to wait for current process to exit, then launch new instance
+	psCommand := fmt.Sprintf(
+		"$p = Get-Process -Id %d -ErrorAction SilentlyContinue; "+
+			"if ($p) { $p.WaitForExit(5000) }; "+
+			"Start-Process '%s'",
+		os.Getpid(), exe,
+	)
+	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
 	cmd.Start()
 
 	// Quit current instance (OnShutdown will handle stopCore)

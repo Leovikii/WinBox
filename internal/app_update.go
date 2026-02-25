@@ -34,12 +34,7 @@ func (a *App) CheckUpdate() string {
 }
 
 func (a *App) UpdateKernel(mirrorUrl string) string {
-	wasRunning := a.coreManager.IsRunning()
-	if wasRunning {
-		a.stopCore()
-		time.Sleep(1 * time.Second)
-	}
-
+	// 1. Download first (core still running, proxy network available)
 	appDir := a.getAppDir()
 	coreDir := filepath.Join(appDir, "data", "core")
 
@@ -52,15 +47,35 @@ func (a *App) UpdateKernel(mirrorUrl string) string {
 	}
 	defer os.Remove(tmpFile)
 
+	// 2. Stop core after download succeeds
+	wasRunning := a.coreManager.IsRunning()
+	if wasRunning {
+		wailsRuntime.EventsEmit(a.ctx, "log", "Stopping core for update...")
+		a.stopCore()
+		time.Sleep(1 * time.Second)
+	}
+
+	// 3. Extract and replace
 	if err := a.extractKernelFromZip(tmpFile, coreDir); err != nil {
+		if wasRunning {
+			a.startCore()
+			meta, _ := a.storage.LoadMeta()
+			wailsRuntime.EventsEmit(a.ctx, "status", true)
+			a.emitStateSync(meta)
+		}
 		return "exe not found in zip"
 	}
 
 	wailsRuntime.EventsEmit(a.ctx, "log", "Update Complete")
 
+	// 4. Restart core and sync UI state
 	if wasRunning {
 		time.Sleep(500 * time.Millisecond)
-		a.startCore()
+		if res := a.startCore(); res == "Success" {
+			meta, _ := a.storage.LoadMeta()
+			wailsRuntime.EventsEmit(a.ctx, "status", true)
+			a.emitStateSync(meta)
+		}
 	}
 
 	return "Success"
