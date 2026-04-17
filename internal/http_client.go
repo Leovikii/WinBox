@@ -39,7 +39,12 @@ func (hc *HTTPClient) Get(url string) (*http.Response, error) {
 	var err error
 
 	for i := 0; i < hc.maxRetries; i++ {
-		resp, err = hc.client.Get(url)
+		req, reqErr := http.NewRequest("GET", url, nil)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		req.Header.Set("User-Agent", "sing-box")
+		resp, err = hc.client.Do(req)
 		if err == nil && resp.StatusCode < 500 {
 			return resp, nil
 		}
