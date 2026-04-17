@@ -5,10 +5,8 @@ frontend/wailsjs/
 
 # Node modules
 node_modules/
-frontend/node_modules/
 
-# Go artifacts
-go.sum
+# Go build output
 *.exe
 *.dll
 *.so
@@ -22,4 +20,10 @@ core/
 # IDE settings
 .vscode/
 .idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs
 *.log
