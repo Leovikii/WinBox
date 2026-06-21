@@ -120,6 +120,13 @@ func (a *App) stopCore() string {
 }
 
 func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
+	a.stateMutex.Lock()
+	if a.isAutoConnecting {
+		a.stateMutex.Unlock()
+		return "Error: Auto-connecting in progress, please wait"
+	}
+	a.stateMutex.Unlock()
+
 	meta, _ := a.storage.LoadMeta()
 
 	if targetTun || targetProxy {
@@ -168,6 +175,13 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 }
 
 func (a *App) ToggleService() string {
+	a.stateMutex.Lock()
+	if a.isAutoConnecting {
+		a.stateMutex.Unlock()
+		return "Error: Auto-connecting in progress, please wait"
+	}
+	a.stateMutex.Unlock()
+
 	if a.coreManager.IsRunning() {
 		return a.stopCore()
 	}

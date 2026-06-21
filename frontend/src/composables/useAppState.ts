@@ -180,27 +180,38 @@ export function useAppState() {
     let newTun = tunMode.value
     let newProxy = sysProxy.value
 
+    // Save previous state for rollback
+    const prevTun = tunMode.value
+    const prevProxy = sysProxy.value
+
     if (target === 'tun') newTun = !tunMode.value
     if (target === 'proxy') newProxy = !sysProxy.value
 
+    // Optimistically update UI
+    tunMode.value = newTun
+    sysProxy.value = newProxy
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
     if (res === "Success" || res === "Stopped") {
-      tunMode.value = newTun
-      sysProxy.value = newProxy
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
       msg.value = "ERROR"
       errorLog.value = "No active configuration selected"
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
       msg.value = "ERROR"
       errorLog.value = res
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
     }
     isProcessing.value = false
   }
@@ -216,24 +227,35 @@ export function useAppState() {
     const newTun = target.tunMode
     const newProxy = target.sysProxy
 
+    // Save previous state for rollback
+    const prevTun = tunMode.value
+    const prevProxy = sysProxy.value
+
+    // Optimistically update UI
+    tunMode.value = newTun
+    sysProxy.value = newProxy
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
     if (res === "Success" || res === "Stopped") {
-      tunMode.value = newTun
-      sysProxy.value = newProxy
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
       msg.value = "ERROR"
       errorLog.value = "No active configuration selected"
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
       msg.value = "ERROR"
       errorLog.value = res
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
     }
     isProcessing.value = false
   }
@@ -298,7 +320,6 @@ export function useAppState() {
   const setupEventListeners = () => {
     unsubscribeStatus = EventsOn("status", (isRunning: boolean) => {
       running.value = isRunning
-      isProcessing.value = false
       if (!isRunning) {
         if (msg.value !== "STANDBY" && msg.value !== "NET TIMEOUT") {
           msg.value = "STOPPED"

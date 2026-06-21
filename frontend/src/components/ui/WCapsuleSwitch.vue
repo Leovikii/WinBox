@@ -79,50 +79,28 @@ function handleClick(area: 'left' | 'center' | 'right') {
   let targetProxy = props.sysProxy
 
   if (!props.running) {
-    if (area === 'left') {
-      targetTun = true
-      targetProxy = false
-    } else if (area === 'center') {
-      targetTun = true
-      targetProxy = true
+    if (area === 'left') { targetTun = true; targetProxy = false }
+    else if (area === 'center') { targetTun = true; targetProxy = true }
+    else if (area === 'right') { targetTun = false; targetProxy = true }
+  } else {
+    if (area === 'center') {
+      targetTun = false; targetProxy = false
+    } else if (area === 'left') {
+      if (props.tunMode && !props.sysProxy) {
+        targetTun = true; targetProxy = true
+      } else {
+        targetTun = true; targetProxy = false
+      }
     } else if (area === 'right') {
-      targetTun = false
-      targetProxy = true
-    }
-  } else if (props.tunMode && props.sysProxy) {
-    if (area === 'left') {
-      targetTun = true
-      targetProxy = false
-    } else if (area === 'center') {
-      targetTun = false
-      targetProxy = false
-    } else if (area === 'right') {
-      targetTun = false
-      targetProxy = true
-    }
-  } else if (props.tunMode && !props.sysProxy) {
-    if (area === 'left') {
-      targetTun = true
-      targetProxy = true
-    } else if (area === 'center') {
-      targetTun = false
-      targetProxy = false
-    } else if (area === 'right') {
-      targetTun = false
-      targetProxy = true
-    }
-  } else if (!props.tunMode && props.sysProxy) {
-    if (area === 'left') {
-      targetTun = true
-      targetProxy = false
-    } else if (area === 'center') {
-      targetTun = false
-      targetProxy = false
-    } else if (area === 'right') {
-      targetTun = true
-      targetProxy = true
+      if (!props.tunMode && props.sysProxy) {
+        targetTun = true; targetProxy = true
+      } else {
+        targetTun = false; targetProxy = true
+      }
     }
   }
+
+  if (targetTun === props.tunMode && targetProxy === props.sysProxy) return
 
   emit('switch-mode', { tunMode: targetTun, sysProxy: targetProxy })
 }

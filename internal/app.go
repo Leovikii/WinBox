@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 	"net/http"
 
@@ -48,6 +49,9 @@ type App struct {
 	trayIcons          *TrayIcons
 	trayMenu           *TrayMenu
 	startMinimized     bool
+
+	stateMutex         sync.Mutex
+	isAutoConnecting   bool
 }
 
 // NewApp creates a new App application struct
@@ -228,6 +232,16 @@ func (a *App) getAppDir() string {
 // ============================================================================
 
 func (a *App) smartAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunMode bool) {
+	a.stateMutex.Lock()
+	a.isAutoConnecting = true
+	a.stateMutex.Unlock()
+
+	defer func() {
+		a.stateMutex.Lock()
+		a.isAutoConnecting = false
+		a.stateMutex.Unlock()
+	}()
+
 	// Give the system some time to prepare before starting the checks
 	time.Sleep(3 * time.Second)
 	

@@ -141,7 +141,7 @@ func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConf
 	// Monitor stderr in background
 	go cm.captureOutput(stderrPipe)
 	// Monitor process in background
-	go cm.monitorProcess()
+	go cm.monitorProcess(cm.cmd)
 
 	return nil
 }
@@ -161,7 +161,10 @@ func (cm *CoreManager) Stop() error {
 		}
 
 		done := make(chan error, 1)
-		go func() { done <- cm.cmd.Wait() }()
+		go func() {
+			_, err := cm.cmd.Process.Wait()
+			done <- err
+		}()
 
 		select {
 		case <-done:
@@ -285,10 +288,15 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 }
 
 // monitorProcess monitors the core process and emits events
-func (cm *CoreManager) monitorProcess() {
-	cm.cmd.Wait()
+func (cm *CoreManager) monitorProcess(cmd *exec.Cmd) {
+	cmd.Wait()
 
 	cm.mu.Lock()
+	// Check if this is still the active command. If not, another core was already started or stopped.
+	if cm.cmd != cmd {
+		cm.mu.Unlock()
+		return
+	}
 	wasRunning := cm.running
 	cm.running = false
 	cm.mu.Unlock()

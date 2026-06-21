@@ -27,7 +27,7 @@ var (
 // SetCmdWindowHidden configures a command to run with hidden window
 func SetCmdWindowHidden(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: windows.CREATE_UNICODE_ENVIRONMENT | windows.CREATE_NEW_PROCESS_GROUP,
+		CreationFlags: windows.CREATE_UNICODE_ENVIRONMENT | windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NEW_CONSOLE,
 		HideWindow:    true,
 	}
 }
