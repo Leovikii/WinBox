@@ -22,6 +22,9 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-latest
+    env:
+      VERSION: ''
+      CHANGELOG: ''
     defaults:
       run:
         shell: bash
@@ -66,6 +69,13 @@ jobs:
           echo "$LOGS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
+      - name: Package Release
+        if: github.event_name == 'push'
+        run: |
+          mkdir WinBox
+          cp build/bin/WinBox.exe WinBox/
+          zip -r "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox
+
       - name: Create Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
@@ -75,5 +85,5 @@ jobs:
           body: |
             ### Changes
             ${{ env.CHANGELOG }}
-          files: build/bin/WinBox.exe
+          files: WinBox-${{ env.VERSION }}-windows-amd64.zip
           make_latest: true

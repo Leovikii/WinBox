@@ -202,9 +202,19 @@ func (a *App) UpdateProgram(mirrorUrl string) string {
 		return "Error: Parse failed"
 	}
 
-	version := strings.TrimPrefix(res.TagName, "v")
-	version = strings.TrimPrefix(version, "V")
-	downloadUrl := fmt.Sprintf("https://github.com/Leovikii/WinBox/releases/download/V%s/WinBox.exe", version)
+	targetArch := runtime.GOOS + "-" + runtime.GOARCH
+
+	var downloadUrl string
+	for _, asset := range res.Assets {
+		if strings.Contains(asset.Name, targetArch) && strings.HasSuffix(asset.Name, ".zip") {
+			downloadUrl = asset.BrowserDownloadUrl
+			break
+		}
+	}
+
+	if downloadUrl == "" {
+		return "Error: No matching asset found"
+	}
 
 	if mirrorUrl != "" {
 		if !strings.HasSuffix(mirrorUrl, "/") {
@@ -213,12 +223,19 @@ func (a *App) UpdateProgram(mirrorUrl string) string {
 		downloadUrl = mirrorUrl + downloadUrl
 	}
 
+	zipPath := filepath.Join(exeDir, "WinBox-update.zip")
 	newExePath := filepath.Join(exeDir, "WinBox.exe.new")
+
 	wailsRuntime.EventsEmit(a.ctx, "log", "Downloading WinBox update...")
 	wailsRuntime.EventsEmit(a.ctx, "download-progress", 0)
 
-	if err := a.httpClient.Download(downloadUrl, newExePath, a.ctx); err != nil {
+	if err := a.httpClient.Download(downloadUrl, zipPath, a.ctx); err != nil {
 		return "Error: Download failed"
+	}
+	defer os.Remove(zipPath)
+
+	if err := a.extractProgramFromZip(zipPath, newExePath); err != nil {
+		return "Error: Extraction failed"
 	}
 
 	wailsRuntime.EventsEmit(a.ctx, "log", "Update ready. Restarting...")
@@ -231,19 +248,65 @@ func (a *App) UpdateProgram(mirrorUrl string) string {
 	return "Success"
 }
 
+func (a *App) extractProgramFromZip(zipPath, targetPath string) error {
+	wailsRuntime.EventsEmit(a.ctx, "log", "Extracting WinBox update...")
+
+	zipReader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer zipReader.Close()
+
+	expectedExe := "WinBox.exe"
+	if runtime.GOOS != "windows" {
+		expectedExe = "WinBox"
+	}
+
+	for _, f := range zipReader.File {
+		if strings.HasSuffix(f.Name, expectedExe) {
+			src, err := f.Open()
+			if err != nil {
+				return err
+			}
+			dst, err := os.Create(targetPath)
+			if err != nil {
+				src.Close()
+				return err
+			}
+			_, err = io.Copy(dst, src)
+			src.Close()
+			dst.Close()
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	return os.ErrNotExist
+}
+
 func (a *App) launchUpdaterAndRestart(newExePath string) {
 	exe, _ := os.Executable()
 
-	psCommand := fmt.Sprintf(
-		"Start-Sleep -Seconds 2; "+
-			"Remove-Item '%s' -Force; "+
-			"Rename-Item '%s' 'WinBox.exe'; "+
-			"Start-Process '%s'",
-		exe, newExePath, exe,
-	)
-
-	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
-	cmd.Start()
+	if runtime.GOOS == "windows" {
+		psCommand := fmt.Sprintf(
+			"Start-Sleep -Seconds 2; "+
+				"Remove-Item '%s' -Force; "+
+				"Rename-Item '%s' 'WinBox.exe'; "+
+				"Start-Process '%s'",
+			exe, newExePath, exe,
+		)
+		cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
+		cmd.Start()
+	} else {
+		shCommand := fmt.Sprintf(
+			"sleep 2; rm -f '%s'; mv '%s' '%s'; chmod +x '%s'; '%s' &",
+			exe, newExePath, exe, exe, exe,
+		)
+		cmd := exec.Command("sh", "-c", shCommand)
+		cmd.Start()
+	}
 
 	time.Sleep(300 * time.Millisecond)
 	systray.Quit()

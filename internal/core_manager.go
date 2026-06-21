@@ -277,6 +277,9 @@ func (cm *CoreManager) captureOutput(pipe interface{}) {
 		line := scanner.Text()
 		cm.logBuffer.Append(line)
 	}
+	if err := scanner.Err(); err != nil {
+		cm.logBuffer.Append(fmt.Sprintf("[Log Error]: %v", err))
+	}
 }
 
 // GetLogBuffer returns the current log buffer content
