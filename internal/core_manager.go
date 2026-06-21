@@ -9,10 +9,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
+	"golang.org/x/sys/windows"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -175,6 +178,63 @@ func (cm *CoreManager) Stop() error {
 
 	cm.running = false
 	return nil
+}
+
+// KillZombieInstances scans for and terminates any orphaned sing-box processes
+// that match the expected executable path for this application.
+func (cm *CoreManager) KillZombieInstances() {
+	corePath := filepath.Join(cm.appDir, "data", "core", "sing-box.exe")
+	
+	// Use tasklist as wmic is deprecated on newer Windows versions
+	cmd := exec.Command("tasklist", "/FI", "IMAGENAME eq sing-box.exe", "/FO", "CSV", "/NH")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NO_WINDOW,
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "信息:") || strings.HasPrefix(line, "INFO:") {
+			continue
+		}
+		
+		parts := strings.Split(line, "\",\"")
+		if len(parts) >= 2 {
+			pidStr := strings.Trim(parts[1], "\"")
+			if pid, err := strconv.ParseUint(pidStr, 10, 32); err == nil {
+				// Verify the path using Windows API
+				if cm.isTargetProcess(uint32(pid), corePath) {
+					if proc, err := os.FindProcess(int(pid)); err == nil {
+						if err := proc.Kill(); err == nil {
+							cm.logBuffer.Append(fmt.Sprintf("[Info] Killed zombie sing-box.exe (PID: %d)", pid))
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (cm *CoreManager) isTargetProcess(pid uint32, targetPath string) bool {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(h)
+
+	var buf [windows.MAX_PATH]uint16
+	size := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &size); err != nil {
+		return false
+	}
+	
+	procPath := windows.UTF16ToString(buf[:size])
+	return strings.EqualFold(procPath, targetPath)
 }
 
 // IsRunning returns the running status with thread safety

@@ -7,7 +7,41 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
+
+// ============================================================================
+// System Configuration - Proxy Management
+// ============================================================================
+
+var (
+	wininet                      = windows.NewLazySystemDLL("wininet.dll")
+	procInternetSetOptionW       = wininet.NewProc("InternetSetOptionW")
+)
+
+const (
+	INTERNET_OPTION_SETTINGS_CHANGED = 39
+	INTERNET_OPTION_REFRESH          = 37
+)
+
+// ClearSystemProxy disables the system proxy via registry and notifies the system
+func ClearSystemProxy() error {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+
+	if err := k.SetDWordValue("ProxyEnable", 0); err != nil {
+		return err
+	}
+
+	// Notify the system that settings have changed
+	procInternetSetOptionW.Call(0, uintptr(INTERNET_OPTION_SETTINGS_CHANGED), 0, 0)
+	procInternetSetOptionW.Call(0, uintptr(INTERNET_OPTION_REFRESH), 0, 0)
+
+	return nil
+}
 
 // ============================================================================
 // Process Control - Console and Signal Management

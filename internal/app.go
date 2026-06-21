@@ -100,6 +100,13 @@ func (a *App) Startup(ctx context.Context) {
 	os.WriteFile(kernelLogPath, []byte(""), 0644)
 
 	a.appLogger.Info("Application started")
+	
+	// Environment Cleanup: Ensure no zombie instances or stale system proxy settings exist
+	a.coreManager.KillZombieInstances()
+	if err := ClearSystemProxy(); err != nil {
+		a.appLogger.Info(fmt.Sprintf("ClearSystemProxy non-critical error: %v", err))
+	}
+
 	a.stopCore()
 
 	// Create directories

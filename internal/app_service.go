@@ -22,20 +22,6 @@ func (a *App) configureAutoStartMode(meta *MetaData, mode string) {
 	}
 }
 
-func (a *App) cleanSystemProxy(meta *MetaData, prevTunMode, prevSysProxy bool) {
-	tempMeta := *meta
-	tempMeta.TunMode = prevTunMode
-	tempMeta.SysProxy = prevSysProxy
-	a.storage.SaveMeta(&tempMeta)
-
-	a.startCore()
-	time.Sleep(500 * time.Millisecond)
-	a.stopCore()
-	time.Sleep(500 * time.Millisecond)
-
-	a.storage.SaveMeta(meta)
-}
-
 func (a *App) handleAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunMode bool) {
 	go func() {
 		if a.startMinimized {
@@ -43,7 +29,7 @@ func (a *App) handleAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTun
 		}
 
 		if modeChanged && prevSysProxy {
-			a.cleanSystemProxy(meta, prevTunMode, prevSysProxy)
+			ClearSystemProxy()
 		}
 
 		if res := a.startCore(); res == "Success" {
