@@ -89,13 +89,10 @@ func (a *App) startCore() string {
 
 	apiURL := a.coreManager.GetAPIURL()
 	if apiURL != "" {
-		a.appLogger.Info("Starting traffic monitor with API: " + apiURL)
 		if a.trafficMonitor == nil {
 			a.trafficMonitor = NewTrafficMonitor(a.ctx, apiURL)
 		}
 		a.trafficMonitor.Start()
-	} else {
-		a.appLogger.Info("Clash API not configured, traffic monitoring disabled")
 	}
 
 	go a.UpdateTrayIcon()
@@ -110,7 +107,6 @@ func (a *App) stopCore() string {
 	a.appLogger.Info("Stopping core...")
 
 	if a.trafficMonitor != nil && a.trafficMonitor.IsRunning() {
-		a.appLogger.Info("Stopping traffic monitor...")
 		a.trafficMonitor.Stop()
 	}
 
@@ -135,6 +131,21 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 	needsRestart := (meta.TunMode != targetTun) || (meta.SysProxy != targetProxy)
 	if !a.coreManager.IsRunning() {
 		needsRestart = true
+	}
+
+	if meta.TunMode != targetTun {
+		if targetTun {
+			a.appLogger.Info("Tun mode enabled")
+		} else {
+			a.appLogger.Info("Tun mode disabled")
+		}
+	}
+	if meta.SysProxy != targetProxy {
+		if targetProxy {
+			a.appLogger.Info("Sys proxy enabled")
+		} else {
+			a.appLogger.Info("Sys proxy disabled")
+		}
 	}
 
 	meta.TunMode = targetTun

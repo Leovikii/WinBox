@@ -264,8 +264,14 @@ func (cm *CoreManager) monitorProcess() {
 	cm.cmd.Wait()
 
 	cm.mu.Lock()
+	wasRunning := cm.running
 	cm.running = false
 	cm.mu.Unlock()
+
+	if wasRunning {
+		cm.logBuffer.Append("[Warning] Core process stopped unexpectedly")
+		wailsRuntime.EventsEmit(cm.ctx, "log", "Error: Core crashed unexpectedly")
+	}
 
 	wailsRuntime.EventsEmit(cm.ctx, "status", false)
 }

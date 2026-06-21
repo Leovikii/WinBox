@@ -223,6 +223,7 @@ func (a *App) smartAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunM
 	time.Sleep(3 * time.Second)
 	
 	a.appLogger.Info("Smart Detect: Waiting for network connection...")
+	wailsRuntime.EventsEmit(a.ctx, "log", "Waiting for network...")
 	
 	maxRetries := 15 // 15 retries * 2 seconds wait = ~30 seconds max
 	networkReady := false
@@ -239,27 +240,31 @@ func (a *App) smartAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunM
 
 	if !networkReady {
 		a.appLogger.Warn("Smart Detect: Network not ready after 30 seconds. Fallback: Aborting auto-start.")
+		wailsRuntime.EventsEmit(a.ctx, "log", "Network timeout, auto-start aborted")
 		wailsRuntime.EventsEmit(a.ctx, "status", false)
 		return
 	}
 
 	a.appLogger.Info("Smart Detect: Network is ready. Checking proxy environment...")
+	wailsRuntime.EventsEmit(a.ctx, "log", "Checking proxy environment...")
 	
 	// Step 2: Check Google 204 to determine if we are already in a proxy environment
 	isProxyEnv := false
 	resp, err := client.Get("https://www.gstatic.com/generate_204")
-	if err == nil {
-		if resp.StatusCode == 204 {
-			isProxyEnv = true
-		}
-		resp.Body.Close()
+	if err == nil && resp.StatusCode == 204 {
+		isProxyEnv = true
+		a.appLogger.Info("Smart Detect: Google 204 returned successfully. Proxy environment confirmed.")
+	} else {
+		a.appLogger.Info("Smart Detect: Google 204 failed. Proceeding with normal connection.")
 	}
 	
 	if isProxyEnv {
 		a.appLogger.Info("Smart Detect: Transparent proxy environment detected. Skipping auto-start.")
+		wailsRuntime.EventsEmit(a.ctx, "log", "Proxy detected, skipping auto-start")
 		wailsRuntime.EventsEmit(a.ctx, "status", false)
 	} else {
 		a.appLogger.Info("Smart Detect: No proxy environment detected. Starting core...")
+		wailsRuntime.EventsEmit(a.ctx, "log", "Network ready, starting core...")
 		a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
 	}
 }

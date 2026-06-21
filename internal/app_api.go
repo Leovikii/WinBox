@@ -27,6 +27,16 @@ func (a *App) SelectProfile(id string) string {
 	if err := a.profileManager.Select(id); err != nil {
 		return "Error: " + err.Error()
 	}
+
+	if meta, err := a.storage.LoadMeta(); err == nil {
+		for _, p := range meta.Profiles {
+			if p.ID == id {
+				a.appLogger.Info("Profile switched to: " + p.Name)
+				break
+			}
+		}
+	}
+
 	return "Success"
 }
 
@@ -143,7 +153,6 @@ func (a *App) ClearAppLog() string {
 	if err := a.appLogger.Clear(); err != nil {
 		return "Error: " + err.Error()
 	}
-	a.appLogger.Info("App log cleared")
 	return "Success"
 }
 
@@ -161,7 +170,6 @@ func (a *App) ClearKernelLog() string {
 		a.coreManager.ClearLogBuffer()
 	}
 
-	a.appLogger.Info("Kernel log cleared")
 	return "Success"
 }
 
