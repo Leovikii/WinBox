@@ -162,7 +162,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	if canAutoStart {
 		if meta.AutoConnectState == "smart" {
-			go a.smartAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+			go a.smartAutoStart(modeChanged, prevSysProxy)
 		} else {
 			a.handleAutoStart(modeChanged, prevSysProxy)
 		}
@@ -236,7 +236,7 @@ func (a *App) getAppDir() string {
 // Smart Auto Start Logic
 // ============================================================================
 
-func (a *App) smartAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunMode bool) {
+func (a *App) smartAutoStart(modeChanged, prevSysProxy bool) {
 	a.stateMutex.Lock()
 	a.isAutoConnecting = true
 	a.stateMutex.Unlock()

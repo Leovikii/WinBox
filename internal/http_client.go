@@ -103,6 +103,11 @@ func (hc *HTTPClient) GetLatestRelease(repoURL string, allowPreRelease bool) (*R
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
 	if allowPreRelease {
 		var resList []ReleaseInfo
 		if err := json.NewDecoder(resp.Body).Decode(&resList); err != nil {

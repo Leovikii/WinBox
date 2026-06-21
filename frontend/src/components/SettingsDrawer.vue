@@ -162,6 +162,15 @@ const handleApplyCustomColor = () => {
               LATEST
             </WButton>
             <WButton
+              v-else-if="programUpdateState === 'error'"
+              variant="warning"
+              size="sm"
+              icon="fas fa-exclamation-triangle"
+              @click="emit('check-program-update')"
+            >
+              FAILED
+            </WButton>
+            <WButton
               v-else
               variant="secondary"
               size="sm"
@@ -239,6 +248,15 @@ const handleApplyCustomColor = () => {
               icon="fas fa-check-circle"
             >
               LATEST
+            </WButton>
+            <WButton
+              v-else-if="updateState === 'error'"
+              variant="warning"
+              size="sm"
+              icon="fas fa-exclamation-triangle"
+              @click="emit('check-update')"
+            >
+              FAILED
             </WButton>
             <WButton
               v-else
