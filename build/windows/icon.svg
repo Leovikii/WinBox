@@ -10,25 +10,15 @@
       <stop offset="40%" stop-color="#CCCCCC"/>
       <stop offset="100%" stop-color="#888888"/>
     </radialGradient>
-    
-    <!-- Ultra-soft diagonal gradient for the badge base -->
     <linearGradient id="badge" x1="0%" y1="0%" x2="100%" y2="100%">
 
     </linearGradient>
-
     <filter id="lid-shadow">
       <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000" flood-opacity="0.15"/>
     </filter>
-    
-    <!-- Clean, natural drop shadow for the badge -->
     <filter id="badge-shadow">
-      <feDropShadow dx="1.5" dy="2" stdDeviation="1.5" flood-color="#000" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1" flood-color="#000" flood-opacity="0.25"/>
     </filter>
-
-    <filter id="text-shadow">
-      <feDropShadow dx="0.5" dy="1" stdDeviation="0.8" flood-color="#000" flood-opacity="0.4"/>
-    </filter>
-    
     <clipPath id="square-clip">
       <rect x="25" y="15" width="65" height="65" rx="14" />
     </clipPath>
