@@ -76,13 +76,13 @@ jobs:
         run: |
           mkdir WinBox
           cp build/bin/WinBox.exe WinBox/
-          zip -r "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox
+          7z a -tzip "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox/
 
       - name: Check Prerelease Status
         if: github.event_name == 'push'
         id: prerelease_check
         run: |
-          if [[ "${{ env.VERSION }}" =~ -(alpha|beta|rc) ]]; then
+          if [[ "${{ env.VERSION }}" == *"-"* ]]; then
             echo "IS_PRERELEASE=true" >> $GITHUB_ENV
             echo "MAKE_LATEST=false" >> $GITHUB_ENV
           else
