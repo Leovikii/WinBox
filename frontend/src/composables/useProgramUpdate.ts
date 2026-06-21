@@ -18,7 +18,13 @@ export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
     programUpdateState.value = "checking"
     const res = await Backend.CheckProgramUpdate() as any
     if (res.error) {
-      programUpdateState.value = "idle"
+      appState.msg.value = "Update Check Failed"
+      appState.errorLog.value = res.error
+      programUpdateState.value = "error"
+      if (updateStateTimeout) clearTimeout(updateStateTimeout)
+      updateStateTimeout = window.setTimeout(() => {
+        programUpdateState.value = "idle"
+      }, 3000)
       return
     }
     programRemoteVer.value = res.version
@@ -38,6 +44,8 @@ export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
     if (res === "Success") {
       programUpdateState.value = "success"
     } else {
+      appState.msg.value = "Update Failed"
+      appState.errorLog.value = res
       programUpdateState.value = "error"
       if (updateStateTimeout) clearTimeout(updateStateTimeout)
       updateStateTimeout = window.setTimeout(() => {

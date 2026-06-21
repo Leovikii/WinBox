@@ -29,6 +29,13 @@ const programState = useProgramUpdate(appState);
 const themeState = useTheme();
 const uwpState = useUWPLoopback();
 
+const handlePreReleaseToggleWrapper = async () => {
+  await appState.handlePreReleaseToggle();
+  // Reset the update checking states so the user can re-check immediately
+  kernelState.updateState.value = "idle";
+  programState.programUpdateState.value = "idle";
+};
+
 const minimize = () => Backend.Minimize();
 const minimizeToTray = () => Backend.MinimizeToTray();
 const requestQuit = () => { showQuitConfirm.value = true; };
@@ -202,7 +209,7 @@ const handleRestartCore = async () => {
             @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
             @perform-update="kernelState.performUpdate"
-            @toggle-pre-release="appState.handlePreReleaseToggle"
+            @toggle-pre-release="handlePreReleaseToggleWrapper"
             @toggle-mirror="appState.handleMirrorToggle"
             @toggle-start-on-boot="appState.handleStartOnBootToggle"
             @change-auto-connect="appState.handleAutoConnectChange"
