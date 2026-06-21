@@ -36,6 +36,10 @@ export function useAppState() {
       if (msg.value === "STOPPING...") return "STOPPING..."
     }
 
+    if (["DETECTING", "STANDBY", "NET TIMEOUT"].includes(msg.value)) {
+      return msg.value
+    }
+
     if (!running.value) return "OFFLINE"
     if (tunMode.value && sysProxy.value) return "FULL MODE"
     if (tunMode.value) return "TUNNEL"
@@ -47,11 +51,14 @@ export function useAppState() {
     if (!coreExists.value)
       return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.8))' }
 
-    if (msg.value === "ERROR")
+    if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
       return { color: '#F4A7B0 !important', filter: 'drop-shadow(0 0 25px rgba(233, 84, 100, 0.8))' }
 
-    if (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING..."))
+    if (msg.value === "DETECTING" || (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING...")))
       return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.6))' }
+
+    if (msg.value === "STANDBY")
+      return { color: '#B4A2CC !important', filter: 'drop-shadow(0 0 25px rgba(180, 162, 204, 0.8))' }
 
     if (!running.value)
       return { color: '#9E9E9E !important', filter: 'none' }
@@ -72,15 +79,21 @@ export function useAppState() {
     const color = getModeColor(
       tunMode.value,
       sysProxy.value,
-      msg.value === "ERROR" || !coreExists.value,
+      msg.value === "ERROR" || !coreExists.value || msg.value === "NET TIMEOUT",
       running.value
     )
 
     if (!coreExists.value)
       return `bg-[#F8B500]/20`
 
-    if (msg.value === "ERROR")
+    if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
       return `bg-[${color.hex}]/20`
+
+    if (msg.value === "DETECTING")
+      return `bg-[#F8B500]/20`
+
+    if (msg.value === "STANDBY")
+      return `bg-[#B4A2CC]/20`
 
     if (tunMode.value && sysProxy.value)
       return `bg-[${color.hex}]/20`
