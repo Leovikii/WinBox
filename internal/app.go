@@ -25,6 +25,14 @@ type TrayIcons struct {
 	Full    []byte
 }
 
+// TrayMenu holds references to the tray menu items
+type TrayMenu struct {
+	ModeFull  *systray.MenuItem
+	ModeTun   *systray.MenuItem
+	ModeProxy *systray.MenuItem
+	Stop      *systray.MenuItem
+}
+
 // App struct represents the main application
 type App struct {
 	ctx                context.Context
@@ -38,6 +46,7 @@ type App struct {
 	appLogger          *AppLogger
 	iconData           []byte
 	trayIcons          *TrayIcons
+	trayMenu           *TrayMenu
 	startMinimized     bool
 }
 

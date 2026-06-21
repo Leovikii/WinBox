@@ -287,8 +287,18 @@ export function useAppState() {
   }
 
   const setupEventListeners = () => {
-    unsubscribeStatus = EventsOn("status", (state: boolean) => {
-      running.value = state
+    unsubscribeStatus = EventsOn("status", (isRunning: boolean) => {
+      running.value = isRunning
+      isProcessing.value = false
+      if (!isRunning) {
+        if (msg.value !== "STANDBY" && msg.value !== "NET TIMEOUT") {
+          msg.value = "STOPPED"
+        }
+      } else {
+        if (["DETECTING", "STANDBY", "NET TIMEOUT"].includes(msg.value)) {
+          msg.value = ""
+        }
+      }
     })
 
     unsubscribeStateSync = EventsOn("state-sync", (state: any) => {
