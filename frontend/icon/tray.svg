@@ -1,14 +1,14 @@
 <svg viewBox="22.5 14.5 67.5 67.5" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="base" cx="30%" cy="20%" r="120%">
-      <stop offset="0%" stop-color="#AAAAAA"/>
-      <stop offset="50%" stop-color="#666666"/>
-      <stop offset="100%" stop-color="#222222"/>
+      <stop offset="0%" stop-color="#2DB2A7"/>
+      <stop offset="50%" stop-color="#13615A"/>
+      <stop offset="100%" stop-color="#05201D"/>
     </radialGradient>
     <radialGradient id="lid" cx="20%" cy="10%" r="120%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="40%" stop-color="#CCCCCC"/>
-      <stop offset="100%" stop-color="#888888"/>
+      <stop offset="0%" stop-color="#DDFBF8"/>
+      <stop offset="40%" stop-color="#39C5BB"/>
+      <stop offset="100%" stop-color="#1C756F"/>
     </radialGradient>
     
     <!-- Ultra-soft diagonal gradient for the badge base -->
