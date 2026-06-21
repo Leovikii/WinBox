@@ -86,7 +86,7 @@ watch(isOpen, (newVal) => {
 
 const buttonClasses = computed(() => {
   const classes = [
-    'relative bg-[#1a1a1a] text-[11px] text-gray-300 border border-[#333]',
+    'w-full relative bg-[#1a1a1a] text-[11px] text-gray-300 border border-[#333]',
     'rounded-lg px-3 h-7 outline-none text-center font-bold cursor-pointer',
     'transition-all duration-300 flex items-center justify-between gap-2',
     'hover:bg-[#222] hover:border-[#444]'
@@ -149,7 +149,7 @@ const dropdownClasses = computed(() => {
           :key="option.value"
           @click="selectOption(option.value)"
           :class="[
-            'px-3 py-2 text-[11px] font-bold cursor-pointer transition-all duration-200',
+            'px-3 py-2 text-[11px] font-bold cursor-pointer transition-all duration-200 whitespace-nowrap',
             'hover:bg-[#222] hover:text-(--accent-color)',
             modelValue === option.value
               ? 'bg-(--accent-color)/10 text-(--accent-color)'

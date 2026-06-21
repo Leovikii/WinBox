@@ -83,8 +83,8 @@ func (a *App) SetStartOnBoot(enabled bool) string {
 	return "Success"
 }
 
-func (a *App) SetAutoConnect(enabled bool, mode string) string {
-	if err := a.settingsManager.SetAutoConnect(enabled, mode); err != nil {
+func (a *App) SetAutoConnect(state string, mode string) string {
+	if err := a.settingsManager.SetAutoConnect(state, mode); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
@@ -223,7 +223,7 @@ func (a *App) GetInitData() map[string]interface{} {
 		"mirror":            meta.Mirror,
 		"mirrorEnabled":     meta.MirrorEnabled,
 		"startOnBoot":       meta.StartOnBoot,
-		"autoConnect":       meta.AutoConnect,
+		"autoConnectState":  meta.AutoConnectState,
 		"autoConnectMode":   meta.AutoConnectMode,
 		"themeMode":         meta.ThemeMode,
 		"accentColor":       meta.AccentColor,

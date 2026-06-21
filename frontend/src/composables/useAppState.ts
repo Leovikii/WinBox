@@ -14,7 +14,7 @@ export function useAppState() {
   const errorLog = ref("")
 
   const startOnBoot = ref(false)
-  const autoConnect = ref(false)
+  const autoConnectState = ref("smart")
   const autoConnectMode = ref("full")
   const mirrorUrl = ref("")
   const mirrorEnabled = ref(false)
@@ -99,7 +99,7 @@ export function useAppState() {
     tunMode.value = data.running && data.tunMode
     sysProxy.value = data.running && data.sysProxy
     startOnBoot.value = data.startOnBoot
-    autoConnect.value = data.autoConnect
+    autoConnectState.value = data.autoConnectState
     autoConnectMode.value = data.autoConnectMode
     mirrorUrl.value = data.mirror
     mirrorEnabled.value = data.mirrorEnabled
@@ -234,25 +234,25 @@ export function useAppState() {
     const res = await Backend.SetStartOnBoot(newState)
     if (res === "Success") {
       startOnBoot.value = newState
-      if (newState && !autoConnect.value) {
-        await Backend.SetAutoConnect(true, autoConnectMode.value)
-        autoConnect.value = true
+      if (newState && autoConnectState.value === "off") {
+        await Backend.SetAutoConnect("smart", autoConnectMode.value)
+        autoConnectState.value = "smart"
       }
     } else {
       alert(res)
     }
   }
 
-  const handleAutoConnectToggle = async () => {
-    const newState = !autoConnect.value
-    const res = await Backend.SetAutoConnect(newState, autoConnectMode.value)
-    if (res === "Success") autoConnect.value = newState
+  const handleAutoConnectChange = async (newState: string | number) => {
+    const stateStr = String(newState)
+    const res = await Backend.SetAutoConnect(stateStr, autoConnectMode.value)
+    if (res === "Success") autoConnectState.value = stateStr
     else alert(res)
   }
 
   const handleAutoConnectModeChange = async (newMode: string | number) => {
     const mode = String(newMode)
-    const res = await Backend.SetAutoConnect(autoConnect.value, mode)
+    const res = await Backend.SetAutoConnect(autoConnectState.value, mode)
     if (res === "Success") autoConnectMode.value = mode
   }
 
@@ -308,11 +308,11 @@ export function useAppState() {
 
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
-    errorLog, startOnBoot, autoConnect, autoConnectMode,
+    errorLog, startOnBoot, autoConnectState, autoConnectMode,
     mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
-    handleStartOnBootToggle, handleAutoConnectToggle,
+    handleStartOnBootToggle, handleAutoConnectChange,
     handleAutoConnectModeChange, handleIPv6Toggle, handleLogConfigChange
   }
 }

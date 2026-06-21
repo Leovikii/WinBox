@@ -18,7 +18,7 @@ defineProps<{
   mirrorUrl: string
   mirrorEnabled: boolean
   startOnBoot: boolean
-  autoConnect: boolean
+  autoConnectState: string
   autoConnectMode: string
   showEditor: boolean
   editingType: string
@@ -47,7 +47,7 @@ const emit = defineEmits<{
   'perform-update': []
   'toggle-mirror': []
   'toggle-start-on-boot': []
-  'toggle-auto-connect': []
+  'change-auto-connect': [value: string | number]
   'change-auto-connect-mode': [value: string | number]
   'open-editor': [type: 'tun' | 'mixed' | 'mirror']
   'save-editor': []
@@ -240,10 +240,19 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Auto Connect</span>
-          <WSwitch :model-value="autoConnect" @update:model-value="emit('toggle-auto-connect')" />
+          <WSelect
+            :model-value="autoConnectState"
+            @update:model-value="emit('change-auto-connect', $event)"
+            :options="[
+              { value: 'smart', label: 'SMART' },
+              { value: 'on', label: 'ON' },
+              { value: 'off', label: 'OFF' }
+            ]"
+            class="w-24"
+          />
         </div>
 
-        <WExpandable :expanded="autoConnect">
+        <WExpandable :expanded="autoConnectState !== 'off'">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a] min-h-10">
             <span class="text-xs font-bold text-gray-500">Startup Mode</span>
             <WSelect

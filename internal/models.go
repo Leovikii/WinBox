@@ -28,7 +28,8 @@ type MetaData struct {
 	SysProxy        bool      `json:"sys_proxy"`
 	TunConfig       string    `json:"tun_config"`
 	MixedConfig     string    `json:"mixed_config"`
-	AutoConnect     bool      `json:"auto_connect"`
+	AutoConnect     *bool     `json:"auto_connect,omitempty"`
+	AutoConnectState string   `json:"auto_connect_state"`
 	AutoConnectMode string    `json:"auto_connect_mode"`
 	StartOnBoot     bool      `json:"start_on_boot"`
 	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"

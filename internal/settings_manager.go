@@ -108,13 +108,13 @@ func (sm *SettingsManager) SetStartOnBoot(enabled bool) error {
 }
 
 // SetAutoConnect sets auto connect settings
-func (sm *SettingsManager) SetAutoConnect(enabled bool, mode string) error {
+func (sm *SettingsManager) SetAutoConnect(state string, mode string) error {
 	meta, err := sm.storage.LoadMeta()
 	if err != nil {
 		return err
 	}
 
-	meta.AutoConnect = enabled
+	meta.AutoConnectState = state
 	meta.AutoConnectMode = mode
 
 	return sm.storage.SaveMeta(meta)

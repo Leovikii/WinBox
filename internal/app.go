@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+	"net/http"
 
 	"github.com/energye/systray"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -112,7 +113,10 @@ func (a *App) Startup(ctx context.Context) {
 		}
 	}
 
-	canAutoStart := kernelExists && profileExists && meta.AutoConnect
+	canAutoStart := false
+	if kernelExists && profileExists && meta.AutoConnectState != "off" {
+		canAutoStart = true
+	}
 
 	if canAutoStart {
 		a.configureAutoStartMode(meta, meta.AutoConnectMode)
@@ -139,7 +143,11 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	if canAutoStart {
-		a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+		if meta.AutoConnectState == "smart" {
+			go a.smartAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+		} else {
+			a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+		}
 	} else {
 		if modeChanged && prevSysProxy {
 			go func() {
@@ -204,4 +212,67 @@ func (a *App) getAppDir() string {
 		return wd
 	}
 	return filepath.Dir(exe)
+}
+
+// ============================================================================
+// Smart Auto Start Logic
+// ============================================================================
+
+func (a *App) smartAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunMode bool) {
+	// Give the system some time to prepare before starting the checks
+	time.Sleep(3 * time.Second)
+	
+	a.appLogger.Info("Smart Detect: Waiting for network connection...")
+	
+	maxRetries := 15 // 15 retries * 2 seconds wait = ~30 seconds max
+	networkReady := false
+	
+	client := &http.Client{Timeout: 2 * time.Second}
+	
+	for i := 0; i < maxRetries; i++ {
+		if a.checkBasicNetwork(client) {
+			networkReady = true
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	if !networkReady {
+		a.appLogger.Warn("Smart Detect: Network not ready after 30 seconds. Fallback: Aborting auto-start.")
+		wailsRuntime.EventsEmit(a.ctx, "status", false)
+		return
+	}
+
+	a.appLogger.Info("Smart Detect: Network is ready. Checking proxy environment...")
+	
+	// Step 2: Check Google 204 to determine if we are already in a proxy environment
+	isProxyEnv := false
+	resp, err := client.Get("https://www.gstatic.com/generate_204")
+	if err == nil {
+		if resp.StatusCode == 204 {
+			isProxyEnv = true
+		}
+		resp.Body.Close()
+	}
+	
+	if isProxyEnv {
+		a.appLogger.Info("Smart Detect: Transparent proxy environment detected. Skipping auto-start.")
+		wailsRuntime.EventsEmit(a.ctx, "status", false)
+	} else {
+		a.appLogger.Info("Smart Detect: No proxy environment detected. Starting core...")
+		a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+	}
+}
+
+func (a *App) checkBasicNetwork(client *http.Client) bool {
+	// Request Microsoft Captive Portal 204 endpoint as the reliable basic network test
+	resp, err := client.Get("http://edge.microsoft.com/captiveportal/generate_204")
+	if err == nil {
+		defer resp.Body.Close()
+		// Captive portals may return 200 instead of 204. Any successful response means basic network is up.
+		if resp.StatusCode == 204 || resp.StatusCode == 200 {
+			return true
+		}
+	}
+	return false
 }

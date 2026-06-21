@@ -65,6 +65,19 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	if meta.MixedConfig == "" {
 		meta.MixedConfig = DefaultMixedConfig
 	}
+	if meta.AutoConnectState == "" {
+		if meta.AutoConnect != nil {
+			if *meta.AutoConnect {
+				meta.AutoConnectState = "on"
+			} else {
+				meta.AutoConnectState = "off"
+			}
+		} else {
+			meta.AutoConnectState = "smart"
+		}
+	}
+	meta.AutoConnect = nil
+
 	if meta.AutoConnectMode == "" {
 		meta.AutoConnectMode = "full"
 	}
@@ -127,7 +140,7 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		Mirror:          "https://gh-proxy.com/",
 		TunConfig:       DefaultTunConfig,
 		MixedConfig:     DefaultMixedConfig,
-		AutoConnect:     false,
+		AutoConnectState: "smart",
 		AutoConnectMode: "full",
 		StartOnBoot:     false,
 		ThemeMode:       "dark",
