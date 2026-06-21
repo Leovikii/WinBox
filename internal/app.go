@@ -138,9 +138,7 @@ func (a *App) Startup(ctx context.Context) {
 		canAutoStart = true
 	}
 
-	if canAutoStart {
-		a.configureAutoStartMode(meta, meta.AutoConnectMode)
-	} else {
+	if !canAutoStart {
 		meta.TunMode = false
 		meta.SysProxy = false
 	}
@@ -166,7 +164,7 @@ func (a *App) Startup(ctx context.Context) {
 		if meta.AutoConnectState == "smart" {
 			go a.smartAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
 		} else {
-			a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+			a.handleAutoStart(modeChanged, prevSysProxy)
 		}
 	} else {
 		if modeChanged && prevSysProxy {
@@ -294,7 +292,7 @@ func (a *App) smartAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunM
 	} else {
 		a.appLogger.Info("Smart Detect: No proxy environment detected. Starting core...")
 		wailsRuntime.EventsEmit(a.ctx, "log", "STARTING...")
-		a.handleAutoStart(meta, modeChanged, prevSysProxy, prevTunMode)
+		a.handleAutoStart(modeChanged, prevSysProxy)
 	}
 }
 

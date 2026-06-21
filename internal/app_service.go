@@ -8,21 +8,9 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-func (a *App) configureAutoStartMode(meta *MetaData, mode string) {
-	switch mode {
-	case "tun":
-		meta.TunMode = true
-		meta.SysProxy = false
-	case "proxy":
-		meta.TunMode = false
-		meta.SysProxy = true
-	default:
-		meta.TunMode = true
-		meta.SysProxy = true
-	}
-}
 
-func (a *App) handleAutoStart(meta *MetaData, modeChanged, prevSysProxy, prevTunMode bool) {
+
+func (a *App) handleAutoStart(modeChanged, prevSysProxy bool) {
 	go func() {
 		if a.startMinimized {
 			time.Sleep(3 * time.Second)

@@ -30,7 +30,6 @@ type MetaData struct {
 	MixedConfig     string    `json:"mixed_config"`
 	AutoConnect     *bool     `json:"auto_connect,omitempty"`
 	AutoConnectState string   `json:"auto_connect_state"`
-	AutoConnectMode string    `json:"auto_connect_mode"`
 	StartOnBoot     bool      `json:"start_on_boot"`
 	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"
 	AccentColor     string    `json:"accent_color"`      // hex color code

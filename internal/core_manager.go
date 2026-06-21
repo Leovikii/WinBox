@@ -323,6 +323,8 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 
 	config["inbounds"] = newInbounds
 
+
+
 	// Process log configuration
 	logConfig := map[string]interface{}{
 		"level":     logLevel,

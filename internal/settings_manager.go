@@ -108,14 +108,13 @@ func (sm *SettingsManager) SetStartOnBoot(enabled bool) error {
 }
 
 // SetAutoConnect sets auto connect settings
-func (sm *SettingsManager) SetAutoConnect(state string, mode string) error {
+func (sm *SettingsManager) SetAutoConnect(state string) error {
 	meta, err := sm.storage.LoadMeta()
 	if err != nil {
 		return err
 	}
 
 	meta.AutoConnectState = state
-	meta.AutoConnectMode = mode
 
 	return sm.storage.SaveMeta(meta)
 }
@@ -156,6 +155,19 @@ func (sm *SettingsManager) SaveOverride(name, content string) error {
 	default:
 		return fmt.Errorf("unknown type")
 	}
+
+	return sm.storage.SaveMeta(meta)
+}
+
+// SaveMode saves the run mode configuration
+func (sm *SettingsManager) SaveMode(tunMode, sysProxy bool) error {
+	meta, err := sm.storage.LoadMeta()
+	if err != nil {
+		return err
+	}
+
+	meta.TunMode = tunMode
+	meta.SysProxy = sysProxy
 
 	return sm.storage.SaveMeta(meta)
 }

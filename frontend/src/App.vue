@@ -11,21 +11,9 @@ import { useTheme } from './composables/useTheme';
 import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
-import ProfilesDrawer from './components/ProfilesDrawer.vue';
-import LogsDrawer from './components/LogsDrawer.vue';
-import { WModal, WButton, WNavBar } from './components/ui';
+import { WModal, WButton } from './components/ui';
 
-type TabType = 'home' | 'logs' | 'profiles' | 'settings';
-
-const tabs = [
-  { id: 'home', label: 'Home', icon: 'fas fa-house' },
-  { id: 'logs', label: 'Logs', icon: 'fas fa-file-lines' },
-  { id: 'profiles', label: 'Profiles', icon: 'fas fa-rocket' },
-  { id: 'settings', label: 'Settings', icon: 'fas fa-gear' }
-];
-
-const currentTab = ref<TabType>('home');
-const direction = ref<'left' | 'right'>('right');
+const showSettings = ref(false);
 const showQuitConfirm = ref(false);
 const showUWPModal = ref(false);
 
@@ -64,33 +52,17 @@ onUnmounted(() => {
   EventsOff('traffic-update');
 });
 
-const switchTab = (id: string) => {
-  const newTab = id as TabType;
-  if (currentTab.value === newTab) return;
-  
-  const order = ['home', 'logs', 'profiles', 'settings'];
-  const oldIndex = order.indexOf(currentTab.value);
-  const newIndex = order.indexOf(newTab);
-  
-  direction.value = newIndex > oldIndex ? 'left' : 'right';
-  currentTab.value = newTab;
-};
-
 const handleToggle = async (target: 'tun' | 'proxy') => {
   const result = await appState.handleToggle(target);
   if (result && result.error === 'kernel-missing') {
-    switchTab('settings');
-  } else if (result && result.error === 'config-missing') {
-    switchTab('profiles');
+    showSettings.value = true;
   }
 };
 
 const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean }) => {
   const result = await appState.handleSwitchMode(target);
   if (result && result.error === 'kernel-missing') {
-    switchTab('settings');
-  } else if (result && result.error === 'config-missing') {
-    switchTab('profiles');
+    showSettings.value = true;
   }
 };
 
@@ -120,8 +92,6 @@ const handleRestartCore = async () => {
     alert(result);
   }
 };
-
-const transitionName = computed(() => `slide-${direction.value}`);
 </script>
 
 <template>
@@ -135,7 +105,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
           style="--wails-draggable: no-drag"
           :title="programState.programUpdateState.value === 'available' ? 'Click to update' : ''"
           :class="programState.programUpdateState.value === 'available' ? 'text-blue-400 cursor-pointer hover:text-blue-300' : 'text-white/30'"
-          @click="programState.programUpdateState.value === 'available' && (currentTab = 'settings')"
+          @click="programState.programUpdateState.value === 'available' && (showSettings = true)"
         >
           v{{ wailsConfig.info.productVersion }}
           <span 
@@ -145,6 +115,13 @@ const transitionName = computed(() => `slide-${direction.value}`);
         </span>
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
+        <button 
+          @click="showSettings = !showSettings" 
+          class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200"
+          :title="showSettings ? 'Back to Home' : 'Settings'"
+        >
+          <i :class="showSettings ? 'fas fa-arrow-left' : 'fas fa-gear'" class="text-xs"></i>
+        </button>
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
           <i class="fas fa-minus text-[10px]"></i>
         </button>
@@ -158,8 +135,8 @@ const transitionName = computed(() => `slide-${direction.value}`);
     </div>
 
     <div class="flex-1 relative overflow-hidden w-full">
-      <Transition :name="transitionName">
-        <div v-if="currentTab === 'home'" class="absolute inset-0 overflow-y-auto w-full h-full">
+      <Transition name="slide-left">
+        <div v-if="!showSettings" class="absolute inset-0 overflow-y-auto w-full h-full">
           <DashboardControl
             :running="appState.running.value"
             :coreExists="appState.coreExists.value"
@@ -167,7 +144,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :tunMode="appState.tunMode.value"
             :sysProxy="appState.sysProxy.value"
             :isProcessing="appState.isProcessing.value"
-            :activeProfile="profilesState.activeProfile.value"
+            :profilesState="profilesState"
             :errorLog="appState.errorLog.value"
             :getStatusText="appState.getStatusText.value"
             :getStatusStyle="appState.getStatusStyle.value"
@@ -179,55 +156,12 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @toggle="handleToggle"
             @toggle-service="appState.handleServiceToggle"
             @switch-mode="handleSwitchMode"
-            @open-drawer="(target: string) => switchTab(target as TabType)"
             @open-dashboard="Backend.OpenDashboard"
             @restart-core="handleRestartCore"
           />
         </div>
 
-        <div v-else-if="currentTab === 'logs'" class="absolute inset-0 w-full h-full bg-[#090909]">
-          <LogsDrawer
-            :isOpen="true"
-            :errorLog="appState.errorLog.value"
-            @close="switchTab('home')"
-          />
-        </div>
-
-        <div v-else-if="currentTab === 'profiles'" class="absolute inset-0 w-full h-full bg-[#090909]">
-          <ProfilesDrawer
-            :isOpen="true"
-            :profiles="profilesState.profiles.value"
-            :activeProfile="profilesState.activeProfile.value"
-            :isUpdatingProfile="profilesState.isUpdatingProfile.value"
-            :showAddProfileModal="profilesState.showAddProfileModal.value"
-            :newName="profilesState.newName.value"
-            :newUrl="profilesState.newUrl.value"
-            :isAddingProfile="profilesState.isAddingProfile.value"
-            :showEditProfileModal="profilesState.showEditProfileModal.value"
-            :editName="profilesState.editName.value"
-            :editUrl="profilesState.editUrl.value"
-            :isEditingProfile="profilesState.isEditingProfile.value"
-            :showDeleteConfirm="profilesState.showDeleteConfirm.value"
-            @close="switchTab('home')"
-            @switch-profile="profilesState.switchProfile"
-            @delete-profile="profilesState.deleteProfile"
-            @confirm-delete="profilesState.confirmDelete"
-            @close-delete-confirm="profilesState.showDeleteConfirm.value = false"
-            @update-active="profilesState.updateActive"
-            @open-add-modal="profilesState.showAddProfileModal.value = true"
-            @update:newName="(val) => profilesState.newName.value = val"
-            @update:newUrl="(val) => profilesState.newUrl.value = val"
-            @update:showAddProfileModal="(val) => profilesState.showAddProfileModal.value = val"
-            @add-profile="profilesState.addProfile"
-            @edit-profile="profilesState.editProfile"
-            @update:editName="(val) => profilesState.editName.value = val"
-            @update:editUrl="(val) => profilesState.editUrl.value = val"
-            @update:showEditProfileModal="(val) => profilesState.showEditProfileModal.value = val"
-            @save-edit-profile="profilesState.saveEditProfile"
-          />
-        </div>
-
-        <div v-else-if="currentTab === 'settings'" class="absolute inset-0 w-full h-full bg-[#090909]">
+        <div v-else class="absolute inset-0 w-full h-full bg-[#090909]">
           <SettingsDrawer
             :isOpen="true"
             :programLocalVer="programState.programLocalVer.value"
@@ -243,7 +177,6 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :mirrorEnabled="appState.mirrorEnabled.value"
             :startOnBoot="appState.startOnBoot.value"
             :autoConnectState="appState.autoConnectState.value"
-            :autoConnectMode="appState.autoConnectMode.value"
             :showEditor="kernelState.showEditor.value"
             :editingType="kernelState.editingType.value"
             :editorContent="kernelState.editorContent.value"
@@ -262,7 +195,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :uwpLoading="uwpState.loading.value"
             :uwpSaving="uwpState.saving.value"
             :uwpHasChanges="uwpState.hasChanges()"
-            @close="switchTab('home')"
+            @close="showSettings = false"
             @check-program-update="programState.checkProgramUpdate"
             @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
@@ -271,7 +204,6 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @toggle-mirror="appState.handleMirrorToggle"
             @toggle-start-on-boot="appState.handleStartOnBootToggle"
             @change-auto-connect="appState.handleAutoConnectChange"
-            @change-auto-connect-mode="appState.handleAutoConnectModeChange"
             @open-editor="kernelState.openEditor"
             @save-editor="kernelState.saveEditor"
             @reset-editor="kernelState.resetEditor"
@@ -294,13 +226,6 @@ const transitionName = computed(() => `slide-${direction.value}`);
         </div>
       </Transition>
     </div>
-
-    <WNavBar
-      :tabs="tabs"
-      :current-tab="currentTab"
-      :accent-color="themeState.accentColor.value"
-      @change="switchTab"
-    />
 
     <WModal
       :model-value="showQuitConfirm"

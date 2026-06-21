@@ -15,7 +15,6 @@ export function useAppState() {
 
   const startOnBoot = ref(false)
   const autoConnectState = ref("smart")
-  const autoConnectMode = ref("full")
   const mirrorUrl = ref("")
   const mirrorEnabled = ref(false)
 
@@ -110,11 +109,10 @@ export function useAppState() {
     running.value = data.running
     coreExists.value = data.coreExists
     if (!data.coreExists) msg.value = "Kernel Missing"
-    tunMode.value = data.running && data.tunMode
-    sysProxy.value = data.running && data.sysProxy
+    tunMode.value = data.tunMode
+    sysProxy.value = data.sysProxy
     startOnBoot.value = data.startOnBoot
     autoConnectState.value = data.autoConnectState
-    autoConnectMode.value = data.autoConnectMode
     mirrorUrl.value = data.mirror
     mirrorEnabled.value = data.mirrorEnabled
     ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
@@ -135,10 +133,12 @@ export function useAppState() {
     const willStart = !running.value
 
     if (willStart) {
-      tunMode.value = true
-      sysProxy.value = true
+      // Use current selected mode instead of hardcoding true
+      const applyTun = tunMode.value
+      const applyProxy = sysProxy.value
+      
       msg.value = "STARTING..."
-      const res = await Backend.ApplyState(true, true)
+      const res = await Backend.ApplyState(applyTun, applyProxy)
 
       if (res === "Success") {
         msg.value = "RUNNING"
@@ -147,13 +147,10 @@ export function useAppState() {
       } else {
         msg.value = "ERROR"
         errorLog.value = res
-        tunMode.value = false
-        sysProxy.value = false
+        // Keep the selected mode, don't reset it
       }
       isProcessing.value = false
     } else {
-      tunMode.value = false
-      sysProxy.value = false
       msg.value = "STOPPING..."
       const res = await Backend.ApplyState(false, false)
 
@@ -223,9 +220,19 @@ export function useAppState() {
       return { error: 'kernel-missing' }
     }
 
-    isProcessing.value = true
     const newTun = target.tunMode
     const newProxy = target.sysProxy
+
+    // If not running, just update the setting state
+    if (!running.value) {
+      tunMode.value = newTun
+      sysProxy.value = newProxy
+      Backend.SaveMode(newTun, newProxy)
+      return
+    }
+
+    // If running, apply the state and restart
+    isProcessing.value = true
 
     // Save previous state for rollback
     const prevTun = tunMode.value
@@ -234,7 +241,7 @@ export function useAppState() {
     // Optimistically update UI
     tunMode.value = newTun
     sysProxy.value = newProxy
-    msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
+    msg.value = "RESTARTING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
@@ -272,7 +279,7 @@ export function useAppState() {
     if (res === "Success") {
       startOnBoot.value = newState
       if (newState && autoConnectState.value === "off") {
-        await Backend.SetAutoConnect("smart", autoConnectMode.value)
+        await Backend.SetAutoConnect("smart")
         autoConnectState.value = "smart"
       }
     } else {
@@ -282,15 +289,9 @@ export function useAppState() {
 
   const handleAutoConnectChange = async (newState: string | number) => {
     const stateStr = String(newState)
-    const res = await Backend.SetAutoConnect(stateStr, autoConnectMode.value)
+    const res = await Backend.SetAutoConnect(stateStr)
     if (res === "Success") autoConnectState.value = stateStr
     else alert(res)
-  }
-
-  const handleAutoConnectModeChange = async (newMode: string | number) => {
-    const mode = String(newMode)
-    const res = await Backend.SetAutoConnect(autoConnectState.value, mode)
-    if (res === "Success") autoConnectMode.value = mode
   }
 
   const handleIPv6Toggle = async () => {
@@ -361,11 +362,11 @@ export function useAppState() {
 
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
-    errorLog, startOnBoot, autoConnectState, autoConnectMode,
+    errorLog, startOnBoot, autoConnectState,
     mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectChange,
-    handleAutoConnectModeChange, handleIPv6Toggle, handlePreReleaseToggle, handleLogConfigChange
+    handleIPv6Toggle, handlePreReleaseToggle, handleLogConfigChange
   }
 }

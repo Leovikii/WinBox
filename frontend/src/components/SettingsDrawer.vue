@@ -20,7 +20,6 @@ defineProps<{
   mirrorEnabled: boolean
   startOnBoot: boolean
   autoConnectState: string
-  autoConnectMode: string
   showEditor: boolean
   editingType: string
   editorContent: string
@@ -50,7 +49,6 @@ const emit = defineEmits<{
   'toggle-mirror': []
   'toggle-start-on-boot': []
   'change-auto-connect': [value: string | number]
-  'change-auto-connect-mode': [value: string | number]
   'open-editor': [type: 'tun' | 'mixed' | 'mirror']
   'save-editor': []
   'reset-editor': []
@@ -122,8 +120,7 @@ const handleApplyCustomColor = () => {
               v-if="programUpdateState === 'checking'"
               variant="secondary"
               size="sm"
-              disabled
-              loading
+              icon="fas fa-spinner fa-spin"
             >
               CHECKING
             </WButton>
@@ -131,7 +128,7 @@ const handleApplyCustomColor = () => {
               v-else-if="programUpdateState === 'available'"
               variant="primary"
               size="sm"
-              class="animate-pulse"
+              icon="fas fa-arrow-up"
               @click="emit('perform-program-update')"
             >
               UP TO {{ programRemoteVer }}
@@ -140,7 +137,7 @@ const handleApplyCustomColor = () => {
               v-else-if="programUpdateState === 'updating'"
               variant="secondary"
               size="sm"
-              disabled
+              icon="fas fa-download"
               class="relative overflow-hidden w-24"
             >
               <div class="absolute inset-0 bg-blue-600/30 transition-all duration-300" :style="{ width: `${programDownloadProgress}%` }"></div>
@@ -150,7 +147,7 @@ const handleApplyCustomColor = () => {
               v-else-if="programUpdateState === 'success'"
               variant="success"
               size="sm"
-              disabled
+              icon="fas fa-check"
             >
               RESTARTING
             </WButton>
@@ -158,8 +155,7 @@ const handleApplyCustomColor = () => {
               v-else-if="programUpdateState === 'latest'"
               variant="secondary"
               size="sm"
-              disabled
-              class="opacity-50"
+              icon="fas fa-check-circle"
             >
               LATEST
             </WButton>
@@ -167,6 +163,7 @@ const handleApplyCustomColor = () => {
               v-else
               variant="secondary"
               size="sm"
+              icon="fas fa-rotate"
               @click="emit('check-program-update')"
             >
               CHECK
@@ -182,8 +179,7 @@ const handleApplyCustomColor = () => {
               v-if="updateState === 'checking'"
               variant="secondary"
               size="sm"
-              disabled
-              loading
+              icon="fas fa-spinner fa-spin"
             >
               CHECKING
             </WButton>
@@ -191,7 +187,7 @@ const handleApplyCustomColor = () => {
               v-else-if="updateState === 'available'"
               variant="primary"
               size="sm"
-              class="animate-pulse"
+              icon="fas fa-arrow-up"
               @click="emit('perform-update')"
             >
               UP TO {{ remoteVer }}
@@ -200,7 +196,7 @@ const handleApplyCustomColor = () => {
               v-else-if="updateState === 'updating'"
               variant="secondary"
               size="sm"
-              disabled
+              icon="fas fa-download"
               class="relative overflow-hidden w-24"
             >
               <div class="absolute inset-0 bg-blue-600/30 transition-all duration-300" :style="{ width: `${downloadProgress}%` }"></div>
@@ -210,7 +206,7 @@ const handleApplyCustomColor = () => {
               v-else-if="updateState === 'success'"
               variant="success"
               size="sm"
-              disabled
+              icon="fas fa-check"
             >
               UPDATED
             </WButton>
@@ -218,8 +214,7 @@ const handleApplyCustomColor = () => {
               v-else-if="updateState === 'latest'"
               variant="secondary"
               size="sm"
-              disabled
-              class="opacity-50"
+              icon="fas fa-check-circle"
             >
               LATEST
             </WButton>
@@ -227,6 +222,7 @@ const handleApplyCustomColor = () => {
               v-else
               variant="secondary"
               size="sm"
+              icon="fas fa-rotate"
               :class="!coreExists ? 'border-yellow-600 text-yellow-500' : ''"
               @click="emit('check-update')"
             >
@@ -259,25 +255,9 @@ const handleApplyCustomColor = () => {
           />
         </div>
 
-        <WExpandable :expanded="autoConnectState !== 'off'">
-          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a] min-h-10">
-            <span class="text-xs font-bold text-gray-500">Startup Mode</span>
-            <WSelect
-              :model-value="autoConnectMode"
-              @update:model-value="emit('change-auto-connect-mode', $event)"
-              :options="[
-                { value: 'full', label: 'FULL' },
-                { value: 'tun', label: 'TUN' },
-                { value: 'proxy', label: 'PROXY' }
-              ]"
-              class="w-20"
-            />
-          </div>
-        </WExpandable>
-
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
+          <WButton variant="secondary" size="sm" icon="fas fa-palette" @click="handleOpenThemeModal">
             <div class="flex items-center gap-2">
               <div class="w-4 h-4 rounded-full border border-gray-600" :style="{ backgroundColor: accentColor }"></div>
               <span>SELECT</span>
@@ -301,13 +281,13 @@ const handleApplyCustomColor = () => {
         <WExpandable :expanded="mirrorEnabled">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
             <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" @click="emit('open-editor', 'mirror')">EDIT</WButton>
+            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'mirror')">EDIT</WButton>
           </div>
         </WExpandable>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" @click="emit('open-uwp-modal')">
+          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')">
             MANAGE
           </WButton>
         </div>
@@ -322,7 +302,7 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Inbound Config</span>
-          <WButton variant="secondary" size="sm" @click="emit('open-editor', 'tun')">EDIT</WButton>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'tun')">EDIT</WButton>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -384,6 +364,7 @@ const handleApplyCustomColor = () => {
           <WButton
             :variant="editingType === 'tun' ? 'primary' : 'secondary'"
             size="sm"
+            icon="fas fa-diagram-project"
             @click="emit('switch-editor-tab', 'tun')"
           >
             TUN
@@ -391,6 +372,7 @@ const handleApplyCustomColor = () => {
           <WButton
             :variant="editingType === 'mixed' ? 'primary' : 'secondary'"
             size="sm"
+            icon="fas fa-shuffle"
             @click="emit('switch-editor-tab', 'mixed')"
           >
             MIXED
@@ -408,11 +390,12 @@ const handleApplyCustomColor = () => {
         :rows="20"
       />
       <div class="absolute bottom-4 right-4 flex gap-2">
-        <WButton variant="warning" size="sm" @click="emit('reset-editor')">RESET</WButton>
-        <WButton variant="secondary" size="sm" @click="emit('close-editor')">CANCEL</WButton>
+        <WButton variant="warning" size="sm" icon="fas fa-undo" @click="emit('reset-editor')">RESET</WButton>
+        <WButton variant="secondary" size="sm" icon="fas fa-times" @click="emit('close-editor')">CANCEL</WButton>
         <WButton
           :variant="saveBtnText === 'SAVED' ? 'success' : 'primary'"
           size="sm"
+          :icon="saveBtnText === 'SAVED' ? 'fas fa-check' : 'fas fa-save'"
           @click="emit('save-editor')"
         >
           {{ saveBtnText }}
@@ -431,8 +414,8 @@ const handleApplyCustomColor = () => {
     <div class="text-sm text-gray-300">Reset to default configuration?</div>
     <template #footer>
       <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" @click="emit('close-reset-confirm')">CANCEL</WButton>
-        <WButton variant="warning" class="flex-1" @click="emit('confirm-reset')">RESET</WButton>
+        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="emit('close-reset-confirm')">CANCEL</WButton>
+        <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="emit('confirm-reset')">RESET</WButton>
       </div>
     </template>
   </WModal>
@@ -486,8 +469,8 @@ const handleApplyCustomColor = () => {
     </div>
     <template #footer>
       <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" @click="handleCloseThemeModal">CANCEL</WButton>
-        <WButton variant="primary" class="flex-1" @click="handleApplyCustomColor">APPLY</WButton>
+        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="handleCloseThemeModal">CANCEL</WButton>
+        <WButton variant="primary" class="flex-1" icon="fas fa-check" @click="handleApplyCustomColor">APPLY</WButton>
       </div>
     </template>
   </WModal>
@@ -501,7 +484,7 @@ const handleApplyCustomColor = () => {
   >
     <div class="text-sm text-red-400 font-mono">{{ errorAlertMessage }}</div>
     <template #footer>
-      <WButton variant="primary" full-width @click="emit('close-error-alert')">OK</WButton>
+      <WButton variant="primary" full-width icon="fas fa-check" @click="emit('close-error-alert')">OK</WButton>
     </template>
   </WModal>
 </template>

@@ -8,7 +8,6 @@ interface Props {
   disabled?: boolean
   loading?: boolean
   icon?: string
-  iconPosition?: 'left' | 'right'
   fullWidth?: boolean
 }
 
@@ -17,7 +16,6 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'md',
   disabled: false,
   loading: false,
-  iconPosition: 'left',
   fullWidth: false
 })
 
@@ -57,8 +55,7 @@ const buttonClasses = computed(() => {
 <template>
   <button :class="buttonClasses" :disabled="disabled || loading">
     <i v-if="loading" class="fas fa-circle-notch fa-spin"></i>
-    <i v-else-if="icon && iconPosition === 'left'" :class="icon"></i>
+    <i v-else-if="icon" :class="icon"></i>
     <slot />
-    <i v-if="icon && iconPosition === 'right' && !loading" :class="icon"></i>
   </button>
 </template>

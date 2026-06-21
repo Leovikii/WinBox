@@ -92,8 +92,8 @@ func (a *App) SetStartOnBoot(enabled bool) string {
 	return "Success"
 }
 
-func (a *App) SetAutoConnect(state string, mode string) string {
-	if err := a.settingsManager.SetAutoConnect(state, mode); err != nil {
+func (a *App) SetAutoConnect(state string) string {
+	if err := a.settingsManager.SetAutoConnect(state); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
@@ -101,6 +101,13 @@ func (a *App) SetAutoConnect(state string, mode string) string {
 
 func (a *App) SaveTheme(mode, accentColor string) string {
 	if err := a.settingsManager.SaveTheme(mode, accentColor); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) SaveMode(tunMode, sysProxy bool) string {
+	if err := a.settingsManager.SaveMode(tunMode, sysProxy); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
@@ -236,7 +243,6 @@ func (a *App) GetInitData() map[string]interface{} {
 		"mirrorEnabled":     meta.MirrorEnabled,
 		"startOnBoot":       meta.StartOnBoot,
 		"autoConnectState":  meta.AutoConnectState,
-		"autoConnectMode":   meta.AutoConnectMode,
 		"themeMode":         meta.ThemeMode,
 		"accentColor":       meta.AccentColor,
 		"ipv6_enabled":      meta.IPv6Enabled,

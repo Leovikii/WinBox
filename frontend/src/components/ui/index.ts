@@ -10,7 +10,6 @@ import WListItem from './WListItem.vue'
 import WTextarea from './WTextarea.vue'
 import WExpandable from './WExpandable.vue'
 import WNavBar from './WNavBar.vue'
-import WCapsuleSwitch from './WCapsuleSwitch.vue'
 
 export {
   WButton,
@@ -24,6 +23,5 @@ export {
   WListItem,
   WTextarea,
   WExpandable,
-  WNavBar,
-  WCapsuleSwitch
+  WNavBar
 }
