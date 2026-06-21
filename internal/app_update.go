@@ -2,7 +2,6 @@ package internal
 
 import (
 	"archive/zip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +25,13 @@ func (a *App) GetLocalVersion() string {
 }
 
 func (a *App) CheckUpdate() string {
-	version, err := a.httpClient.CheckUpdate()
+	meta, err := a.storage.LoadMeta()
+	preRelease := false
+	if err == nil {
+		preRelease = meta.PreRelease
+	}
+
+	version, err := a.httpClient.CheckUpdate(preRelease)
 	if err != nil {
 		return "Error: " + err.Error()
 	}
@@ -87,14 +92,15 @@ func (a *App) downloadKernelRelease(mirrorUrl string) (string, error) {
 	tmpFile := filepath.Join(coreDir, "update.zip")
 
 	wailsRuntime.EventsEmit(a.ctx, "log", "Fetching release info...")
-	resp, err := a.httpClient.Get("https://api.github.com/repos/SagerNet/sing-box/releases/latest")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
 
-	var res ReleaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	meta, err := a.storage.LoadMeta()
+	preRelease := false
+	if err == nil {
+		preRelease = meta.PreRelease
+	}
+
+	res, err := a.httpClient.GetLatestRelease("https://api.github.com/repos/SagerNet/sing-box", preRelease)
+	if err != nil {
 		return "", err
 	}
 
@@ -165,15 +171,15 @@ func (a *App) GetProgramVersion() string {
 }
 
 func (a *App) CheckProgramUpdate() string {
-	resp, err := a.httpClient.Get("https://api.github.com/repos/Leovikii/WinBox/releases/latest")
+	meta, err := a.storage.LoadMeta()
+	preRelease := false
+	if err == nil {
+		preRelease = meta.PreRelease
+	}
+
+	res, err := a.httpClient.GetLatestRelease("https://api.github.com/repos/Leovikii/WinBox", preRelease)
 	if err != nil {
 		return "Error: " + err.Error()
-	}
-	defer resp.Body.Close()
-
-	var res ReleaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "Error: Parse failed"
 	}
 
 	if res.TagName == "" {
@@ -191,15 +197,16 @@ func (a *App) UpdateProgram(mirrorUrl string) string {
 	exeDir := filepath.Dir(exe)
 
 	wailsRuntime.EventsEmit(a.ctx, "log", "Fetching WinBox release info...")
-	resp, err := a.httpClient.Get("https://api.github.com/repos/Leovikii/WinBox/releases/latest")
+	
+	meta, err := a.storage.LoadMeta()
+	preRelease := false
+	if err == nil {
+		preRelease = meta.PreRelease
+	}
+
+	res, err := a.httpClient.GetLatestRelease("https://api.github.com/repos/Leovikii/WinBox", preRelease)
 	if err != nil {
 		return "Error: " + err.Error()
-	}
-	defer resp.Body.Close()
-
-	var res ReleaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "Error: Parse failed"
 	}
 
 	targetArch := runtime.GOOS + "-" + runtime.GOARCH

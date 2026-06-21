@@ -27,16 +27,18 @@ type CoreManager struct {
 	apiURL     string     // Clash API URL if available
 }
 
-// LogBuffer stores recent log lines in memory
+// LogBuffer stores recent log lines in memory using a ring buffer
 type LogBuffer struct {
-	mu    sync.RWMutex
-	lines []string
-	max   int
+	mu     sync.RWMutex
+	lines  []string
+	max    int
+	cursor int
+	count  int
 }
 
 func NewLogBuffer(maxLines int) *LogBuffer {
 	return &LogBuffer{
-		lines: make([]string, 0, maxLines),
+		lines: make([]string, maxLines), // Allocate full size array once
 		max:   maxLines,
 	}
 }
@@ -45,9 +47,10 @@ func (lb *LogBuffer) Append(line string) {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
 
-	lb.lines = append(lb.lines, line)
-	if len(lb.lines) > lb.max {
-		lb.lines = lb.lines[len(lb.lines)-lb.max:]
+	lb.lines[lb.cursor] = line
+	lb.cursor = (lb.cursor + 1) % lb.max
+	if lb.count < lb.max {
+		lb.count++
 	}
 }
 
@@ -55,16 +58,27 @@ func (lb *LogBuffer) GetAll() string {
 	lb.mu.RLock()
 	defer lb.mu.RUnlock()
 
-	if len(lb.lines) == 0 {
+	if lb.count == 0 {
 		return ""
 	}
-	return strings.Join(lb.lines, "\n")
+
+	result := make([]string, 0, lb.count)
+	if lb.count < lb.max {
+		result = append(result, lb.lines[:lb.count]...)
+	} else {
+		// Ring buffer is full, read from cursor to end, then start to cursor
+		result = append(result, lb.lines[lb.cursor:]...)
+		result = append(result, lb.lines[:lb.cursor]...)
+	}
+
+	return strings.Join(result, "\n")
 }
 
 func (lb *LogBuffer) Clear() {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
-	lb.lines = make([]string, 0, lb.max)
+	lb.cursor = 0
+	lb.count = 0
 }
 
 // NewCoreManager creates a new core manager
@@ -207,20 +221,31 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 	if enableTun {
 		var tunMap map[string]interface{}
 		if json.Unmarshal([]byte(tunConfig), &tunMap) == nil {
-			// Handle IPv6 support
-			if !ipv6Enabled {
-				if addresses, ok := tunMap["address"].([]interface{}); ok {
-					filtered := make([]interface{}, 0)
+			// Handle IPv6 support dynamically
+			if addresses, ok := tunMap["address"].([]interface{}); ok {
+				ipv6Addr := "fdfe:dcba:9876::1/126"
+				
+				if ipv6Enabled {
+					hasIPv6 := false
 					for _, addr := range addresses {
-						if addrStr, ok := addr.(string); ok {
-							// Remove IPv6 address (fdfe:dcba:9876::1/126)
-							if addrStr != "fdfe:dcba:9876::1/126" {
-								filtered = append(filtered, addr)
-							}
+						if addrStr, ok := addr.(string); ok && addrStr == ipv6Addr {
+							hasIPv6 = true
+							break
 						}
 					}
-					tunMap["address"] = filtered
+					if !hasIPv6 {
+						addresses = append(addresses, ipv6Addr)
+					}
+				} else {
+					filtered := make([]interface{}, 0)
+					for _, addr := range addresses {
+						if addrStr, ok := addr.(string); ok && addrStr != ipv6Addr {
+							filtered = append(filtered, addr)
+						}
+					}
+					addresses = filtered
 				}
+				tunMap["address"] = addresses
 			}
 			newInbounds = append(newInbounds, tunMap)
 		}

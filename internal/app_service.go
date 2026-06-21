@@ -159,7 +159,6 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 	if needsRestart {
 		if a.coreManager.IsRunning() {
 			a.stopCore()
-			time.Sleep(500 * time.Millisecond)
 		}
 		return a.startCore()
 	}

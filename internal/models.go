@@ -37,6 +37,7 @@ type MetaData struct {
 	IPv6Enabled     bool      `json:"ipv6_enabled"`      // IPv6 support toggle
 	LogLevel        string    `json:"log_level"`         // Log level: debug, info, warning, error
 	LogToFile       bool      `json:"log_to_file"`       // Save logs to file
+	PreRelease      bool      `json:"pre_release"`       // Receive pre-release updates
 	Profiles        []Profile `json:"profiles"`
 }
 

@@ -20,6 +20,7 @@ export function useAppState() {
   const mirrorEnabled = ref(false)
 
   const ipv6Enabled = ref(true)
+  const preRelease = ref(false)
   const logLevel = ref("warning")
   const logToFile = ref(true)
 
@@ -117,6 +118,7 @@ export function useAppState() {
     mirrorUrl.value = data.mirror
     mirrorEnabled.value = data.mirrorEnabled
     ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
+    preRelease.value = data.pre_release
     logLevel.value = data.log_level || "warning"
     logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
     return data
@@ -276,6 +278,13 @@ export function useAppState() {
     else alert(res)
   }
 
+  const handlePreReleaseToggle = async () => {
+    const newState = !preRelease.value
+    const res = await Backend.SetPreRelease(newState)
+    if (res === "Success") preRelease.value = newState
+    else alert(res)
+  }
+
   const handleLogConfigChange = async (level: string, toFile: boolean) => {
     const res = await Backend.SetLogConfig(level, toFile)
     if (res === "Success") {
@@ -332,10 +341,10 @@ export function useAppState() {
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnectState, autoConnectMode,
-    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile,
+    mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectChange,
-    handleAutoConnectModeChange, handleIPv6Toggle, handleLogConfigChange
+    handleAutoConnectModeChange, handleIPv6Toggle, handlePreReleaseToggle, handleLogConfigChange
   }
 }

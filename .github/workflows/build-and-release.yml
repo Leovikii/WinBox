@@ -25,6 +25,8 @@ jobs:
     env:
       VERSION: ''
       CHANGELOG: ''
+      IS_PRERELEASE: 'false'
+      MAKE_LATEST: 'true'
     defaults:
       run:
         shell: bash
@@ -76,6 +78,18 @@ jobs:
           cp build/bin/WinBox.exe WinBox/
           zip -r "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox
 
+      - name: Check Prerelease Status
+        if: github.event_name == 'push'
+        id: prerelease_check
+        run: |
+          if [[ "${{ env.VERSION }}" =~ -(alpha|beta|rc) ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+            echo "MAKE_LATEST=false" >> $GITHUB_ENV
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+            echo "MAKE_LATEST=true" >> $GITHUB_ENV
+          fi
+
       - name: Create Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
@@ -86,4 +100,5 @@ jobs:
             ### Changes
             ${{ env.CHANGELOG }}
           files: WinBox-${{ env.VERSION }}-windows-amd64.zip
-          make_latest: true
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          make_latest: ${{ env.MAKE_LATEST }}

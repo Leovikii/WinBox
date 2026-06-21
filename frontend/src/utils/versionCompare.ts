@@ -25,7 +25,7 @@ export function compareVersions(v1: string, v2: string): number {
   if (pre1 === '') return 1
   if (pre2 === '') return -1
   
-  return pre1.localeCompare(pre2)
+  return pre1.localeCompare(pre2, undefined, { numeric: true })
 }
 
 export function isNewerVersion(remote: string, local: string): boolean {

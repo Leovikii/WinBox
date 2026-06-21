@@ -15,6 +15,7 @@ defineProps<{
   updateState: string
   downloadProgress: number
   coreExists: boolean
+  preRelease: boolean
   mirrorUrl: string
   mirrorEnabled: boolean
   startOnBoot: boolean
@@ -45,6 +46,7 @@ const emit = defineEmits<{
   'perform-program-update': []
   'check-update': []
   'perform-update': []
+  'toggle-pre-release': []
   'toggle-mirror': []
   'toggle-start-on-boot': []
   'change-auto-connect': [value: string | number]
@@ -234,6 +236,11 @@ const handleApplyCustomColor = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Pre-release Updates</span>
+          <WSwitch :model-value="preRelease" @update:model-value="emit('toggle-pre-release')" />
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Start With Windows</span>
           <WSwitch :model-value="startOnBoot" @update:model-value="emit('toggle-start-on-boot')" />
         </div>
@@ -332,7 +339,7 @@ const handleApplyCustomColor = () => {
           <span class="text-xs font-bold text-gray-400">Log Level</span>
           <WSelect
             :model-value="logLevel"
-            @update:model-value="emit('change-log-config', $event, logToFile)"
+            @update:model-value="emit('change-log-config', String($event), logToFile)"
             :options="[
               { value: 'debug', label: 'DEBUG' },
               { value: 'info', label: 'INFO' },

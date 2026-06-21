@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -194,8 +193,6 @@ func (a *App) RestartCore() string {
 		return "Error: " + err.Error()
 	}
 
-	time.Sleep(500 * time.Millisecond)
-
 	result := a.startCore()
 	if result != "Success" {
 		a.appLogger.Error("Core start failed during restart: " + result)
@@ -207,6 +204,13 @@ func (a *App) RestartCore() string {
 
 	a.appLogger.Info("Core restarted successfully")
 	go a.UpdateTrayIcon()
+	return "Success"
+}
+
+func (a *App) SetPreRelease(enabled bool) string {
+	if err := a.settingsManager.SetPreRelease(enabled); err != nil {
+		return "Error: " + err.Error()
+	}
 	return "Success"
 }
 
@@ -236,6 +240,7 @@ func (a *App) GetInitData() map[string]interface{} {
 		"themeMode":         meta.ThemeMode,
 		"accentColor":       meta.AccentColor,
 		"ipv6_enabled":      meta.IPv6Enabled,
+		"pre_release":       meta.PreRelease,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
 	}

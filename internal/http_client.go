@@ -90,17 +90,42 @@ func (hc *HTTPClient) Download(url, dest string, ctx context.Context) error {
 	return err
 }
 
-// CheckUpdate checks for the latest sing-box release
-func (hc *HTTPClient) CheckUpdate() (string, error) {
-	resp, err := hc.Get("https://api.github.com/repos/SagerNet/sing-box/releases/latest")
+// GetLatestRelease fetches the latest release info from a github repo
+func (hc *HTTPClient) GetLatestRelease(repoURL string, allowPreRelease bool) (*ReleaseInfo, error) {
+	apiURL := repoURL + "/releases/latest"
+	if allowPreRelease {
+		apiURL = repoURL + "/releases" // fetch all releases to find the newest including prereleases
+	}
+
+	resp, err := hc.Get(apiURL)
 	if err != nil {
-		return "", fmt.Errorf("network error: %w", err)
+		return nil, fmt.Errorf("network error: %w", err)
 	}
 	defer resp.Body.Close()
 
-	var res ReleaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "", fmt.Errorf("parse error: %w", err)
+	if allowPreRelease {
+		var resList []ReleaseInfo
+		if err := json.NewDecoder(resp.Body).Decode(&resList); err != nil {
+			return nil, fmt.Errorf("parse error: %w", err)
+		}
+		if len(resList) == 0 {
+			return nil, fmt.Errorf("no releases found")
+		}
+		return &resList[0], nil
+	} else {
+		var res ReleaseInfo
+		if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+			return nil, fmt.Errorf("parse error: %w", err)
+		}
+		return &res, nil
+	}
+}
+
+// CheckUpdate checks for the latest sing-box release
+func (hc *HTTPClient) CheckUpdate(preRelease bool) (string, error) {
+	res, err := hc.GetLatestRelease("https://api.github.com/repos/SagerNet/sing-box", preRelease)
+	if err != nil {
+		return "", err
 	}
 
 	if res.TagName == "" {

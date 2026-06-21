@@ -57,31 +57,16 @@ func (m *UWPLoopbackManager) GetUWPApps() ([]UWPApp, error) {
 	}
 
 	apps := make([]UWPApp, 0)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	semaphore := make(chan struct{}, 10) // Limit concurrent registry reads
 
 	for _, sid := range sids {
-		wg.Add(1)
-		go func(sid string) {
-			defer wg.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
+		app, err := m.getAppInfo(sid)
+		if err != nil || app == nil {
+			continue
+		}
 
-			app, err := m.getAppInfo(sid)
-			if err != nil || app == nil {
-				return
-			}
-
-			app.IsExempt = exemptSIDs[sid]
-
-			mu.Lock()
-			apps = append(apps, *app)
-			mu.Unlock()
-		}(sid)
+		app.IsExempt = exemptSIDs[sid]
+		apps = append(apps, *app)
 	}
-
-	wg.Wait()
 
 	return apps, nil
 }
