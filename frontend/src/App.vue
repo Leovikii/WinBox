@@ -56,6 +56,8 @@ onMounted(async () => {
     uploadSpeed.value = data.upload;
     downloadSpeed.value = data.download;
   });
+  // Silent background check for program update
+  programState.checkProgramUpdate();
 });
 
 onUnmounted(() => {
@@ -128,7 +130,19 @@ const transitionName = computed(() => `slide-${direction.value}`);
       <div class="text-xs font-bold tracking-[0.2em] text-[#888] flex items-center gap-2.5">
         <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
         WINBOX
-        <span class="text-xs font-medium text-white/30 tracking-normal">v{{ wailsConfig.info.productVersion }}</span>
+        <span 
+          class="text-xs font-medium tracking-normal relative transition-colors duration-200"
+          style="--wails-draggable: no-drag"
+          :title="programState.programUpdateState.value === 'available' ? 'Click to update' : ''"
+          :class="programState.programUpdateState.value === 'available' ? 'text-blue-400 cursor-pointer hover:text-blue-300' : 'text-white/30'"
+          @click="programState.programUpdateState.value === 'available' && (currentTab = 'settings')"
+        >
+          v{{ wailsConfig.info.productVersion }}
+          <span 
+            v-if="programState.programUpdateState.value === 'available'"
+            class="absolute -bottom-0.5 -right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)]"
+          ></span>
+        </span>
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
