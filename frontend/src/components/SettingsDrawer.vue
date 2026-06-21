@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea } from '@/components/ui'
 import WColorPicker from '@/components/ui/WColorPicker.vue'
 import UWPLoopbackModal from '@/components/UWPLoopbackModal.vue'
+import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 
 defineProps<{
   isOpen: boolean
@@ -39,9 +40,14 @@ defineProps<{
   uwpHasChanges: boolean
 }>()
 
+const openGitHub = () => {
+  BrowserOpenURL("https://github.com/Leovikii/WinBox")
+}
+
 const emit = defineEmits<{
   'close': []
   'check-program-update': []
+  'open-program-changelog': []
   'perform-program-update': []
   'check-update': []
   'perform-update': []
@@ -99,17 +105,13 @@ const handleApplyCustomColor = () => {
 
 <template>
   <div class="w-full h-full flex flex-col bg-[#090909]">
-    <div class="h-16 shrink-0 flex items-center px-6">
-      <h2 class="text-xs font-bold text-[#555] uppercase tracking-[0.2em]">System Settings</h2>
-    </div>
+    <div class="flex-1 overflow-y-auto px-4 pt-6 pb-28 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
 
-    <div class="flex-1 overflow-y-auto px-4 pb-28 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
-
-      <!-- General Section -->
+      <!-- About Section -->
       <WCard variant="default" padding="lg">
         <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
+          <i class="fa-solid fa-info-circle text-gray-500 text-xs"></i>
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">About</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -129,7 +131,7 @@ const handleApplyCustomColor = () => {
               variant="primary"
               size="sm"
               icon="fas fa-arrow-up"
-              @click="emit('perform-program-update')"
+              @click="emit('open-program-changelog')"
             >
               UP TO {{ programRemoteVer }}
             </WButton>
@@ -169,6 +171,26 @@ const handleApplyCustomColor = () => {
               CHECK
             </WButton>
           </div>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">GitHub Repository</span>
+          <WButton
+            variant="secondary"
+            size="sm"
+            icon="fa-brands fa-github"
+            @click="openGitHub"
+          >
+            OPEN
+          </WButton>
+        </div>
+      </WCard>
+
+      <!-- General Section -->
+      <WCard variant="default" padding="lg">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">

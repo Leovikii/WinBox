@@ -312,11 +312,11 @@ onUnmounted(() => {
               key="dashboard"
               class="w-[calc((100%-1rem)/3)] shrink-0 px-0"
               variant="secondary" 
-              icon="fas fa-gauge" 
+              icon="fas fa-globe" 
               @click="emit('open-dashboard')"
               :disabled="isProcessing"
             >
-              DASHBOARD
+              WEB UI
             </WButton>
 
             <WButton 
@@ -350,6 +350,13 @@ onUnmounted(() => {
             </WButton>
           </TransitionGroup>
 
+      </div>
+
+      <!-- Empty State -->
+      <div v-else class="flex-1 flex flex-col items-center justify-center text-center opacity-40 select-none">
+        <i class="fa-solid fa-ghost text-4xl mb-3"></i>
+        <p class="text-xs font-medium tracking-wide">No profiles yet.</p>
+        <p class="text-[10px] mt-1">Click + ADD to start your journey.</p>
       </div>
       
     </div>

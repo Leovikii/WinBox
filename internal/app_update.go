@@ -170,7 +170,7 @@ func (a *App) GetProgramVersion() string {
 	return Version
 }
 
-func (a *App) CheckProgramUpdate() string {
+func (a *App) CheckProgramUpdate() map[string]interface{} {
 	meta, err := a.storage.LoadMeta()
 	preRelease := false
 	if err == nil {
@@ -179,14 +179,17 @@ func (a *App) CheckProgramUpdate() string {
 
 	res, err := a.httpClient.GetLatestRelease("https://api.github.com/repos/Leovikii/WinBox", preRelease)
 	if err != nil {
-		return "Error: " + err.Error()
+		return map[string]interface{}{"error": err.Error()}
 	}
 
 	if res.TagName == "" {
-		return "Error: No tag found"
+		return map[string]interface{}{"error": "No tag found"}
 	}
 
-	return res.TagName
+	return map[string]interface{}{
+		"version": res.TagName,
+		"changelog": res.Body,
+	}
 }
 
 func (a *App) UpdateProgram(mirrorUrl string) string {

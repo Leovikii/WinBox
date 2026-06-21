@@ -49,6 +49,7 @@ type ReleaseAsset struct {
 // ReleaseInfo represents GitHub release information
 type ReleaseInfo struct {
 	TagName string         `json:"tag_name"`
+	Body    string         `json:"body"`
 	Assets  []ReleaseAsset `json:"assets"`
 }
 

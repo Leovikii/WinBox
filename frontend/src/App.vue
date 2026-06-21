@@ -16,6 +16,7 @@ import { WModal, WButton } from './components/ui';
 const showSettings = ref(false);
 const showQuitConfirm = ref(false);
 const showUWPModal = ref(false);
+const showChangelogModal = ref(false);
 
 // Traffic speed state
 const uploadSpeed = ref(0);
@@ -97,20 +98,20 @@ const handleRestartCore = async () => {
 <template>
   <div class="h-screen w-screen relative bg-[#090909] text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-[#0a0a0a] z-60 relative border-b border-white/5" style="--wails-draggable: drag">
-      <div class="text-xs font-bold tracking-[0.2em] text-[#888] flex items-center gap-2.5">
+      <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
         <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
         WINBOX
         <span 
           class="text-xs font-medium tracking-normal relative transition-colors duration-200"
           style="--wails-draggable: no-drag"
-          :title="programState.programUpdateState.value === 'available' ? 'Click to update' : ''"
+          :title="programState.programUpdateState.value === 'available' ? 'Click to view update' : ''"
           :class="programState.programUpdateState.value === 'available' ? 'text-blue-400 cursor-pointer hover:text-blue-300' : 'text-white/30'"
-          @click="programState.programUpdateState.value === 'available' && (showSettings = true)"
+          @click="programState.programUpdateState.value === 'available' && (showChangelogModal = true)"
         >
           v{{ wailsConfig.info.productVersion }}
           <span 
             v-if="programState.programUpdateState.value === 'available'"
-            class="absolute -bottom-0.5 -right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)]"
+            class="absolute -bottom-0.5 -right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse"
           ></span>
         </span>
       </div>
@@ -197,6 +198,7 @@ const handleRestartCore = async () => {
             :uwpHasChanges="uwpState.hasChanges()"
             @close="showSettings = false"
             @check-program-update="programState.checkProgramUpdate"
+            @open-program-changelog="showChangelogModal = true"
             @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
             @perform-update="kernelState.performUpdate"
@@ -238,6 +240,30 @@ const handleRestartCore = async () => {
         <div class="flex gap-3 w-full">
           <WButton variant="secondary" class="flex-1" @click="showQuitConfirm = false">CANCEL</WButton>
           <WButton variant="danger" class="flex-1" @click="confirmQuit">EXIT</WButton>
+        </div>
+      </template>
+    </WModal>
+
+    <!-- Changelog Modal -->
+    <WModal
+      :model-value="showChangelogModal"
+      @update:model-value="showChangelogModal = false"
+      :title="'WHAT\'S NEW IN ' + programState.programRemoteVer.value"
+      width="md"
+    >
+      <div class="text-sm text-gray-300 max-h-[60vh] overflow-y-auto pr-2 hide-scrollbar whitespace-pre-wrap font-mono">
+        {{ programState.programChangelog.value }}
+      </div>
+      <template #footer>
+        <div class="flex gap-3 w-full">
+          <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">LATER</WButton>
+          <WButton 
+            variant="primary" 
+            class="flex-1" 
+            @click="() => { showChangelogModal = false; showSettings = true; programState.performProgramUpdate(); }"
+          >
+            UPDATE NOW
+          </WButton>
         </div>
       </template>
     </WModal>
