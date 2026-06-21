@@ -40,6 +40,27 @@ func (a *App) StartTray() {
 
 			systray.AddSeparator()
 
+			a.trayMenu = &TrayMenu{}
+			a.trayMenu.ModeFull = systray.AddMenuItemCheckbox("Full Mode", "Enable both TUN and System Proxy", false)
+			a.trayMenu.ModeTun = systray.AddMenuItemCheckbox("TUN Mode Only", "Enable only TUN mode", false)
+			a.trayMenu.ModeProxy = systray.AddMenuItemCheckbox("Proxy Mode Only", "Enable only System Proxy", false)
+			a.trayMenu.Stop = systray.AddMenuItemCheckbox("Stop Service", "Stop the core service", false)
+
+			a.trayMenu.ModeFull.Click(func() {
+				go a.handleTrayModeSwitch(true, true)
+			})
+			a.trayMenu.ModeTun.Click(func() {
+				go a.handleTrayModeSwitch(true, false)
+			})
+			a.trayMenu.ModeProxy.Click(func() {
+				go a.handleTrayModeSwitch(false, true)
+			})
+			a.trayMenu.Stop.Click(func() {
+				go a.handleTrayModeSwitch(false, false)
+			})
+
+			systray.AddSeparator()
+
 			mRestartCore := systray.AddMenuItem("Restart Core", "Restart sing-box kernel")
 			mRestartCore.Click(func() {
 				go func() {
@@ -89,6 +110,8 @@ func (a *App) Show() {
 
 // UpdateTrayIcon updates the tray icon based on current core state
 func (a *App) UpdateTrayIcon() {
+	defer a.UpdateTrayMenu()
+
 	if !a.coreManager.IsRunning() {
 		systray.SetIcon(a.trayIcons.Default)
 		systray.SetTooltip("WinBox - Stopped")
@@ -114,5 +137,54 @@ func (a *App) UpdateTrayIcon() {
 	} else {
 		systray.SetIcon(a.trayIcons.Default)
 		systray.SetTooltip("WinBox - Stopped")
+	}
+}
+
+// handleTrayModeSwitch handles mode switches from the tray menu
+func (a *App) handleTrayModeSwitch(tun bool, proxy bool) {
+	// Call existing ApplyState
+	a.ApplyState(tun, proxy)
+	
+	// Notify frontend of the new status
+	meta, _ := a.storage.LoadMeta()
+	a.emitStateSync(meta)
+	wailsRuntime.EventsEmit(a.ctx, "status", a.coreManager.IsRunning())
+	
+	a.UpdateTrayMenu()
+}
+
+// UpdateTrayMenu updates the checkmarks on the tray menu items
+func (a *App) UpdateTrayMenu() {
+	if a.trayMenu == nil {
+		return
+	}
+
+	meta, err := a.storage.LoadMeta()
+	if err != nil {
+		return
+	}
+
+	isRunning := a.coreManager.IsRunning()
+
+	// Reset all checks
+	a.trayMenu.ModeFull.Uncheck()
+	a.trayMenu.ModeTun.Uncheck()
+	a.trayMenu.ModeProxy.Uncheck()
+	a.trayMenu.Stop.Uncheck()
+
+	if !isRunning {
+		a.trayMenu.Stop.Check()
+		return
+	}
+
+	if meta.TunMode && meta.SysProxy {
+		a.trayMenu.ModeFull.Check()
+	} else if meta.TunMode {
+		a.trayMenu.ModeTun.Check()
+	} else if meta.SysProxy {
+		a.trayMenu.ModeProxy.Check()
+	} else {
+		// Edge case: running but no modes enabled
+		a.trayMenu.Stop.Check()
 	}
 }

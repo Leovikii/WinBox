@@ -11,23 +11,12 @@ import { useTheme } from './composables/useTheme';
 import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
-import ProfilesDrawer from './components/ProfilesDrawer.vue';
-import LogsDrawer from './components/LogsDrawer.vue';
-import { WModal, WButton, WNavBar } from './components/ui';
+import { WModal, WButton } from './components/ui';
 
-type TabType = 'home' | 'logs' | 'profiles' | 'settings';
-
-const tabs = [
-  { id: 'home', label: 'Home', icon: 'fas fa-house' },
-  { id: 'logs', label: 'Logs', icon: 'fas fa-file-lines' },
-  { id: 'profiles', label: 'Profiles', icon: 'fas fa-rocket' },
-  { id: 'settings', label: 'Settings', icon: 'fas fa-gear' }
-];
-
-const currentTab = ref<TabType>('home');
-const direction = ref<'left' | 'right'>('right');
+const showSettings = ref(false);
 const showQuitConfirm = ref(false);
 const showUWPModal = ref(false);
+const showChangelogModal = ref(false);
 
 // Traffic speed state
 const uploadSpeed = ref(0);
@@ -56,39 +45,25 @@ onMounted(async () => {
     uploadSpeed.value = data.upload;
     downloadSpeed.value = data.download;
   });
+  // Silent background check for program update
+  programState.checkProgramUpdate();
 });
 
 onUnmounted(() => {
   EventsOff('traffic-update');
 });
 
-const switchTab = (id: string) => {
-  const newTab = id as TabType;
-  if (currentTab.value === newTab) return;
-  
-  const order = ['home', 'logs', 'profiles', 'settings'];
-  const oldIndex = order.indexOf(currentTab.value);
-  const newIndex = order.indexOf(newTab);
-  
-  direction.value = newIndex > oldIndex ? 'left' : 'right';
-  currentTab.value = newTab;
-};
-
 const handleToggle = async (target: 'tun' | 'proxy') => {
   const result = await appState.handleToggle(target);
   if (result && result.error === 'kernel-missing') {
-    switchTab('settings');
-  } else if (result && result.error === 'config-missing') {
-    switchTab('profiles');
+    showSettings.value = true;
   }
 };
 
 const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean }) => {
   const result = await appState.handleSwitchMode(target);
   if (result && result.error === 'kernel-missing') {
-    switchTab('settings');
-  } else if (result && result.error === 'config-missing') {
-    switchTab('profiles');
+    showSettings.value = true;
   }
 };
 
@@ -118,19 +93,36 @@ const handleRestartCore = async () => {
     alert(result);
   }
 };
-
-const transitionName = computed(() => `slide-${direction.value}`);
 </script>
 
 <template>
   <div class="h-screen w-screen relative bg-[#090909] text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-[#0a0a0a] z-60 relative border-b border-white/5" style="--wails-draggable: drag">
-      <div class="text-xs font-bold tracking-[0.2em] text-[#888] flex items-center gap-2.5">
+      <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
         <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
         WINBOX
-        <span class="text-xs font-medium text-white/30 tracking-normal">v{{ wailsConfig.info.productVersion }}</span>
+        <span 
+          class="text-xs font-medium tracking-normal relative transition-colors duration-200"
+          style="--wails-draggable: no-drag"
+          :title="programState.programUpdateState.value === 'available' ? 'Click to view update' : ''"
+          :class="programState.programUpdateState.value === 'available' ? 'text-blue-400 cursor-pointer hover:text-blue-300' : 'text-white/30'"
+          @click="programState.programUpdateState.value === 'available' && (showChangelogModal = true)"
+        >
+          v{{ wailsConfig.info.productVersion }}
+          <span 
+            v-if="programState.programUpdateState.value === 'available'"
+            class="absolute -bottom-0.5 -right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse"
+          ></span>
+        </span>
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
+        <button 
+          @click="showSettings = !showSettings" 
+          class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200"
+          :title="showSettings ? 'Back to Home' : 'Settings'"
+        >
+          <i :class="showSettings ? 'fas fa-arrow-left' : 'fas fa-gear'" class="text-xs"></i>
+        </button>
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
           <i class="fas fa-minus text-[10px]"></i>
         </button>
@@ -144,8 +136,8 @@ const transitionName = computed(() => `slide-${direction.value}`);
     </div>
 
     <div class="flex-1 relative overflow-hidden w-full">
-      <Transition :name="transitionName">
-        <div v-if="currentTab === 'home'" class="absolute inset-0 overflow-y-auto w-full h-full">
+      <Transition name="slide-left">
+        <div v-if="!showSettings" class="absolute inset-0 overflow-y-auto w-full h-full">
           <DashboardControl
             :running="appState.running.value"
             :coreExists="appState.coreExists.value"
@@ -153,7 +145,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :tunMode="appState.tunMode.value"
             :sysProxy="appState.sysProxy.value"
             :isProcessing="appState.isProcessing.value"
-            :activeProfile="profilesState.activeProfile.value"
+            :profilesState="profilesState"
             :errorLog="appState.errorLog.value"
             :getStatusText="appState.getStatusText.value"
             :getStatusStyle="appState.getStatusStyle.value"
@@ -165,55 +157,12 @@ const transitionName = computed(() => `slide-${direction.value}`);
             @toggle="handleToggle"
             @toggle-service="appState.handleServiceToggle"
             @switch-mode="handleSwitchMode"
-            @open-drawer="(target: string) => switchTab(target as TabType)"
             @open-dashboard="Backend.OpenDashboard"
             @restart-core="handleRestartCore"
           />
         </div>
 
-        <div v-else-if="currentTab === 'logs'" class="absolute inset-0 w-full h-full bg-[#090909]">
-          <LogsDrawer
-            :isOpen="true"
-            :errorLog="appState.errorLog.value"
-            @close="switchTab('home')"
-          />
-        </div>
-
-        <div v-else-if="currentTab === 'profiles'" class="absolute inset-0 w-full h-full bg-[#090909]">
-          <ProfilesDrawer
-            :isOpen="true"
-            :profiles="profilesState.profiles.value"
-            :activeProfile="profilesState.activeProfile.value"
-            :isUpdatingProfile="profilesState.isUpdatingProfile.value"
-            :showAddProfileModal="profilesState.showAddProfileModal.value"
-            :newName="profilesState.newName.value"
-            :newUrl="profilesState.newUrl.value"
-            :isAddingProfile="profilesState.isAddingProfile.value"
-            :showEditProfileModal="profilesState.showEditProfileModal.value"
-            :editName="profilesState.editName.value"
-            :editUrl="profilesState.editUrl.value"
-            :isEditingProfile="profilesState.isEditingProfile.value"
-            :showDeleteConfirm="profilesState.showDeleteConfirm.value"
-            @close="switchTab('home')"
-            @switch-profile="profilesState.switchProfile"
-            @delete-profile="profilesState.deleteProfile"
-            @confirm-delete="profilesState.confirmDelete"
-            @close-delete-confirm="profilesState.showDeleteConfirm.value = false"
-            @update-active="profilesState.updateActive"
-            @open-add-modal="profilesState.showAddProfileModal.value = true"
-            @update:newName="(val) => profilesState.newName.value = val"
-            @update:newUrl="(val) => profilesState.newUrl.value = val"
-            @update:showAddProfileModal="(val) => profilesState.showAddProfileModal.value = val"
-            @add-profile="profilesState.addProfile"
-            @edit-profile="profilesState.editProfile"
-            @update:editName="(val) => profilesState.editName.value = val"
-            @update:editUrl="(val) => profilesState.editUrl.value = val"
-            @update:showEditProfileModal="(val) => profilesState.showEditProfileModal.value = val"
-            @save-edit-profile="profilesState.saveEditProfile"
-          />
-        </div>
-
-        <div v-else-if="currentTab === 'settings'" class="absolute inset-0 w-full h-full bg-[#090909]">
+        <div v-else class="absolute inset-0 w-full h-full bg-[#090909]">
           <SettingsDrawer
             :isOpen="true"
             :programLocalVer="programState.programLocalVer.value"
@@ -228,8 +177,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :mirrorUrl="appState.mirrorUrl.value"
             :mirrorEnabled="appState.mirrorEnabled.value"
             :startOnBoot="appState.startOnBoot.value"
-            :autoConnect="appState.autoConnect.value"
-            :autoConnectMode="appState.autoConnectMode.value"
+            :autoConnectState="appState.autoConnectState.value"
             :showEditor="kernelState.showEditor.value"
             :editingType="kernelState.editingType.value"
             :editorContent="kernelState.editorContent.value"
@@ -239,6 +187,7 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :errorAlertMessage="kernelState.errorAlertMessage.value"
             :accentColor="themeState.accentColor.value"
             :ipv6Enabled="appState.ipv6Enabled.value"
+            :preRelease="appState.preRelease.value"
             :logLevel="appState.logLevel.value"
             :logToFile="appState.logToFile.value"
             :showUWPModal="showUWPModal"
@@ -247,15 +196,16 @@ const transitionName = computed(() => `slide-${direction.value}`);
             :uwpLoading="uwpState.loading.value"
             :uwpSaving="uwpState.saving.value"
             :uwpHasChanges="uwpState.hasChanges()"
-            @close="switchTab('home')"
+            @close="showSettings = false"
             @check-program-update="programState.checkProgramUpdate"
+            @open-program-changelog="showChangelogModal = true"
             @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
             @perform-update="kernelState.performUpdate"
+            @toggle-pre-release="appState.handlePreReleaseToggle"
             @toggle-mirror="appState.handleMirrorToggle"
             @toggle-start-on-boot="appState.handleStartOnBootToggle"
-            @toggle-auto-connect="appState.handleAutoConnectToggle"
-            @change-auto-connect-mode="appState.handleAutoConnectModeChange"
+            @change-auto-connect="appState.handleAutoConnectChange"
             @open-editor="kernelState.openEditor"
             @save-editor="kernelState.saveEditor"
             @reset-editor="kernelState.resetEditor"
@@ -279,13 +229,6 @@ const transitionName = computed(() => `slide-${direction.value}`);
       </Transition>
     </div>
 
-    <WNavBar
-      :tabs="tabs"
-      :current-tab="currentTab"
-      :accent-color="themeState.accentColor.value"
-      @change="switchTab"
-    />
-
     <WModal
       :model-value="showQuitConfirm"
       @update:model-value="showQuitConfirm = false"
@@ -297,6 +240,30 @@ const transitionName = computed(() => `slide-${direction.value}`);
         <div class="flex gap-3 w-full">
           <WButton variant="secondary" class="flex-1" @click="showQuitConfirm = false">CANCEL</WButton>
           <WButton variant="danger" class="flex-1" @click="confirmQuit">EXIT</WButton>
+        </div>
+      </template>
+    </WModal>
+
+    <!-- Changelog Modal -->
+    <WModal
+      :model-value="showChangelogModal"
+      @update:model-value="showChangelogModal = false"
+      :title="'WHAT\'S NEW IN ' + programState.programRemoteVer.value"
+      width="md"
+    >
+      <div class="text-sm text-gray-300 max-h-[60vh] overflow-y-auto pr-2 hide-scrollbar whitespace-pre-wrap font-mono">
+        {{ programState.programChangelog.value }}
+      </div>
+      <template #footer>
+        <div class="flex gap-3 w-full">
+          <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">LATER</WButton>
+          <WButton 
+            variant="primary" 
+            class="flex-1" 
+            @click="() => { showChangelogModal = false; showSettings = true; programState.performProgramUpdate(); }"
+          >
+            UPDATE NOW
+          </WButton>
         </div>
       </template>
     </WModal>

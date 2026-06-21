@@ -28,14 +28,15 @@ type MetaData struct {
 	SysProxy        bool      `json:"sys_proxy"`
 	TunConfig       string    `json:"tun_config"`
 	MixedConfig     string    `json:"mixed_config"`
-	AutoConnect     bool      `json:"auto_connect"`
-	AutoConnectMode string    `json:"auto_connect_mode"`
+	AutoConnect     *bool     `json:"auto_connect,omitempty"`
+	AutoConnectState string   `json:"auto_connect_state"`
 	StartOnBoot     bool      `json:"start_on_boot"`
 	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"
 	AccentColor     string    `json:"accent_color"`      // hex color code
 	IPv6Enabled     bool      `json:"ipv6_enabled"`      // IPv6 support toggle
 	LogLevel        string    `json:"log_level"`         // Log level: debug, info, warning, error
 	LogToFile       bool      `json:"log_to_file"`       // Save logs to file
+	PreRelease      bool      `json:"pre_release"`       // Receive pre-release updates
 	Profiles        []Profile `json:"profiles"`
 }
 
@@ -48,6 +49,7 @@ type ReleaseAsset struct {
 // ReleaseInfo represents GitHub release information
 type ReleaseInfo struct {
 	TagName string         `json:"tag_name"`
+	Body    string         `json:"body"`
 	Assets  []ReleaseAsset `json:"assets"`
 }
 

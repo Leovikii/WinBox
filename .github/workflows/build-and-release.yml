@@ -1,0 +1,104 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.md'
+      - 'assets/**'
+      - 'test/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.md'
+      - 'assets/**'
+      - 'test/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    env:
+      VERSION: ''
+      CHANGELOG: ''
+      IS_PRERELEASE: 'false'
+      MAKE_LATEST: 'true'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build WinBox
+        run: wails build -clean
+
+      - name: Get Version
+        if: github.event_name == 'push'
+        id: version
+        run: echo "VERSION=v$(node -p "require('./wails.json').info.productVersion")" >> $GITHUB_ENV
+
+      - name: Generate Changelog
+        if: github.event_name == 'push'
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            LOGS=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            LOGS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$LOGS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Package Release
+        if: github.event_name == 'push'
+        run: |
+          mkdir WinBox
+          cp build/bin/WinBox.exe WinBox/
+          zip -r "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox
+
+      - name: Check Prerelease Status
+        if: github.event_name == 'push'
+        id: prerelease_check
+        run: |
+          if [[ "${{ env.VERSION }}" =~ -(alpha|beta|rc) ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+            echo "MAKE_LATEST=false" >> $GITHUB_ENV
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+            echo "MAKE_LATEST=true" >> $GITHUB_ENV
+          fi
+
+      - name: Create Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: WinBox ${{ env.VERSION }}
+          body: |
+            ### Changes
+            ${{ env.CHANGELOG }}
+          files: WinBox-${{ env.VERSION }}-windows-amd64.zip
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          make_latest: ${{ env.MAKE_LATEST }}

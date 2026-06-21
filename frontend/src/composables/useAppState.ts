@@ -14,12 +14,12 @@ export function useAppState() {
   const errorLog = ref("")
 
   const startOnBoot = ref(false)
-  const autoConnect = ref(false)
-  const autoConnectMode = ref("full")
+  const autoConnectState = ref("smart")
   const mirrorUrl = ref("")
   const mirrorEnabled = ref(false)
 
   const ipv6Enabled = ref(true)
+  const preRelease = ref(false)
   const logLevel = ref("warning")
   const logToFile = ref(true)
 
@@ -36,6 +36,10 @@ export function useAppState() {
       if (msg.value === "STOPPING...") return "STOPPING..."
     }
 
+    if (["DETECTING", "STANDBY", "NET TIMEOUT"].includes(msg.value)) {
+      return msg.value
+    }
+
     if (!running.value) return "OFFLINE"
     if (tunMode.value && sysProxy.value) return "FULL MODE"
     if (tunMode.value) return "TUNNEL"
@@ -47,11 +51,14 @@ export function useAppState() {
     if (!coreExists.value)
       return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.8))' }
 
-    if (msg.value === "ERROR")
+    if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
       return { color: '#F4A7B0 !important', filter: 'drop-shadow(0 0 25px rgba(233, 84, 100, 0.8))' }
 
-    if (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING..."))
+    if (msg.value === "DETECTING" || (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING...")))
       return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.6))' }
+
+    if (msg.value === "STANDBY")
+      return { color: '#B4A2CC !important', filter: 'drop-shadow(0 0 25px rgba(180, 162, 204, 0.8))' }
 
     if (!running.value)
       return { color: '#9E9E9E !important', filter: 'none' }
@@ -72,15 +79,21 @@ export function useAppState() {
     const color = getModeColor(
       tunMode.value,
       sysProxy.value,
-      msg.value === "ERROR" || !coreExists.value,
+      msg.value === "ERROR" || !coreExists.value || msg.value === "NET TIMEOUT",
       running.value
     )
 
     if (!coreExists.value)
       return `bg-[#F8B500]/20`
 
-    if (msg.value === "ERROR")
+    if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
       return `bg-[${color.hex}]/20`
+
+    if (msg.value === "DETECTING")
+      return `bg-[#F8B500]/20`
+
+    if (msg.value === "STANDBY")
+      return `bg-[#B4A2CC]/20`
 
     if (tunMode.value && sysProxy.value)
       return `bg-[${color.hex}]/20`
@@ -96,14 +109,14 @@ export function useAppState() {
     running.value = data.running
     coreExists.value = data.coreExists
     if (!data.coreExists) msg.value = "Kernel Missing"
-    tunMode.value = data.running && data.tunMode
-    sysProxy.value = data.running && data.sysProxy
+    tunMode.value = data.tunMode
+    sysProxy.value = data.sysProxy
     startOnBoot.value = data.startOnBoot
-    autoConnect.value = data.autoConnect
-    autoConnectMode.value = data.autoConnectMode
+    autoConnectState.value = data.autoConnectState
     mirrorUrl.value = data.mirror
     mirrorEnabled.value = data.mirrorEnabled
     ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
+    preRelease.value = data.pre_release
     logLevel.value = data.log_level || "warning"
     logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
     return data
@@ -120,10 +133,12 @@ export function useAppState() {
     const willStart = !running.value
 
     if (willStart) {
-      tunMode.value = true
-      sysProxy.value = true
+      // Use current selected mode instead of hardcoding true
+      const applyTun = tunMode.value
+      const applyProxy = sysProxy.value
+      
       msg.value = "STARTING..."
-      const res = await Backend.ApplyState(true, true)
+      const res = await Backend.ApplyState(applyTun, applyProxy)
 
       if (res === "Success") {
         msg.value = "RUNNING"
@@ -132,13 +147,10 @@ export function useAppState() {
       } else {
         msg.value = "ERROR"
         errorLog.value = res
-        tunMode.value = false
-        sysProxy.value = false
+        // Keep the selected mode, don't reset it
       }
       isProcessing.value = false
     } else {
-      tunMode.value = false
-      sysProxy.value = false
       msg.value = "STOPPING..."
       const res = await Backend.ApplyState(false, false)
 
@@ -165,27 +177,38 @@ export function useAppState() {
     let newTun = tunMode.value
     let newProxy = sysProxy.value
 
+    // Save previous state for rollback
+    const prevTun = tunMode.value
+    const prevProxy = sysProxy.value
+
     if (target === 'tun') newTun = !tunMode.value
     if (target === 'proxy') newProxy = !sysProxy.value
 
+    // Optimistically update UI
+    tunMode.value = newTun
+    sysProxy.value = newProxy
     msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
     if (res === "Success" || res === "Stopped") {
-      tunMode.value = newTun
-      sysProxy.value = newProxy
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
       msg.value = "ERROR"
       errorLog.value = "No active configuration selected"
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
       msg.value = "ERROR"
       errorLog.value = res
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
     }
     isProcessing.value = false
   }
@@ -197,28 +220,49 @@ export function useAppState() {
       return { error: 'kernel-missing' }
     }
 
-    isProcessing.value = true
     const newTun = target.tunMode
     const newProxy = target.sysProxy
 
-    msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
+    // If not running, just update the setting state
+    if (!running.value) {
+      tunMode.value = newTun
+      sysProxy.value = newProxy
+      Backend.SaveMode(newTun, newProxy)
+      return
+    }
+
+    // If running, apply the state and restart
+    isProcessing.value = true
+
+    // Save previous state for rollback
+    const prevTun = tunMode.value
+    const prevProxy = sysProxy.value
+
+    // Optimistically update UI
+    tunMode.value = newTun
+    sysProxy.value = newProxy
+    msg.value = "RESTARTING..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
     if (res === "Success" || res === "Stopped") {
-      tunMode.value = newTun
-      sysProxy.value = newProxy
       msg.value = newTun || newProxy ? "RUNNING" : "STOPPED"
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
       msg.value = "ERROR"
       errorLog.value = "No active configuration selected"
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
       msg.value = "ERROR"
       errorLog.value = res
+      // Revert optimistic update
+      tunMode.value = prevTun
+      sysProxy.value = prevProxy
     }
     isProcessing.value = false
   }
@@ -234,32 +278,33 @@ export function useAppState() {
     const res = await Backend.SetStartOnBoot(newState)
     if (res === "Success") {
       startOnBoot.value = newState
-      if (newState && !autoConnect.value) {
-        await Backend.SetAutoConnect(true, autoConnectMode.value)
-        autoConnect.value = true
+      if (newState && autoConnectState.value === "off") {
+        await Backend.SetAutoConnect("smart")
+        autoConnectState.value = "smart"
       }
     } else {
       alert(res)
     }
   }
 
-  const handleAutoConnectToggle = async () => {
-    const newState = !autoConnect.value
-    const res = await Backend.SetAutoConnect(newState, autoConnectMode.value)
-    if (res === "Success") autoConnect.value = newState
+  const handleAutoConnectChange = async (newState: string | number) => {
+    const stateStr = String(newState)
+    const res = await Backend.SetAutoConnect(stateStr)
+    if (res === "Success") autoConnectState.value = stateStr
     else alert(res)
-  }
-
-  const handleAutoConnectModeChange = async (newMode: string | number) => {
-    const mode = String(newMode)
-    const res = await Backend.SetAutoConnect(autoConnect.value, mode)
-    if (res === "Success") autoConnectMode.value = mode
   }
 
   const handleIPv6Toggle = async () => {
     const newState = !ipv6Enabled.value
     const res = await Backend.ToggleIPv6(newState)
     if (res === "Success") ipv6Enabled.value = newState
+    else alert(res)
+  }
+
+  const handlePreReleaseToggle = async () => {
+    const newState = !preRelease.value
+    const res = await Backend.SetPreRelease(newState)
+    if (res === "Success") preRelease.value = newState
     else alert(res)
   }
 
@@ -274,8 +319,17 @@ export function useAppState() {
   }
 
   const setupEventListeners = () => {
-    unsubscribeStatus = EventsOn("status", (state: boolean) => {
-      running.value = state
+    unsubscribeStatus = EventsOn("status", (isRunning: boolean) => {
+      running.value = isRunning
+      if (!isRunning) {
+        if (msg.value !== "STANDBY" && msg.value !== "NET TIMEOUT") {
+          msg.value = "STOPPED"
+        }
+      } else {
+        if (["DETECTING", "STANDBY", "NET TIMEOUT"].includes(msg.value)) {
+          msg.value = ""
+        }
+      }
     })
 
     unsubscribeStateSync = EventsOn("state-sync", (state: any) => {
@@ -308,11 +362,11 @@ export function useAppState() {
 
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
-    errorLog, startOnBoot, autoConnect, autoConnectMode,
-    mirrorUrl, mirrorEnabled, ipv6Enabled, logLevel, logToFile,
+    errorLog, startOnBoot, autoConnectState,
+    mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
-    handleStartOnBootToggle, handleAutoConnectToggle,
-    handleAutoConnectModeChange, handleIPv6Toggle, handleLogConfigChange
+    handleStartOnBootToggle, handleAutoConnectChange,
+    handleIPv6Toggle, handlePreReleaseToggle, handleLogConfigChange
   }
 }

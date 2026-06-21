@@ -10,19 +10,21 @@ export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
   const programRemoteVer = ref("Unknown")
   const programUpdateState = ref("idle")
   const programDownloadProgress = ref(0)
+  const programChangelog = ref("")
 
   let updateStateTimeout: number | null = null
 
   const checkProgramUpdate = async () => {
     programUpdateState.value = "checking"
-    const ver = await Backend.CheckProgramUpdate()
-    if (ver.includes("Error") || ver.includes("Failed") || ver.includes("No tag")) {
+    const res = await Backend.CheckProgramUpdate() as any
+    if (res.error) {
       programUpdateState.value = "idle"
       return
     }
-    programRemoteVer.value = ver
+    programRemoteVer.value = res.version
+    programChangelog.value = res.changelog || "No changelog provided."
 
-    if (isNewerVersion(ver, programLocalVer.value)) {
+    if (isNewerVersion(res.version, programLocalVer.value)) {
       programUpdateState.value = "available"
     } else {
       programUpdateState.value = "latest"
@@ -57,11 +59,7 @@ export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
   })
 
   return {
-    programLocalVer,
-    programRemoteVer,
-    programUpdateState,
-    programDownloadProgress,
-    checkProgramUpdate,
-    performProgramUpdate
+    programLocalVer, programRemoteVer, programUpdateState, programDownloadProgress, programChangelog,
+    checkProgramUpdate, performProgramUpdate
   }
 }

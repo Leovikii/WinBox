@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -27,6 +26,16 @@ func (a *App) SelectProfile(id string) string {
 	if err := a.profileManager.Select(id); err != nil {
 		return "Error: " + err.Error()
 	}
+
+	if meta, err := a.storage.LoadMeta(); err == nil {
+		for _, p := range meta.Profiles {
+			if p.ID == id {
+				a.appLogger.Info("Profile switched to: " + p.Name)
+				break
+			}
+		}
+	}
+
 	return "Success"
 }
 
@@ -83,8 +92,8 @@ func (a *App) SetStartOnBoot(enabled bool) string {
 	return "Success"
 }
 
-func (a *App) SetAutoConnect(enabled bool, mode string) string {
-	if err := a.settingsManager.SetAutoConnect(enabled, mode); err != nil {
+func (a *App) SetAutoConnect(state string) string {
+	if err := a.settingsManager.SetAutoConnect(state); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
@@ -92,6 +101,13 @@ func (a *App) SetAutoConnect(enabled bool, mode string) string {
 
 func (a *App) SaveTheme(mode, accentColor string) string {
 	if err := a.settingsManager.SaveTheme(mode, accentColor); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) SaveMode(tunMode, sysProxy bool) string {
+	if err := a.settingsManager.SaveMode(tunMode, sysProxy); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
@@ -143,7 +159,6 @@ func (a *App) ClearAppLog() string {
 	if err := a.appLogger.Clear(); err != nil {
 		return "Error: " + err.Error()
 	}
-	a.appLogger.Info("App log cleared")
 	return "Success"
 }
 
@@ -161,7 +176,6 @@ func (a *App) ClearKernelLog() string {
 		a.coreManager.ClearLogBuffer()
 	}
 
-	a.appLogger.Info("Kernel log cleared")
 	return "Success"
 }
 
@@ -186,8 +200,6 @@ func (a *App) RestartCore() string {
 		return "Error: " + err.Error()
 	}
 
-	time.Sleep(500 * time.Millisecond)
-
 	result := a.startCore()
 	if result != "Success" {
 		a.appLogger.Error("Core start failed during restart: " + result)
@@ -199,6 +211,13 @@ func (a *App) RestartCore() string {
 
 	a.appLogger.Info("Core restarted successfully")
 	go a.UpdateTrayIcon()
+	return "Success"
+}
+
+func (a *App) SetPreRelease(enabled bool) string {
+	if err := a.settingsManager.SetPreRelease(enabled); err != nil {
+		return "Error: " + err.Error()
+	}
 	return "Success"
 }
 
@@ -223,11 +242,11 @@ func (a *App) GetInitData() map[string]interface{} {
 		"mirror":            meta.Mirror,
 		"mirrorEnabled":     meta.MirrorEnabled,
 		"startOnBoot":       meta.StartOnBoot,
-		"autoConnect":       meta.AutoConnect,
-		"autoConnectMode":   meta.AutoConnectMode,
+		"autoConnectState":  meta.AutoConnectState,
 		"themeMode":         meta.ThemeMode,
 		"accentColor":       meta.AccentColor,
 		"ipv6_enabled":      meta.IPv6Enabled,
+		"pre_release":       meta.PreRelease,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
 	}

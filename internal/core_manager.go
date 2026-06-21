@@ -9,10 +9,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
+	"golang.org/x/sys/windows"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -27,16 +30,18 @@ type CoreManager struct {
 	apiURL     string     // Clash API URL if available
 }
 
-// LogBuffer stores recent log lines in memory
+// LogBuffer stores recent log lines in memory using a ring buffer
 type LogBuffer struct {
-	mu    sync.RWMutex
-	lines []string
-	max   int
+	mu     sync.RWMutex
+	lines  []string
+	max    int
+	cursor int
+	count  int
 }
 
 func NewLogBuffer(maxLines int) *LogBuffer {
 	return &LogBuffer{
-		lines: make([]string, 0, maxLines),
+		lines: make([]string, maxLines), // Allocate full size array once
 		max:   maxLines,
 	}
 }
@@ -45,9 +50,10 @@ func (lb *LogBuffer) Append(line string) {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
 
-	lb.lines = append(lb.lines, line)
-	if len(lb.lines) > lb.max {
-		lb.lines = lb.lines[len(lb.lines)-lb.max:]
+	lb.lines[lb.cursor] = line
+	lb.cursor = (lb.cursor + 1) % lb.max
+	if lb.count < lb.max {
+		lb.count++
 	}
 }
 
@@ -55,16 +61,27 @@ func (lb *LogBuffer) GetAll() string {
 	lb.mu.RLock()
 	defer lb.mu.RUnlock()
 
-	if len(lb.lines) == 0 {
+	if lb.count == 0 {
 		return ""
 	}
-	return strings.Join(lb.lines, "\n")
+
+	result := make([]string, 0, lb.count)
+	if lb.count < lb.max {
+		result = append(result, lb.lines[:lb.count]...)
+	} else {
+		// Ring buffer is full, read from cursor to end, then start to cursor
+		result = append(result, lb.lines[lb.cursor:]...)
+		result = append(result, lb.lines[:lb.cursor]...)
+	}
+
+	return strings.Join(result, "\n")
 }
 
 func (lb *LogBuffer) Clear() {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
-	lb.lines = make([]string, 0, lb.max)
+	lb.cursor = 0
+	lb.count = 0
 }
 
 // NewCoreManager creates a new core manager
@@ -127,7 +144,7 @@ func (cm *CoreManager) Start(profilePath string, tunMode, sysProxy bool, tunConf
 	// Monitor stderr in background
 	go cm.captureOutput(stderrPipe)
 	// Monitor process in background
-	go cm.monitorProcess()
+	go cm.monitorProcess(cm.cmd)
 
 	return nil
 }
@@ -147,7 +164,10 @@ func (cm *CoreManager) Stop() error {
 		}
 
 		done := make(chan error, 1)
-		go func() { done <- cm.cmd.Wait() }()
+		go func() {
+			_, err := cm.cmd.Process.Wait()
+			done <- err
+		}()
 
 		select {
 		case <-done:
@@ -158,6 +178,63 @@ func (cm *CoreManager) Stop() error {
 
 	cm.running = false
 	return nil
+}
+
+// KillZombieInstances scans for and terminates any orphaned sing-box processes
+// that match the expected executable path for this application.
+func (cm *CoreManager) KillZombieInstances() {
+	corePath := filepath.Join(cm.appDir, "data", "core", "sing-box.exe")
+	
+	// Use tasklist as wmic is deprecated on newer Windows versions
+	cmd := exec.Command("tasklist", "/FI", "IMAGENAME eq sing-box.exe", "/FO", "CSV", "/NH")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NO_WINDOW,
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "信息:") || strings.HasPrefix(line, "INFO:") {
+			continue
+		}
+		
+		parts := strings.Split(line, "\",\"")
+		if len(parts) >= 2 {
+			pidStr := strings.Trim(parts[1], "\"")
+			if pid, err := strconv.ParseUint(pidStr, 10, 32); err == nil {
+				// Verify the path using Windows API
+				if cm.isTargetProcess(uint32(pid), corePath) {
+					if proc, err := os.FindProcess(int(pid)); err == nil {
+						if err := proc.Kill(); err == nil {
+							cm.logBuffer.Append(fmt.Sprintf("[Info] Killed zombie sing-box.exe (PID: %d)", pid))
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (cm *CoreManager) isTargetProcess(pid uint32, targetPath string) bool {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(h)
+
+	var buf [windows.MAX_PATH]uint16
+	size := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &size); err != nil {
+		return false
+	}
+	
+	procPath := windows.UTF16ToString(buf[:size])
+	return strings.EqualFold(procPath, targetPath)
 }
 
 // IsRunning returns the running status with thread safety
@@ -207,20 +284,31 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 	if enableTun {
 		var tunMap map[string]interface{}
 		if json.Unmarshal([]byte(tunConfig), &tunMap) == nil {
-			// Handle IPv6 support
-			if !ipv6Enabled {
-				if addresses, ok := tunMap["address"].([]interface{}); ok {
-					filtered := make([]interface{}, 0)
+			// Handle IPv6 support dynamically
+			if addresses, ok := tunMap["address"].([]interface{}); ok {
+				ipv6Addr := "fdfe:dcba:9876::1/126"
+				
+				if ipv6Enabled {
+					hasIPv6 := false
 					for _, addr := range addresses {
-						if addrStr, ok := addr.(string); ok {
-							// Remove IPv6 address (fdfe:dcba:9876::1/126)
-							if addrStr != "fdfe:dcba:9876::1/126" {
-								filtered = append(filtered, addr)
-							}
+						if addrStr, ok := addr.(string); ok && addrStr == ipv6Addr {
+							hasIPv6 = true
+							break
 						}
 					}
-					tunMap["address"] = filtered
+					if !hasIPv6 {
+						addresses = append(addresses, ipv6Addr)
+					}
+				} else {
+					filtered := make([]interface{}, 0)
+					for _, addr := range addresses {
+						if addrStr, ok := addr.(string); ok && addrStr != ipv6Addr {
+							filtered = append(filtered, addr)
+						}
+					}
+					addresses = filtered
 				}
+				tunMap["address"] = addresses
 			}
 			newInbounds = append(newInbounds, tunMap)
 		}
@@ -234,6 +322,8 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 	}
 
 	config["inbounds"] = newInbounds
+
+
 
 	// Process log configuration
 	logConfig := map[string]interface{}{
@@ -260,12 +350,23 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 }
 
 // monitorProcess monitors the core process and emits events
-func (cm *CoreManager) monitorProcess() {
-	cm.cmd.Wait()
+func (cm *CoreManager) monitorProcess(cmd *exec.Cmd) {
+	cmd.Wait()
 
 	cm.mu.Lock()
+	// Check if this is still the active command. If not, another core was already started or stopped.
+	if cm.cmd != cmd {
+		cm.mu.Unlock()
+		return
+	}
+	wasRunning := cm.running
 	cm.running = false
 	cm.mu.Unlock()
+
+	if wasRunning {
+		cm.logBuffer.Append("[Warning] Core process stopped unexpectedly")
+		wailsRuntime.EventsEmit(cm.ctx, "log", "Error: Core crashed unexpectedly")
+	}
 
 	wailsRuntime.EventsEmit(cm.ctx, "status", false)
 }
@@ -276,6 +377,9 @@ func (cm *CoreManager) captureOutput(pipe interface{}) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		cm.logBuffer.Append(line)
+	}
+	if err := scanner.Err(); err != nil {
+		cm.logBuffer.Append(fmt.Sprintf("[Log Error]: %v", err))
 	}
 }
 
