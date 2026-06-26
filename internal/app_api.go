@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -188,6 +189,7 @@ func (a *App) RestartCore() string {
 		return "Error: Core is not running"
 	}
 
+	wailsRuntime.EventsEmit(a.ctx, "core-restarting")
 	a.appLogger.Info("Restarting core...")
 
 	meta, err := a.storage.LoadMeta()
@@ -206,6 +208,7 @@ func (a *App) RestartCore() string {
 		return result
 	}
 
+	time.Sleep(1 * time.Second) // Give process time to bind ports and UI to show RESTARTING
 	wailsRuntime.EventsEmit(a.ctx, "status", true)
 	a.emitStateSync(meta)
 

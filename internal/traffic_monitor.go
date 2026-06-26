@@ -70,7 +70,25 @@ func (tm *TrafficMonitor) Start() error {
 			HandshakeTimeout: 5 * time.Second,
 		}
 
-		conn, _, err := dialer.Dial(wsURL, nil)
+		var conn *websocket.Conn
+		var err error
+
+		// Retry connection up to 5 times
+		for i := 0; i < 5; i++ {
+			tm.mu.RLock()
+			running := tm.running
+			tm.mu.RUnlock()
+			if !running {
+				return
+			}
+
+			conn, _, err = dialer.Dial(wsURL, nil)
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+
 		if err != nil {
 			tm.mu.Lock()
 			tm.running = false

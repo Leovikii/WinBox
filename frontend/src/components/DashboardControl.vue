@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
-import { WButton, WSelect, WModal, WInput } from './ui'
+import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl } from './ui'
 
 interface Profile {
   name: string
@@ -102,8 +102,8 @@ const handleDelete = (e: any) => {
 // Log Viewer Logic
 const appLogContent = ref("")
 const showLogModal = ref(false)
-const inlineLogContainer = ref<HTMLElement | null>(null)
-const fullLogContainer = ref<HTMLElement | null>(null)
+const inlineLogContainer = ref<any>(null)
+const fullLogContainer = ref<any>(null)
 const copyState = ref("COPY")
 let logInterval: any = null
 
@@ -113,12 +113,14 @@ const loadAppLog = async () => {
     if (content !== appLogContent.value) {
       appLogContent.value = content
       nextTick(() => {
-        if (inlineLogContainer.value) {
-          inlineLogContainer.value.scrollTop = inlineLogContainer.value.scrollHeight
-        }
-        if (fullLogContainer.value && showLogModal.value) {
-          fullLogContainer.value.scrollTop = fullLogContainer.value.scrollHeight
-        }
+        setTimeout(() => {
+          if (inlineLogContainer.value?.$el) {
+            inlineLogContainer.value.$el.scrollTop = inlineLogContainer.value.$el.scrollHeight
+          }
+          if (fullLogContainer.value?.$el && showLogModal.value) {
+            fullLogContainer.value.$el.scrollTop = fullLogContainer.value.$el.scrollHeight
+          }
+        }, 50)
       })
     }
   } catch (error) {
@@ -201,9 +203,9 @@ onUnmounted(() => {
           </button>
           
           <!-- Log Content -->
-          <div class="w-full h-full overflow-y-auto p-4 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text hide-scrollbar relative z-0" ref="inlineLogContainer">
+          <WScrollArea height="100%" class="w-full p-4 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
             {{ appLogContent || 'No logs available.' }}
-          </div>
+          </WScrollArea>
         </div>
 
     </div>
@@ -293,7 +295,7 @@ onUnmounted(() => {
 
           <!-- Mode Dropdown (Col 2-3) -->
           <div class="col-span-2">
-            <WSelect 
+            <WSegmentedControl 
               v-model="currentMode" 
               :options="modeOptions" 
               :disabled="isProcessing"
@@ -332,9 +334,9 @@ onUnmounted(() => {
                 borderColor: running ? '#ef4444' : activeColor,
                 boxShadow: `0 4px 12px ${running ? '#dc262666' : activeColor + '66'}`
               }"
-              :icon="running ? 'fas fa-square' : 'fas fa-power-off'"
+              :icon="(getStatusText === 'STARTING...' || getStatusText === 'STOPPING...') ? 'fas fa-spinner fa-spin' : (running ? 'fas fa-square' : 'fas fa-power-off')"
             >
-              {{ running ? 'STOP' : 'START' }}
+              {{ running ? (getStatusText === 'STOPPING...' ? 'STOPPING' : 'STOP') : (getStatusText === 'STARTING...' ? 'STARTING' : 'START') }}
             </WButton>
 
             <WButton 
@@ -342,11 +344,11 @@ onUnmounted(() => {
               key="restart"
               class="w-[calc((100%-1rem)/3)] shrink-0 px-0"
               variant="secondary" 
-              icon="fas fa-rotate-right" 
+              :icon="getStatusText === 'RESTARTING...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
               @click="emit('restart-core')"
               :disabled="isProcessing"
             >
-              RESTART
+              {{ getStatusText === 'RESTARTING...' ? 'WAIT' : 'RESTART' }}
             </WButton>
           </TransitionGroup>
 
@@ -454,9 +456,9 @@ onUnmounted(() => {
           </div>
           
           <!-- Content -->
-          <div class="flex-1 w-full h-full p-6 overflow-y-auto font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all hide-scrollbar" ref="fullLogContainer">
+          <WScrollArea height="100%" class="flex-1 w-full p-6 font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all" ref="fullLogContainer">
             {{ appLogContent || 'No logs available.' }}
-          </div>
+          </WScrollArea>
 
           <!-- Fixed Bottom Right Controls -->
           <div class="absolute bottom-6 right-6 flex items-center gap-3">

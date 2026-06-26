@@ -139,8 +139,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	if !canAutoStart {
-		meta.TunMode = false
-		meta.SysProxy = false
+		a.appLogger.Info("Auto-start conditions not met")
 	}
 
 	modeChanged := (prevSysProxy && !meta.SysProxy) || (prevTunMode && !meta.TunMode)
@@ -167,7 +166,7 @@ func (a *App) Startup(ctx context.Context) {
 			a.handleAutoStart(modeChanged, prevSysProxy)
 		}
 	} else {
-		if modeChanged && prevSysProxy {
+		if prevSysProxy {
 			go func() {
 				time.Sleep(1 * time.Second)
 				tempMeta := *meta
@@ -245,8 +244,10 @@ func (a *App) smartAutoStart(modeChanged, prevSysProxy bool) {
 		a.stateMutex.Lock()
 		a.isAutoConnecting = false
 		a.stateMutex.Unlock()
+		wailsRuntime.EventsEmit(a.ctx, "core-lock", false)
 	}()
 
+	wailsRuntime.EventsEmit(a.ctx, "core-lock", true)
 	// Give the system some time to prepare before starting the checks
 	time.Sleep(3 * time.Second)
 	

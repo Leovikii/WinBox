@@ -1,0 +1,13 @@
+{
+  "name": "winbox-icon-builder",
+  "version": "2.8.0-rc1",
+  "description": "Script to generate WinBox icons from SVGs",
+  "main": "build.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "png-to-ico": "^2.1.1",
+    "sharp": "^0.33.2"
+  }
+}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea } from '@/components/ui'
+import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea, WScrollArea } from '@/components/ui'
 import WColorPicker from '@/components/ui/WColorPicker.vue'
 import UWPLoopbackModal from '@/components/UWPLoopbackModal.vue'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
@@ -105,7 +105,7 @@ const handleApplyCustomColor = () => {
 
 <template>
   <div class="w-full h-full flex flex-col bg-[#090909]">
-    <div class="flex-1 overflow-y-auto px-4 pt-6 pb-28 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
+    <WScrollArea class="flex-1 px-4 pt-6 pb-28 space-y-4">
 
       <!-- About Section -->
       <WCard variant="default" padding="lg">
@@ -297,38 +297,11 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-palette" @click="handleOpenThemeModal">
+          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
             <div class="flex items-center gap-2">
-              <div class="w-4 h-4 rounded-full border border-gray-600" :style="{ backgroundColor: accentColor }"></div>
+              <i class="fas fa-palette" :style="{ color: accentColor }"></i>
               <span>SELECT</span>
             </div>
-          </WButton>
-        </div>
-      </WCard>
-
-      <!-- Network Section -->
-      <WCard variant="default" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-network-wired text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Network</h3>
-        </div>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">GitHub Mirror</span>
-          <WSwitch :model-value="mirrorEnabled" @update:model-value="emit('toggle-mirror')" />
-        </div>
-
-        <WExpandable :expanded="mirrorEnabled">
-          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
-            <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'mirror')">EDIT</WButton>
-          </div>
-        </WExpandable>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')">
-            MANAGE
           </WButton>
         </div>
       </WCard>
@@ -370,7 +343,34 @@ const handleApplyCustomColor = () => {
           />
         </div>
       </WCard>
-    </div>
+
+      <!-- Network Section -->
+      <WCard variant="default" padding="lg">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fa-solid fa-network-wired text-gray-500 text-xs"></i>
+          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Network</h3>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">GitHub Mirror</span>
+          <WSwitch :model-value="mirrorEnabled" @update:model-value="emit('toggle-mirror')" />
+        </div>
+
+        <WExpandable :expanded="mirrorEnabled">
+          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
+            <span class="text-xs font-bold text-gray-500">Mirror Config</span>
+            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'mirror')">EDIT</WButton>
+          </div>
+        </WExpandable>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
+          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')">
+            MANAGE
+          </WButton>
+        </div>
+      </WCard>
+    </WScrollArea>
   </div>
 
   <!-- UWP Loopback Modal -->

@@ -88,6 +88,7 @@ func (a *App) stopCore() string {
 		a.appLogger.Error("Core stop failed: " + err.Error())
 		return "Error: " + err.Error()
 	}
+	
 	a.appLogger.Info("Core stopped")
 	go a.UpdateTrayIcon()
 	return "Stopped"
@@ -134,14 +135,24 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 	a.storage.SaveMeta(meta)
 
 	if !targetTun && !targetProxy {
-		return a.stopCore()
+		wailsRuntime.EventsEmit(a.ctx, "core-stopping")
+		res := a.stopCore()
+		time.Sleep(500 * time.Millisecond) // Give UI time to reflect STOPPING state
+		wailsRuntime.EventsEmit(a.ctx, "status", false)
+		return res
 	}
 
 	if needsRestart {
-		if a.coreManager.IsRunning() {
-			a.stopCore()
+		wailsRuntime.EventsEmit(a.ctx, "core-starting")
+		a.stopCore()
+		res := a.startCore()
+		if res == "Success" {
+			time.Sleep(1 * time.Second) // Give process time to bind ports and UI to show STARTING
+			wailsRuntime.EventsEmit(a.ctx, "status", true)
+			a.emitStateSync(meta)
+			go a.UpdateTrayIcon()
 		}
-		return a.startCore()
+		return res
 	}
 
 	go a.UpdateTrayIcon()
