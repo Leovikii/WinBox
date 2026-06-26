@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch, onMounted, onUnmounted } from 'vue'
+import WScrollArea from './WScrollArea.vue'
 import type { ModalWidth, ModalHeight } from './types'
 
 interface Props {
@@ -66,7 +67,7 @@ const modalClasses = computed(() => {
     :style="{ contentVisibility: modelValue ? 'auto' : 'hidden' }"
     @click="handleBackdropClick"
   >
-    <div :class="modalClasses" @click.stop class="flex flex-col">
+    <div :class="modalClasses" @click.stop class="flex flex-col max-h-[90vh]">
       <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
         <slot name="header">
           <h2 v-if="title" class="text-xs font-bold text-[#888] uppercase tracking-widest">{{ title }}</h2>
@@ -75,9 +76,9 @@ const modalClasses = computed(() => {
           <i class="fas fa-times"></i>
         </button>
       </div>
-      <div class="flex-1 overflow-auto p-5 space-y-4 custom-scrollbar [&::-webkit-scrollbar]:hidden">
+      <WScrollArea class="flex-1 min-h-0 p-5 space-y-4">
         <slot />
-      </div>
+      </WScrollArea>
       <div v-if="$slots.footer" class="shrink-0 p-4 border-t border-[#2a2a2a]">
         <slot name="footer" />
       </div>

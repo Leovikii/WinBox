@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
-import { WButton, WSelect, WModal, WInput } from './ui'
+import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl } from './ui'
 
 interface Profile {
   name: string
@@ -201,9 +201,9 @@ onUnmounted(() => {
           </button>
           
           <!-- Log Content -->
-          <div class="w-full h-full overflow-y-auto p-4 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text hide-scrollbar relative z-0" ref="inlineLogContainer">
+          <WScrollArea class="w-full h-full p-4 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
             {{ appLogContent || 'No logs available.' }}
-          </div>
+          </WScrollArea>
         </div>
 
     </div>
@@ -293,7 +293,7 @@ onUnmounted(() => {
 
           <!-- Mode Dropdown (Col 2-3) -->
           <div class="col-span-2">
-            <WSelect 
+            <WSegmentedControl 
               v-model="currentMode" 
               :options="modeOptions" 
               :disabled="isProcessing"
@@ -454,9 +454,9 @@ onUnmounted(() => {
           </div>
           
           <!-- Content -->
-          <div class="flex-1 w-full h-full p-6 overflow-y-auto font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all hide-scrollbar" ref="fullLogContainer">
+          <WScrollArea class="flex-1 w-full h-full p-6 font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all" ref="fullLogContainer">
             {{ appLogContent || 'No logs available.' }}
-          </div>
+          </WScrollArea>
 
           <!-- Fixed Bottom Right Controls -->
           <div class="absolute bottom-6 right-6 flex items-center gap-3">

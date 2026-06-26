@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { WModal, WButton } from './ui'
+import { WModal, WButton, WScrollArea } from './ui'
 import type { UWPApp } from '../composables/useUWPLoopback'
 
 const props = defineProps<{
@@ -51,18 +51,20 @@ watch(() => props.modelValue, (newVal) => {
           <WButton
             variant="secondary"
             size="sm"
+            icon="fas fa-check-double"
             @click="emit('selectAll')"
             :disabled="loading || saving"
           >
-            SELECT ALL
+            ALL
           </WButton>
           <WButton
             variant="secondary"
             size="sm"
+            icon="fas fa-times"
             @click="emit('deselectAll')"
             :disabled="loading || saving"
           >
-            DESELECT ALL
+            NONE
           </WButton>
         </div>
       </div>
@@ -76,7 +78,7 @@ watch(() => props.modelValue, (newVal) => {
       </div>
 
       <!-- App list -->
-      <div v-else-if="apps.length > 0" class="max-h-64 overflow-y-auto custom-scrollbar">
+      <WScrollArea v-else-if="apps.length > 0" class="max-h-64">
         <div class="space-y-1">
           <div
             v-for="app in sortedApps"
@@ -109,7 +111,7 @@ watch(() => props.modelValue, (newVal) => {
             </div>
           </div>
         </div>
-      </div>
+      </WScrollArea>
 
       <!-- Empty state -->
       <div v-else class="flex items-center justify-center py-12">
@@ -144,22 +146,3 @@ watch(() => props.modelValue, (newVal) => {
   </WModal>
 </template>
 
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-</style>

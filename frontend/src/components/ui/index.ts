@@ -10,9 +10,12 @@ import WListItem from './WListItem.vue'
 import WTextarea from './WTextarea.vue'
 import WExpandable from './WExpandable.vue'
 import WNavBar from './WNavBar.vue'
+import WScrollArea from './WScrollArea.vue'
+import WSegmentedControl from './WSegmentedControl.vue'
 
 export {
   WButton,
+  WScrollArea,
   WIconButton,
   WInput,
   WSelect,
@@ -23,5 +26,6 @@ export {
   WListItem,
   WTextarea,
   WExpandable,
-  WNavBar
+  WNavBar,
+  WSegmentedControl
 }

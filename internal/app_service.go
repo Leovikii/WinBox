@@ -88,6 +88,7 @@ func (a *App) stopCore() string {
 		a.appLogger.Error("Core stop failed: " + err.Error())
 		return "Error: " + err.Error()
 	}
+	
 	a.appLogger.Info("Core stopped")
 	go a.UpdateTrayIcon()
 	return "Stopped"

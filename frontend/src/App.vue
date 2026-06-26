@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { marked } from 'marked';
 import * as Backend from '../wailsjs/go/internal/App';
 import wailsConfig from '@wails';
 import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
@@ -11,7 +12,7 @@ import { useTheme } from './composables/useTheme';
 import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
-import { WModal, WButton } from './components/ui';
+import { WModal, WButton, WScrollArea } from './components/ui';
 
 const showSettings = ref(false);
 const showQuitConfirm = ref(false);
@@ -28,6 +29,13 @@ const kernelState = useKernelUpdate(appState);
 const programState = useProgramUpdate(appState);
 const themeState = useTheme();
 const uwpState = useUWPLoopback();
+
+const renderedChangelog = computed(() => {
+  if (!programState.programChangelog.value) return '';
+  // Since marked.parse can return a Promise if async is enabled, await it or cast it.
+  // In default synchronous usage it returns a string.
+  return marked.parse(programState.programChangelog.value) as string;
+});
 
 const handlePreReleaseToggleWrapper = async () => {
   await appState.handlePreReleaseToggle();
@@ -97,7 +105,8 @@ const handleSaveUWPExemptions = async () => {
 const handleRestartCore = async () => {
   const result = await Backend.RestartCore();
   if (result !== "Success") {
-    alert(result);
+    appState.errorAlertMessage.value = result;
+    appState.showErrorAlert.value = true;
   }
 };
 </script>
@@ -144,7 +153,7 @@ const handleRestartCore = async () => {
 
     <div class="flex-1 relative overflow-hidden w-full">
       <Transition name="slide-left">
-        <div v-if="!showSettings" class="absolute inset-0 overflow-y-auto w-full h-full">
+        <WScrollArea v-if="!showSettings" class="absolute inset-0 w-full h-full">
           <DashboardControl
             :running="appState.running.value"
             :coreExists="appState.coreExists.value"
@@ -167,7 +176,7 @@ const handleRestartCore = async () => {
             @open-dashboard="Backend.OpenDashboard"
             @restart-core="handleRestartCore"
           />
-        </div>
+        </WScrollArea>
 
         <div v-else class="absolute inset-0 w-full h-full bg-[#090909]">
           <SettingsDrawer
@@ -190,8 +199,8 @@ const handleRestartCore = async () => {
             :editorContent="kernelState.editorContent.value"
             :saveBtnText="kernelState.saveBtnText.value"
             :showResetConfirm="kernelState.showResetConfirm.value"
-            :showErrorAlert="kernelState.showErrorAlert.value"
-            :errorAlertMessage="kernelState.errorAlertMessage.value"
+            :showErrorAlert="kernelState.showErrorAlert.value || appState.showErrorAlert.value"
+            :errorAlertMessage="kernelState.showErrorAlert.value ? kernelState.errorAlertMessage.value : appState.errorAlertMessage.value"
             :accentColor="themeState.accentColor.value"
             :ipv6Enabled="appState.ipv6Enabled.value"
             :preRelease="appState.preRelease.value"
@@ -209,7 +218,7 @@ const handleRestartCore = async () => {
             @perform-program-update="programState.performProgramUpdate"
             @check-update="kernelState.checkUpdate"
             @perform-update="kernelState.performUpdate"
-            @toggle-pre-release="handlePreReleaseToggleWrapper"
+            @toggle-pre-release="appState.handlePreReleaseToggle"
             @toggle-mirror="appState.handleMirrorToggle"
             @toggle-start-on-boot="appState.handleStartOnBootToggle"
             @change-auto-connect="appState.handleAutoConnectChange"
@@ -220,7 +229,7 @@ const handleRestartCore = async () => {
             @update:editorContent="(val) => kernelState.editorContent.value = val"
             @confirm-reset="kernelState.confirmReset"
             @close-reset-confirm="kernelState.showResetConfirm.value = false"
-            @close-error-alert="kernelState.showErrorAlert.value = false"
+            @close-error-alert="kernelState.showErrorAlert.value = false; appState.showErrorAlert.value = false"
             @change-accent-color="handleAccentColorChange"
             @toggle-ipv6="appState.handleIPv6Toggle"
             @change-log-config="appState.handleLogConfigChange"
@@ -258,9 +267,10 @@ const handleRestartCore = async () => {
       :title="'WHAT\'S NEW IN ' + programState.programRemoteVer.value"
       width="md"
     >
-      <div class="text-sm text-gray-300 max-h-[60vh] overflow-y-auto pr-2 hide-scrollbar whitespace-pre-wrap font-mono">
-        {{ programState.programChangelog.value }}
-      </div>
+      <div 
+        class="text-sm text-gray-300 pr-2 markdown-body" 
+        v-html="renderedChangelog"
+      ></div>
       <template #footer>
         <div class="flex gap-3 w-full">
           <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">LATER</WButton>
@@ -278,6 +288,58 @@ const handleRestartCore = async () => {
 </template>
 
 <style>
+.markdown-body {
+  color: #d1d5db;
+  line-height: 1.6;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  color: #f3f4f6;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.markdown-body h1 { font-size: 1.5rem; border-bottom: 1px solid #374151; padding-bottom: 0.3rem; }
+.markdown-body h2 { font-size: 1.25rem; border-bottom: 1px solid #374151; padding-bottom: 0.3rem; }
+.markdown-body h3 { font-size: 1.125rem; }
+.markdown-body p { margin-bottom: 1rem; }
+.markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+.markdown-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+.markdown-body li { margin-bottom: 0.25rem; }
+.markdown-body a { color: #60a5fa; text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body code { 
+  background-color: rgba(255, 255, 255, 0.1); 
+  padding: 0.2em 0.4em; 
+  border-radius: 0.375rem; 
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+  font-size: 85%;
+}
+.markdown-body pre { 
+  background-color: #1f2937; 
+  padding: 1rem; 
+  border-radius: 0.5rem; 
+  overflow-x: auto; 
+  margin-bottom: 1rem; 
+  border: 1px solid #374151;
+}
+.markdown-body pre code { 
+  background-color: transparent; 
+  padding: 0; 
+  font-size: 100%;
+}
+.markdown-body blockquote { 
+  border-left: 4px solid #4b5563; 
+  padding-left: 1rem; 
+  color: #9ca3af; 
+  margin-bottom: 1rem; 
+  font-style: italic;
+}
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid #374151;
+  margin: 1.5rem 0;
+}
+
 .slide-left-enter-active,
 .slide-left-leave-active,
 .slide-right-enter-active,

@@ -17,9 +17,7 @@
       <stop offset="100%" stop-color="#023311"/>
     </linearGradient>
 
-    <filter id="lid-shadow">
-      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000" flood-opacity="0.15"/>
-    </filter>
+
     
     <!-- Clean, natural drop shadow for the badge -->
     <filter id="badge-shadow">
@@ -37,10 +35,15 @@
   
   <rect x="25" y="15" width="65" height="65" rx="14" fill="url(#base)" />
   <g clip-path="url(#square-clip)">
-    <rect x="20" y="10" width="75" height="28" fill="url(#lid)" filter="url(#lid-shadow)" />
+    <rect x="20" y="10" width="75" height="20" fill="url(#lid)" />
+    <!-- Sharp edge highlight to simulate the box fold catching light -->
+    <line x1="25" y1="30" x2="90" y2="30" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5" />
   </g>
-  <g filter="url(#lid-shadow)">
-    <path d="M 47.5 15 L 67.5 15 L 67.5 48 L 57.5 42 L 47.5 48 Z" fill="#F8FCFF" fill-opacity="0.95" />
+  <g>
+    <!-- Left half of the tape -->
+    <path d="M 50.5 15 L 57.5 15 L 57.5 55 L 49.5 55 A 2 2 0 0 1 47.5 53 L 47.5 30 Z" fill="#F8FCFF" fill-opacity="0.5" />
+    <!-- Right half of the tape -->
+    <path d="M 57.5 15 L 64.5 15 L 67.5 30 L 67.5 53 A 2 2 0 0 1 65.5 55 L 57.5 55 Z" fill="#F8FCFF" fill-opacity="0.3" />
   </g>
   <g>
     <!-- Clean badge base with soft gradient and drop shadow. No fake inner bevels. -->

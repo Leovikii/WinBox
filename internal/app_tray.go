@@ -56,7 +56,11 @@ func (a *App) StartTray() {
 				go a.handleTrayModeSwitch(false, true)
 			})
 			a.trayMenu.Stop.Click(func() {
-				go a.handleTrayModeSwitch(false, false)
+				go func() {
+					a.ToggleService()
+					wailsRuntime.EventsEmit(a.ctx, "status", a.coreManager.IsRunning())
+					a.UpdateTrayMenu()
+				}()
 			})
 
 			systray.AddSeparator()

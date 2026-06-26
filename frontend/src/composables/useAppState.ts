@@ -13,6 +13,9 @@ export function useAppState() {
   const isProcessing = ref(false)
   const errorLog = ref("")
 
+  const showErrorAlert = ref(false)
+  const errorAlertMessage = ref("")
+
   const startOnBoot = ref(false)
   const autoConnectState = ref("smart")
   const mirrorUrl = ref("")
@@ -283,7 +286,8 @@ export function useAppState() {
         autoConnectState.value = "smart"
       }
     } else {
-      alert(res)
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
     }
   }
 
@@ -291,21 +295,30 @@ export function useAppState() {
     const stateStr = String(newState)
     const res = await Backend.SetAutoConnect(stateStr)
     if (res === "Success") autoConnectState.value = stateStr
-    else alert(res)
+    else {
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
+    }
   }
 
   const handleIPv6Toggle = async () => {
     const newState = !ipv6Enabled.value
     const res = await Backend.ToggleIPv6(newState)
     if (res === "Success") ipv6Enabled.value = newState
-    else alert(res)
+    else {
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
+    }
   }
 
   const handlePreReleaseToggle = async () => {
     const newState = !preRelease.value
     const res = await Backend.SetPreRelease(newState)
     if (res === "Success") preRelease.value = newState
-    else alert(res)
+    else {
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
+    }
   }
 
   const handleLogConfigChange = async (level: string, toFile: boolean) => {
@@ -314,7 +327,8 @@ export function useAppState() {
       logLevel.value = level
       logToFile.value = toFile
     } else {
-      alert(res)
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
     }
   }
 
@@ -364,6 +378,7 @@ export function useAppState() {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnectState,
     mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile,
+    showErrorAlert, errorAlertMessage,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectChange,
