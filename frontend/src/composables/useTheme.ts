@@ -27,8 +27,10 @@ function hexToRgb(hex: string): string {
   return rgb
 }
 
+const accentColor = ref('#2563eb')
+let isInitialized = false
+
 export function useTheme() {
-  const accentColor = ref('#2563eb')
 
   const applyTheme = () => {
     const root = document.documentElement
@@ -60,7 +62,10 @@ export function useTheme() {
   }
 
   onMounted(() => {
-    loadTheme()
+    if (!isInitialized) {
+      isInitialized = true
+      loadTheme()
+    }
   })
 
   return {

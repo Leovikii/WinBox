@@ -219,3 +219,14 @@ func (sm *SettingsManager) SetPreRelease(enabled bool) error {
 	meta.PreRelease = enabled
 	return sm.storage.SaveMeta(meta)
 }
+
+// SetCloseBehavior sets the close window behavior (ask, tray, quit)
+func (sm *SettingsManager) SetCloseBehavior(behavior string) error {
+	meta, err := sm.storage.LoadMeta()
+	if err != nil {
+		return err
+	}
+
+	meta.CloseBehavior = behavior
+	return sm.storage.SaveMeta(meta)
+}

@@ -7,10 +7,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 	"net/http"
 
 	"github.com/energye/systray"
+	"golang.org/x/sys/windows"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -184,6 +186,7 @@ func (a *App) Startup(ctx context.Context) {
 
 // OnShutdown is called when the app is shutting down
 func (a *App) OnShutdown(ctx context.Context) {
+	a.storage.Flush()
 	a.stopCore()
 	a.appLogger.Info("Application shutdown")
 }
@@ -202,14 +205,14 @@ func (a *App) Restart() {
 		return
 	}
 
-	// Use PowerShell to wait for current process to exit, then launch new instance
-	psCommand := fmt.Sprintf(
-		"$p = Get-Process -Id %d -ErrorAction SilentlyContinue; "+
-			"if ($p) { $p.WaitForExit(5000) }; "+
-			"Start-Process '%s'",
-		os.Getpid(), exe,
-	)
-	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
+	// Use cmd to wait briefly, then launch new instance.
+	// This avoids PowerShell which is often flagged by antivirus software.
+	cmdCommand := fmt.Sprintf("ping 127.0.0.1 -n 2 > nul & start \"\" \"%s\"", exe)
+	cmd := exec.Command("cmd", "/c", cmdCommand)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: windows.CREATE_NO_WINDOW,
+	}
 	cmd.Start()
 
 	// Quit current instance (OnShutdown will handle stopCore)

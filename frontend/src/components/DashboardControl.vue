@@ -3,29 +3,34 @@ import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vu
 import * as Backend from '../../wailsjs/go/internal/App'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl } from './ui'
 
+import { useAppState } from '../composables/useAppState'
+import { useProfiles } from '../composables/useProfiles'
+import { useTheme } from '../composables/useTheme'
+
 interface Profile {
   name: string
   url: string
   updated: string
 }
 
+const appState = useAppState()
+const profilesState = useProfiles()
+const themeState = useTheme()
+
+const {
+  running, coreExists, tunMode, sysProxy, isProcessing, msg, errorLog,
+  getStatusText, getStatusStyle, getControlBg, handleServiceToggle
+} = appState
+
+const { accentColor } = themeState
+
 const props = defineProps<{
-  running: boolean
-  coreExists: boolean
-  tunMode: boolean
-  sysProxy: boolean
-  isProcessing: boolean
-  profilesState: any
-  getStatusText: string
-  getStatusStyle: { color: string; filter: string }
-  accentColor: string
   hasDashboard: boolean
   uploadSpeed: number
   downloadSpeed: number
 }>()
 
 const emit = defineEmits<{
-  'toggle-service': []
   'switch-mode': [{ tunMode: boolean, sysProxy: boolean }]
   'open-dashboard': []
   'restart-core': []
@@ -40,7 +45,7 @@ const formatSpeed = (bytesPerSecond: number): string => {
 }
 
 const showSpeedInfo = computed(() => {
-  return props.running && (props.tunMode || props.sysProxy) && !props.isProcessing
+  return running.value && (tunMode.value || sysProxy.value) && !isProcessing.value
 })
 
 const modeOptions = [
@@ -51,8 +56,8 @@ const modeOptions = [
 
 const currentMode = computed({
   get() {
-    if (props.tunMode && props.sysProxy) return 'full'
-    if (props.tunMode) return 'tun'
+    if (tunMode.value && sysProxy.value) return 'full'
+    if (tunMode.value) return 'tun'
     return 'proxy'
   },
   set(val: string) {
@@ -71,32 +76,32 @@ const activeColor = computed(() => {
 })
 
 const activeProfileName = computed(() => {
-  return props.profilesState.activeProfile.value?.name || ''
+  return profilesState.activeProfile.value?.name || ''
 })
 
 const profileOptions = computed(() => {
-  return props.profilesState.profiles.value.map((p: Profile) => ({
+  return profilesState.profiles.value.map((p: Profile) => ({
     label: p.name,
     value: p.name
   }))
 })
 
 const handleProfileChange = (val: string | number) => {
-  if (props.isProcessing) return
-  const p = props.profilesState.profiles.value.find((p: Profile) => p.name === val)
+  if (isProcessing.value) return
+  const p = profilesState.profiles.value.find((p: Profile) => p.name === val)
   if (p) {
-    props.profilesState.switchProfile(p.id)
+    profilesState.switchProfile(p.id)
   }
 }
 
 const handleEdit = (e: any) => {
-  const p = props.profilesState.activeProfile.value
-  if (p) props.profilesState.editProfile(p.id, e)
+  const p = profilesState.activeProfile.value
+  if (p) profilesState.editProfile(p.id, e)
 }
 
 const handleDelete = (e: any) => {
-  const p = props.profilesState.activeProfile.value
-  if (p) props.profilesState.deleteProfile(p.id, e)
+  const p = profilesState.activeProfile.value
+  if (p) profilesState.deleteProfile(p.id, e)
 }
 
 // Log Viewer Logic
@@ -168,51 +173,71 @@ onActivated(() => {
   <div class="w-full h-full flex flex-col justify-center gap-6 relative px-6 py-6 items-center overflow-hidden">
     
     <!-- ==================== TOP AREA: DISPLAY ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-5 relative flex-1 min-h-0 z-10">
-        <div class="text-[2.75rem] leading-none font-black tracking-tighter whitespace-nowrap transition-all duration-500 select-none mb-0 text-center" :style="getStatusStyle">
-          {{ getStatusText }}
-        </div>
-
-        <!-- Speed Info (Fixed Height to prevent jumping) -->
-        <div class="w-full h-6 mt-1">
-          <div v-if="showSpeedInfo" class="flex items-center justify-center gap-6 h-full">
-            <div class="flex items-center gap-2">
-              <i class="fas fa-arrow-up text-xs speed-upload"></i>
-              <span class="text-xs font-mono font-medium tracking-wide speed-upload">
-                {{ formatSpeed(uploadSpeed) }}
-              </span>
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
+        
+        <!-- Header: Status & Speed -->
+        <div class="h-12 shrink-0 flex justify-between items-center px-6 border-b border-white/5 bg-linear-to-b from-white/[0.03] to-transparent">
+          <!-- Left: Icon + Status -->
+          <div class="flex items-center gap-2" :style="getStatusStyle">
+            <!-- Icon with Hardware LED Bloom -->
+            <div class="relative flex items-center justify-center">
+              <!-- Ambient background bloom -->
+              <div 
+                class="absolute inset-0 scale-[3] blur-[6px] transition-opacity duration-1000 pointer-events-none"
+                :class="{'opacity-40': running || getStatusText.includes('ING'), 'opacity-0': !running && !getStatusText.includes('ING')}"
+                style="background-color: currentColor;"
+              ></div>
+              <!-- Core Icon -->
+              <i class="fas text-[11px] relative z-10 transition-all duration-500" 
+                 :class="{
+                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': getStatusText.includes('ING'),
+                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !getStatusText.includes('ING'),
+                   'fa-power-off opacity-60': !running && !getStatusText.includes('ING')
+                 }">
+              </i>
             </div>
+            <span class="text-sm font-bold tracking-widest uppercase relative z-10 ml-1">{{ getStatusText }}</span>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <i class="fas fa-arrow-down text-xs speed-download"></i>
-              <span class="text-xs font-mono font-medium tracking-wide speed-download">
-                {{ formatSpeed(downloadSpeed) }}
-              </span>
+          <!-- Right: Speed -->
+          <div class="flex items-center gap-4">
+            <div v-if="showSpeedInfo" class="flex items-center gap-3">
+              <div class="flex items-center gap-1.5 opacity-90">
+                <i class="fas fa-arrow-up text-[10px] speed-upload"></i>
+                <span class="text-[11px] font-mono font-medium tracking-wider speed-upload">{{ formatSpeed(uploadSpeed) }}</span>
+              </div>
+              <div class="flex items-center gap-1.5 opacity-90">
+                <i class="fas fa-arrow-down text-[10px] speed-download"></i>
+                <span class="text-[11px] font-mono font-medium tracking-wider speed-download">{{ formatSpeed(downloadSpeed) }}</span>
+              </div>
+            </div>
+            <div v-else class="text-[10px] font-mono font-medium text-gray-600 tracking-widest uppercase">
+              IDLE
             </div>
           </div>
         </div>
 
-        <!-- Inline Log Area (Sunken Style) -->
-        <div class="w-full flex-1 min-h-0 mt-2 relative bg-[#151515] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-[#2a2a2a] rounded-lg overflow-hidden group">
-          
+        <!-- Inline Log Area (Seamless) -->
+        <div class="w-full flex-1 min-h-0 relative group bg-transparent">
           <!-- Maximize Button -->
           <button 
             @click="showLogModal = true"
-            class="absolute top-2 right-2 w-6 h-6 rounded bg-white/5 hover:bg-[#2d2d2d] border border-transparent hover:border-white/5 hover:shadow-[0_1px_3px_rgba(0,0,0,0.5)] text-gray-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
+            class="absolute top-3 right-3 w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10 backdrop-blur-md shadow-sm"
           >
             <i class="fas fa-expand text-[10px]"></i>
           </button>
           
           <!-- Log Content -->
-          <WScrollArea height="100%" class="w-full p-4 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
-            {{ appLogContent || 'No logs available.' }}
-          </WScrollArea>
+          <div class="absolute inset-0">
+            <WScrollArea height="100%" class="w-full p-6 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
+              {{ appLogContent || 'No logs available.' }}
+            </WScrollArea>
+          </div>
         </div>
-
     </div>
 
     <!-- ==================== BOTTOM AREA: CONTROLS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-4 relative flex-1 min-h-0 z-20 justify-between gap-1">
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative flex-1 min-h-0 z-20 justify-between">
       
       <!-- Row 1: Profile Title & Add -->
       <div class="flex justify-between items-center shrink-0">
@@ -231,105 +256,104 @@ onActivated(() => {
           </WButton>
         </div>
 
-      <!-- Row 2 & 3: Profile Selection, Actions & Mode -->
-      <div v-if="profilesState.profiles.value.length > 0" class="grid grid-cols-3 gap-x-2 gap-y-3 flex-1 content-between">
+      <!-- Row 2 to 6: Configs -->
+      <template v-if="profilesState.profiles.value.length > 0">
           
-          <!-- Select Dropdown (Col 1-2) -->
-          <div class="col-span-2">
-            <WSelect
-              :modelValue="activeProfileName"
-              @update:modelValue="handleProfileChange"
-              :options="profileOptions"
-              :disabled="isProcessing"
-              class="w-full"
-            />
-          </div>
-          
-          <!-- Date Text (Col 3) -->
-          <div class="col-span-1 flex justify-end items-center">
-            <span class="text-[10px] text-gray-500 font-medium whitespace-nowrap text-right uppercase tracking-wide">
-              {{ profilesState.activeProfile.value?.updated || 'NEVER UPDATED' }}
-            </span>
-          </div>
-
-          <!-- Buttons -->
-          <WButton 
-            class="col-span-1 w-full"
-            variant="secondary" 
-            size="sm" 
-            icon="fas fa-pen" 
-            @click="handleEdit"
-            :disabled="isProcessing || !profilesState.activeProfile.value"
-          >
-            EDIT
-          </WButton>
-          <WButton 
-            class="col-span-1 w-full"
-            variant="secondary" 
-            size="sm" 
-            icon="fas fa-rotate" 
-            @click="profilesState.updateActive"
-            :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
-            :loading="profilesState.isUpdatingProfile.value"
-          >
-            UPDATE
-          </WButton>
-          <WButton 
-            class="col-span-1 w-full"
-            variant="danger" 
-            size="sm" 
-            icon="fas fa-trash" 
-            @click="handleDelete"
-            :disabled="isProcessing || !profilesState.activeProfile.value"
-          >
-            DELETE
-          </WButton>
-
-          <!-- Divider between row 2 and 3 -->
-          <div class="col-span-3 h-[1px] bg-white/[0.05] my-1"></div>
-
-          <!-- Mode Label (Col 1) -->
-          <div class="col-span-1 flex items-center gap-3">
-            <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-xs font-bold text-gray-400 tracking-wider">MODE</span>
+          <!-- Row 2: Select & Date -->
+          <div class="flex gap-2 w-full">
+            <div class="w-2/3">
+              <WSelect
+                :modelValue="activeProfileName"
+                @update:modelValue="handleProfileChange"
+                :options="profileOptions"
+                :disabled="isProcessing"
+                class="w-full"
+              />
+            </div>
+            <div class="w-1/3 flex justify-end items-center">
+              <span class="text-[10px] text-gray-500 font-medium whitespace-nowrap text-right uppercase tracking-wide">
+                {{ profilesState.activeProfile.value?.updated || 'NEVER UPDATED' }}
+              </span>
+            </div>
           </div>
 
-          <!-- Mode Dropdown (Col 2-3) -->
-          <div class="col-span-2">
-            <WSegmentedControl 
-              v-model="currentMode" 
-              :options="modeOptions" 
-              :disabled="isProcessing"
-              class="w-full" 
-            />
+          <!-- Row 3: Buttons -->
+          <div class="flex gap-2 w-full pb-3 border-b border-white/[0.05]">
+            <WButton 
+              class="flex-1"
+              variant="secondary" 
+              size="sm" 
+              icon="fas fa-pen" 
+              @click="handleEdit"
+              :disabled="isProcessing || !profilesState.activeProfile.value"
+            >
+              EDIT
+            </WButton>
+            <WButton 
+              class="flex-1"
+              variant="secondary" 
+              size="sm" 
+              icon="fas fa-rotate" 
+              @click="profilesState.updateActive"
+              :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
+              :loading="profilesState.isUpdatingProfile.value"
+            >
+              UPDATE
+            </WButton>
+            <WButton 
+              class="flex-1"
+              variant="danger" 
+              size="sm" 
+              icon="fas fa-trash" 
+              @click="handleDelete"
+              :disabled="isProcessing || !profilesState.activeProfile.value"
+            >
+              DELETE
+            </WButton>
           </div>
 
-          <!-- Kernel Control Row -->
+          <!-- Row 5: Mode -->
+          <div class="flex gap-2 w-full pt-1">
+            <div class="w-1/3 flex items-center gap-3">
+              <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
+              <span class="text-xs font-bold text-gray-400 tracking-wider">MODE</span>
+            </div>
+            <div class="w-2/3">
+              <WSegmentedControl 
+                v-model="currentMode" 
+                :options="modeOptions" 
+                :disabled="isProcessing"
+                class="w-full" 
+              />
+            </div>
+          </div>
+
+          <!-- Row 6: Kernel Control Row -->
           <TransitionGroup 
             name="dock-btn" 
             tag="div" 
-            class="col-span-3 flex justify-between gap-2 w-full relative h-9"
+            class="flex justify-between gap-2 w-full relative h-9"
           >
             <WButton 
               v-if="running && hasDashboard"
               key="dashboard"
-              class="w-[calc((100%-1rem)/3)] shrink-0 px-0"
+              class="w-[calc((100%_-_1rem)_/_3)] shrink-0 px-0 whitespace-nowrap"
               variant="secondary" 
               icon="fas fa-globe" 
               @click="emit('open-dashboard')"
               :disabled="isProcessing"
             >
-              WEB UI
+              WEBUI
             </WButton>
 
             <WButton 
               key="power"
               variant="primary"
-              class="transition-all duration-400 ease-out shrink-0 px-0"
-              :class="running ? 'w-[calc((100%-1rem)/3)]' : 'absolute inset-0 w-full'"
+              class="transition-all duration-400 ease-out shrink-0 px-0 whitespace-nowrap"
+              :class="running ? 'w-[calc((100%_-_1rem)_/_3)]' : 'absolute inset-0 w-full'"
               :loading="isProcessing"
               :disabled="!coreExists || !profilesState.activeProfile.value"
-              @click="emit('toggle-service')"
+              @click="handleServiceToggle"
               :style="{
                 backgroundColor: running ? '#dc2626' : activeColor,
                 borderColor: running ? '#ef4444' : activeColor,
@@ -343,17 +367,16 @@ onActivated(() => {
             <WButton 
               v-if="running"
               key="restart"
-              class="w-[calc((100%-1rem)/3)] shrink-0 px-0"
+              class="w-[calc((100%_-_1rem)_/_3)] shrink-0 px-0 whitespace-nowrap"
               variant="secondary" 
               :icon="getStatusText === 'RESTARTING...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
               @click="emit('restart-core')"
               :disabled="isProcessing"
             >
-              {{ getStatusText === 'RESTARTING...' ? 'WAIT' : 'RESTART' }}
+              RESTART
             </WButton>
           </TransitionGroup>
-
-      </div>
+      </template>
 
       <!-- Empty State -->
       <div v-else class="flex-1 flex flex-col items-center justify-center text-center opacity-40 select-none">

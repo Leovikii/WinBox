@@ -13,20 +13,22 @@ import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import { WModal, WButton, WScrollArea } from './components/ui';
+import TrayIconUrl from '@/assets/icon-builder/src/tray.svg';
 
 const showSettings = ref(false);
 const showQuitConfirm = ref(false);
 const showUWPModal = ref(false);
 const showChangelogModal = ref(false);
+const rememberCloseChoice = ref(false);
 
 // Traffic speed state
 const uploadSpeed = ref(0);
 const downloadSpeed = ref(0);
 
 const appState = useAppState();
-const profilesState = useProfiles(appState);
-const kernelState = useKernelUpdate(appState);
-const programState = useProgramUpdate(appState);
+const profilesState = useProfiles();
+const kernelState = useKernelUpdate();
+const programState = useProgramUpdate();
 const themeState = useTheme();
 const uwpState = useUWPLoopback();
 
@@ -46,8 +48,34 @@ const handlePreReleaseToggleWrapper = async () => {
 
 const minimize = () => Backend.Minimize();
 const minimizeToTray = () => Backend.MinimizeToTray();
-const requestQuit = () => { showQuitConfirm.value = true; };
+const requestQuit = () => {
+  if (appState.closeBehavior.value === "tray") {
+    minimizeToTray();
+  } else if (appState.closeBehavior.value === "quit") {
+    confirmQuit();
+  } else {
+    showQuitConfirm.value = true;
+  }
+};
 const confirmQuit = () => { showQuitConfirm.value = false; Backend.Quit(); };
+
+const handleMinimizeChoice = async () => {
+  if (rememberCloseChoice.value) {
+    appState.closeBehavior.value = "tray";
+    await Backend.SetCloseBehavior("tray");
+  }
+  showQuitConfirm.value = false;
+  minimizeToTray();
+};
+
+const handleQuitChoice = async () => {
+  if (rememberCloseChoice.value) {
+    appState.closeBehavior.value = "quit";
+    await Backend.SetCloseBehavior("quit");
+  }
+  showQuitConfirm.value = false;
+  Backend.Quit();
+};
 
 onMounted(async () => {
   const data = await Backend.GetInitData();
@@ -115,7 +143,7 @@ const handleRestartCore = async () => {
   <div class="h-screen w-screen relative bg-transparent text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative" style="--wails-draggable: drag">
       <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
-        <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
+        <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
         WINBOX
         <span 
           class="text-xs font-medium tracking-normal relative transition-colors duration-200"
@@ -142,9 +170,6 @@ const handleRestartCore = async () => {
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
           <i class="fas fa-minus text-[10px]"></i>
         </button>
-        <button @click="minimizeToTray" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
-          <i class="fas fa-angle-down text-xs"></i>
-        </button>
         <button @click="requestQuit" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-red-600/90 hover:text-white transition-all duration-200">
           <i class="fas fa-xmark text-base"></i>
         </button>
@@ -156,23 +181,9 @@ const handleRestartCore = async () => {
         <KeepAlive>
           <WScrollArea key="dashboard" v-if="!showSettings" class="absolute inset-0 w-full h-full">
             <DashboardControl
-              :running="appState.running.value"
-              :coreExists="appState.coreExists.value"
-              :msg="appState.msg.value"
-              :tunMode="appState.tunMode.value"
-              :sysProxy="appState.sysProxy.value"
-              :isProcessing="appState.isProcessing.value"
-              :profilesState="profilesState"
-              :errorLog="appState.errorLog.value"
-              :getStatusText="appState.getStatusText.value"
-              :getStatusStyle="appState.getStatusStyle.value"
-              :getControlBg="appState.getControlBg.value"
-              :accentColor="themeState.accentColor.value"
               :hasDashboard="true"
               :uploadSpeed="uploadSpeed"
               :downloadSpeed="downloadSpeed"
-              @toggle="handleToggle"
-              @toggle-service="appState.handleServiceToggle"
               @switch-mode="handleSwitchMode"
               @open-dashboard="Backend.OpenDashboard"
               @restart-core="handleRestartCore"
@@ -181,65 +192,11 @@ const handleRestartCore = async () => {
 
           <SettingsDrawer key="settings" v-else class="absolute inset-0 w-full h-full"
             :isOpen="true"
-            :programLocalVer="programState.programLocalVer.value"
-            :programRemoteVer="programState.programRemoteVer.value"
-            :programUpdateState="programState.programUpdateState.value"
-            :programDownloadProgress="programState.programDownloadProgress.value"
-            :localVer="kernelState.localVer.value"
-            :remoteVer="kernelState.remoteVer.value"
-            :updateState="kernelState.updateState.value"
-            :downloadProgress="kernelState.downloadProgress.value"
-            :coreExists="appState.coreExists.value"
-            :mirrorUrl="appState.mirrorUrl.value"
-            :mirrorEnabled="appState.mirrorEnabled.value"
-            :startOnBoot="appState.startOnBoot.value"
-            :autoConnectState="appState.autoConnectState.value"
-            :showEditor="kernelState.showEditor.value"
-            :editingType="kernelState.editingType.value"
-            :editorContent="kernelState.editorContent.value"
-            :saveBtnText="kernelState.saveBtnText.value"
-            :showResetConfirm="kernelState.showResetConfirm.value"
-            :showErrorAlert="kernelState.showErrorAlert.value || appState.showErrorAlert.value"
-            :errorAlertMessage="kernelState.showErrorAlert.value ? kernelState.errorAlertMessage.value : appState.errorAlertMessage.value"
-            :accentColor="themeState.accentColor.value"
-            :ipv6Enabled="appState.ipv6Enabled.value"
-            :preRelease="appState.preRelease.value"
-            :logLevel="appState.logLevel.value"
-            :logToFile="appState.logToFile.value"
             :showUWPModal="showUWPModal"
-            :uwpApps="uwpState.apps.value"
-            :uwpSelectedSIDs="uwpState.selectedSIDs.value"
-            :uwpLoading="uwpState.loading.value"
-            :uwpSaving="uwpState.saving.value"
-            :uwpHasChanges="uwpState.hasChanges()"
             @close="showSettings = false"
-            @check-program-update="programState.checkProgramUpdate"
             @open-program-changelog="showChangelogModal = true"
-            @perform-program-update="programState.performProgramUpdate"
-            @check-update="kernelState.checkUpdate"
-            @perform-update="kernelState.performUpdate"
-            @toggle-pre-release="appState.handlePreReleaseToggle"
-            @toggle-mirror="appState.handleMirrorToggle"
-            @toggle-start-on-boot="appState.handleStartOnBootToggle"
-            @change-auto-connect="appState.handleAutoConnectChange"
-            @open-editor="kernelState.openEditor"
-            @save-editor="kernelState.saveEditor"
-            @reset-editor="kernelState.resetEditor"
-            @close-editor="kernelState.showEditor.value = false"
-            @update:editorContent="(val) => kernelState.editorContent.value = val"
-            @confirm-reset="kernelState.confirmReset"
-            @close-reset-confirm="kernelState.showResetConfirm.value = false"
-            @close-error-alert="kernelState.showErrorAlert.value = false; appState.showErrorAlert.value = false"
-            @change-accent-color="handleAccentColorChange"
-            @toggle-ipv6="appState.handleIPv6Toggle"
-            @change-log-config="appState.handleLogConfigChange"
-            @switch-editor-tab="kernelState.switchEditorTab"
             @open-uwp-modal="handleOpenUWPModal"
             @close-uwp-modal="handleCloseUWPModal"
-            @toggle-uwp-app="uwpState.toggleApp"
-            @select-all-uwp="uwpState.selectAll"
-            @deselect-all-uwp="uwpState.deselectAll"
-            @save-uwp-exemptions="handleSaveUWPExemptions"
           />
         </KeepAlive>
       </Transition>
@@ -248,14 +205,25 @@ const handleRestartCore = async () => {
     <WModal
       :model-value="showQuitConfirm"
       @update:model-value="showQuitConfirm = false"
-      title="CONFIRM EXIT"
+      title="EXIT OPTIONS"
       width="md"
     >
-      <div class="text-sm text-gray-300">Are you sure you want to exit WinBox?</div>
+      <div class="text-sm text-gray-300 mb-4">Do you want to minimize to the system tray or quit the application?</div>
+      
+      <label class="flex items-center gap-2 cursor-pointer mb-2 w-fit group">
+        <div class="relative flex items-center justify-center w-4 h-4 rounded border transition-colors duration-200"
+             :class="rememberCloseChoice ? 'bg-[var(--accent-color)] border-[var(--accent-color)]' : 'border-gray-500 group-hover:border-gray-400'">
+          <i class="fas fa-check text-[10px] text-white opacity-0 transition-opacity duration-200"
+             :class="{'opacity-100': rememberCloseChoice}"></i>
+        </div>
+        <span class="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">Remember my choice and don't ask again</span>
+        <input type="checkbox" v-model="rememberCloseChoice" class="hidden" />
+      </label>
+
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="showQuitConfirm = false">CANCEL</WButton>
-          <WButton variant="danger" class="flex-1" @click="confirmQuit">EXIT</WButton>
+          <WButton variant="secondary" class="flex-1" @click="handleMinimizeChoice">MINIMIZE</WButton>
+          <WButton variant="danger" class="flex-1" @click="handleQuitChoice">QUIT</WButton>
         </div>
       </template>
     </WModal>

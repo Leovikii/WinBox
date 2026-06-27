@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 )
 
 // Storage manages data persistence with caching
@@ -13,6 +14,9 @@ type Storage struct {
 	metaPath   string
 	cache      *MetaData
 	cacheValid bool
+
+	saveTimer *time.Timer
+	saveMu    sync.Mutex
 }
 
 // NewStorage creates a new storage instance
@@ -94,12 +98,37 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 	return &meta, nil
 }
 
-// SaveMeta saves metadata with atomic write
+// SaveMeta saves metadata to cache and debounces disk write
 func (s *Storage) SaveMeta(meta *MetaData) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Update cache immediately
+	s.cache = meta
+	s.cacheValid = true
+	s.mu.Unlock()
 
-	data, err := json.MarshalIndent(meta, "", "  ")
+	s.saveMu.Lock()
+	if s.saveTimer != nil {
+		s.saveTimer.Stop()
+	}
+	s.saveTimer = time.AfterFunc(1*time.Second, func() {
+		s.flushToDisk()
+	})
+	s.saveMu.Unlock()
+
+	return nil
+}
+
+func (s *Storage) flushToDisk() error {
+	s.mu.RLock()
+	if !s.cacheValid || s.cache == nil {
+		s.mu.RUnlock()
+		return nil
+	}
+	// Make a copy to avoid holding the lock during I/O
+	metaCopy := *s.cache
+	s.mu.RUnlock()
+
+	data, err := json.MarshalIndent(&metaCopy, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal failed: %w", err)
 	}
@@ -114,12 +143,19 @@ func (s *Storage) SaveMeta(meta *MetaData) error {
 		os.Remove(tmpPath)
 		return fmt.Errorf("rename failed: %w", err)
 	}
-
-	// Update cache
-	s.cache = meta
-	s.cacheValid = true
-
 	return nil
+}
+
+// Flush immediately writes any pending changes to disk
+func (s *Storage) Flush() {
+	s.saveMu.Lock()
+	if s.saveTimer != nil {
+		if s.saveTimer.Stop() {
+			s.flushToDisk()
+		}
+		s.saveTimer = nil
+	}
+	s.saveMu.Unlock()
 }
 
 // InvalidateCache invalidates the cache

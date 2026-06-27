@@ -5,18 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+	"unsafe"
 
-	"golang.org/x/sys/windows"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/windows"
 )
 
 // CoreManager manages the sing-box core process with thread safety
@@ -180,42 +180,36 @@ func (cm *CoreManager) Stop() error {
 	return nil
 }
 
-// KillZombieInstances scans for and terminates any orphaned sing-box processes
-// that match the expected executable path for this application.
 func (cm *CoreManager) KillZombieInstances() {
 	corePath := filepath.Join(cm.appDir, "data", "core", "sing-box.exe")
 	
-	// Use tasklist as wmic is deprecated on newer Windows versions
-	cmd := exec.Command("tasklist", "/FI", "IMAGENAME eq sing-box.exe", "/FO", "CSV", "/NH")
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: windows.CREATE_NO_WINDOW,
-	}
-	out, err := cmd.Output()
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
 		return
 	}
+	defer windows.CloseHandle(snapshot)
 
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "信息:") || strings.HasPrefix(line, "INFO:") {
-			continue
-		}
-		
-		parts := strings.Split(line, "\",\"")
-		if len(parts) >= 2 {
-			pidStr := strings.Trim(parts[1], "\"")
-			if pid, err := strconv.ParseUint(pidStr, 10, 32); err == nil {
-				// Verify the path using Windows API
-				if cm.isTargetProcess(uint32(pid), corePath) {
-					if proc, err := os.FindProcess(int(pid)); err == nil {
-						if err := proc.Kill(); err == nil {
-							cm.logBuffer.Append(fmt.Sprintf("[Info] Killed zombie sing-box.exe (PID: %d)", pid))
-						}
+	var pe32 windows.ProcessEntry32
+	pe32.Size = uint32(unsafe.Sizeof(pe32))
+
+	if err := windows.Process32First(snapshot, &pe32); err != nil {
+		return
+	}
+
+	for {
+		exeName := windows.UTF16ToString(pe32.ExeFile[:])
+		if strings.EqualFold(exeName, "sing-box.exe") {
+			if cm.isTargetProcess(pe32.ProcessID, corePath) {
+				if proc, err := os.FindProcess(int(pe32.ProcessID)); err == nil {
+					if err := proc.Kill(); err == nil {
+						cm.logBuffer.Append(fmt.Sprintf("[Info] Killed zombie sing-box.exe (PID: %d)", pe32.ProcessID))
 					}
 				}
 			}
+		}
+
+		if err := windows.Process32Next(snapshot, &pe32); err != nil {
+			break
 		}
 	}
 }
@@ -398,6 +392,42 @@ func (cm *CoreManager) GetAPIURL() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.apiURL
+}
+
+// WaitForReady polls the core to check if it has fully started.
+// It checks the API URL if available, otherwise it falls back to scanning the logs.
+func (cm *CoreManager) WaitForReady(timeout time.Duration) bool {
+	api := cm.GetAPIURL()
+	
+	start := time.Now()
+	
+	if api != "" {
+		client := &http.Client{Timeout: 200 * time.Millisecond}
+		for time.Since(start) < timeout {
+			if !cm.IsRunning() {
+				return false
+			}
+			resp, err := client.Get(api)
+			if err == nil {
+				resp.Body.Close()
+				return true
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	} else {
+		for time.Since(start) < timeout {
+			if !cm.IsRunning() {
+				return false
+			}
+			logs := cm.GetLogBuffer()
+			if strings.Contains(logs, "sing-box started") || strings.Contains(logs, "started at") {
+				return true
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	
+	return false
 }
 
 // extractAPIURL extracts the Clash API URL from config

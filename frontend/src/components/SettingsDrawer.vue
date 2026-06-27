@@ -5,75 +5,64 @@ import WColorPicker from '@/components/ui/WColorPicker.vue'
 import UWPLoopbackModal from '@/components/UWPLoopbackModal.vue'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 
+import { useAppState } from '@/composables/useAppState'
+import { useKernelUpdate } from '@/composables/useKernelUpdate'
+import { useProgramUpdate } from '@/composables/useProgramUpdate'
+import { useTheme } from '@/composables/useTheme'
+import { useUWPLoopback } from '@/composables/useUWPLoopback'
+import * as Backend from '../../wailsjs/go/internal/App'
+
+const appState = useAppState()
+const kernelState = useKernelUpdate()
+const programState = useProgramUpdate()
+const themeState = useTheme()
+const uwpState = useUWPLoopback()
+
+const {
+  coreExists, preRelease, mirrorUrl, mirrorEnabled, startOnBoot, autoConnectState,
+  showErrorAlert, errorAlertMessage, ipv6Enabled, logLevel, logToFile, closeBehavior,
+  handleMirrorToggle, handleStartOnBootToggle, handleAutoConnectChange, handleIPv6Toggle, handleLogConfigChange
+} = appState
+
+const {
+  localVer, remoteVer, updateState, downloadProgress, showEditor, editingType, editorContent, saveBtnText,
+  showResetConfirm, checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
+} = kernelState
+
+const {
+  programLocalVer, programRemoteVer, programUpdateState, programDownloadProgress, checkProgramUpdate, performProgramUpdate
+} = programState
+
+const { accentColor, setTheme } = themeState
+
+const {
+  apps: uwpApps, selectedSIDs: uwpSelectedSIDs, loading: uwpLoading, saving: uwpSaving,
+  hasChanges: uwpHasChanges, toggleApp: toggleUwpApp, selectAll: selectAllUwp, deselectAll: deselectAllUwp,
+  saveExemptions, loadApps
+} = uwpState
+
 defineProps<{
   isOpen: boolean
-  programLocalVer: string
-  programRemoteVer: string
-  programUpdateState: string
-  programDownloadProgress: number
-  localVer: string
-  remoteVer: string
-  updateState: string
-  downloadProgress: number
-  coreExists: boolean
-  preRelease: boolean
-  mirrorUrl: string
-  mirrorEnabled: boolean
-  startOnBoot: boolean
-  autoConnectState: string
-  showEditor: boolean
-  editingType: string
-  editorContent: string
-  saveBtnText: string
-  showResetConfirm: boolean
-  showErrorAlert: boolean
-  errorAlertMessage: string
-  accentColor: string
-  ipv6Enabled: boolean
-  logLevel: string
-  logToFile: boolean
   showUWPModal: boolean
-  uwpApps: any[]
-  uwpSelectedSIDs: string[]
-  uwpLoading: boolean
-  uwpSaving: boolean
-  uwpHasChanges: boolean
 }>()
-
-const openGitHub = () => {
-  BrowserOpenURL("https://github.com/Leovikii/WinBox")
-}
 
 const emit = defineEmits<{
   'close': []
-  'check-program-update': []
   'open-program-changelog': []
-  'perform-program-update': []
-  'check-update': []
-  'perform-update': []
-  'toggle-pre-release': []
-  'toggle-mirror': []
-  'toggle-start-on-boot': []
-  'change-auto-connect': [value: string | number]
-  'open-editor': [type: 'tun' | 'mixed' | 'mirror']
-  'save-editor': []
-  'reset-editor': []
-  'close-editor': []
-  'update:editorContent': [value: string]
-  'confirm-reset': []
-  'close-reset-confirm': []
-  'close-error-alert': []
-  'change-accent-color': [value: string]
-  'toggle-ipv6': []
-  'change-log-config': [level: string, toFile: boolean]
-  'switch-editor-tab': [type: 'tun' | 'mixed']
   'open-uwp-modal': []
   'close-uwp-modal': []
-  'toggle-uwp-app': [sid: string]
-  'select-all-uwp': []
-  'deselect-all-uwp': []
-  'save-uwp-exemptions': []
 }>()
+
+const handlePreReleaseToggleWrapper = async () => {
+  await appState.handlePreReleaseToggle();
+  kernelState.updateState.value = "idle";
+  programState.programUpdateState.value = "idle";
+}
+
+const updateCloseBehavior = (val: string) => {
+  appState.closeBehavior.value = val;
+  Backend.SetCloseBehavior(val);
+}
 
 const showThemeModal = ref(false)
 const customColor = ref('#2563eb')
@@ -88,7 +77,7 @@ const handleCloseThemeModal = () => {
 
 const handleSelectPresetColor = (color: string) => {
   customColor.value = color
-  emit('change-accent-color', color)
+  setTheme(color)
 }
 
 const handleCustomColorChange = (event: Event) => {
@@ -96,9 +85,13 @@ const handleCustomColorChange = (event: Event) => {
   customColor.value = target.value
 }
 
-const handleApplyCustomColor = () => {
-  emit('change-accent-color', customColor.value)
+const applyCustomColor = () => {
+  setTheme(customColor.value)
   showThemeModal.value = false
+}
+
+const openGitHub = () => {
+  BrowserOpenURL("https://github.com/Leovikii/WinBox")
 }
 
 </script>
@@ -167,7 +160,7 @@ const handleApplyCustomColor = () => {
               variant="warning"
               size="sm"
               icon="fas fa-exclamation-triangle"
-              @click="emit('check-program-update')"
+              @click="checkProgramUpdate()"
             >
               FAILED
             </WButton>
@@ -176,7 +169,8 @@ const handleApplyCustomColor = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-rotate"
-              @click="emit('check-program-update')"
+              @click="checkProgramUpdate()"
+              class="w-28 justify-center"
             >
               CHECK
             </WButton>
@@ -190,6 +184,7 @@ const handleApplyCustomColor = () => {
             size="sm"
             icon="fa-brands fa-github"
             @click="openGitHub"
+            class="w-28 justify-center"
           >
             OPEN
           </WButton>
@@ -201,6 +196,20 @@ const handleApplyCustomColor = () => {
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Close Window Behavior</span>
+          <WSelect
+            :model-value="closeBehavior"
+            @update:model-value="updateCloseBehavior($event as string)"
+            :options="[
+              { value: 'ask', label: 'ASK' },
+              { value: 'tray', label: 'MINIMIZE' },
+              { value: 'quit', label: 'QUIT' }
+            ]"
+            class="w-28"
+          />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -220,7 +229,7 @@ const handleApplyCustomColor = () => {
               variant="primary"
               size="sm"
               icon="fas fa-arrow-up"
-              @click="emit('perform-update')"
+              @click="performUpdate()"
             >
               UP TO {{ remoteVer }}
             </WButton>
@@ -255,7 +264,7 @@ const handleApplyCustomColor = () => {
               variant="warning"
               size="sm"
               icon="fas fa-exclamation-triangle"
-              @click="emit('check-update')"
+              @click="checkUpdate()"
             >
               FAILED
             </WButton>
@@ -264,8 +273,8 @@ const handleApplyCustomColor = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-rotate"
-              :class="!coreExists ? 'border-yellow-600 text-yellow-500' : ''"
-              @click="emit('check-update')"
+              :class="[!coreExists ? 'border-yellow-600 text-yellow-500' : '', 'w-28 justify-center']"
+              @click="checkUpdate()"
             >
               {{ coreExists ? "CHECK" : "DOWNLOAD" }}
             </WButton>
@@ -274,31 +283,31 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Pre-release Updates</span>
-          <WSwitch :model-value="preRelease" @update:model-value="emit('toggle-pre-release')" />
+          <WSwitch :model-value="preRelease" @update:model-value="handlePreReleaseToggleWrapper()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Start With Windows</span>
-          <WSwitch :model-value="startOnBoot" @update:model-value="emit('toggle-start-on-boot')" />
+          <WSwitch :model-value="startOnBoot" @update:model-value="handleStartOnBootToggle()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Auto Connect</span>
           <WSelect
             :model-value="autoConnectState"
-            @update:model-value="emit('change-auto-connect', $event)"
+            @update:model-value="handleAutoConnectChange($event)"
             :options="[
               { value: 'smart', label: 'SMART' },
               { value: 'on', label: 'ON' },
               { value: 'off', label: 'OFF' }
             ]"
-            class="w-24"
+            class="w-28"
           />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
+          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="w-28 justify-center">
             <div class="flex items-center gap-2">
               <i class="fas fa-palette" :style="{ color: accentColor }"></i>
               <span>SELECT</span>
@@ -316,31 +325,31 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Inbound Config</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'tun')">EDIT</WButton>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="w-28 justify-center">EDIT</WButton>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">IPv6 Support</span>
-          <WSwitch :model-value="ipv6Enabled" @update:model-value="emit('toggle-ipv6')" />
+          <WSwitch :model-value="ipv6Enabled" @update:model-value="handleIPv6Toggle()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Log To File</span>
-          <WSwitch :model-value="logToFile" @update:model-value="emit('change-log-config', logLevel, $event)" />
+          <WSwitch :model-value="logToFile" @update:model-value="handleLogConfigChange(logLevel, $event)" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Log Level</span>
           <WSelect
             :model-value="logLevel"
-            @update:model-value="emit('change-log-config', String($event), logToFile)"
+            @update:model-value="handleLogConfigChange(String($event), logToFile)"
             :options="[
               { value: 'debug', label: 'DEBUG' },
               { value: 'info', label: 'INFO' },
               { value: 'warning', label: 'WARNING' },
               { value: 'error', label: 'ERROR' }
             ]"
-            class="w-24"
+            class="w-28"
           />
         </div>
       </WCard>
@@ -354,19 +363,19 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">GitHub Mirror</span>
-          <WSwitch :model-value="mirrorEnabled" @update:model-value="emit('toggle-mirror')" />
+          <WSwitch :model-value="mirrorEnabled" @update:model-value="handleMirrorToggle()" />
         </div>
 
         <WExpandable :expanded="mirrorEnabled">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
             <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'mirror')">EDIT</WButton>
+            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="w-28 justify-center">EDIT</WButton>
           </div>
         </WExpandable>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')">
+          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="w-28 justify-center">
             MANAGE
           </WButton>
         </div>
@@ -381,18 +390,18 @@ const handleApplyCustomColor = () => {
     :selectedSIDs="uwpSelectedSIDs"
     :loading="uwpLoading"
     :saving="uwpSaving"
-    :hasChanges="uwpHasChanges"
+    :hasChanges="uwpHasChanges()"
     @update:model-value="emit('close-uwp-modal')"
-    @toggle="emit('toggle-uwp-app', $event)"
-    @selectAll="emit('select-all-uwp')"
-    @deselectAll="emit('deselect-all-uwp')"
-    @save="emit('save-uwp-exemptions')"
+    @toggle="toggleUwpApp($event)"
+    @selectAll="selectAllUwp()"
+    @deselectAll="deselectAllUwp()"
+    @save="saveExemptions()"
   />
 
   <!-- Editor Modal -->
   <WModal
     :model-value="showEditor"
-    @update:model-value="emit('close-editor')"
+    @update:model-value="showEditor = false"
     width="lg"
     height="lg"
   >
@@ -406,7 +415,7 @@ const handleApplyCustomColor = () => {
             :variant="editingType === 'tun' ? 'primary' : 'secondary'"
             size="sm"
             icon="fas fa-diagram-project"
-            @click="emit('switch-editor-tab', 'tun')"
+            @click="switchEditorTab('tun')"
           >
             TUN
           </WButton>
@@ -414,7 +423,7 @@ const handleApplyCustomColor = () => {
             :variant="editingType === 'mixed' ? 'primary' : 'secondary'"
             size="sm"
             icon="fas fa-shuffle"
-            @click="emit('switch-editor-tab', 'mixed')"
+            @click="switchEditorTab('mixed')"
           >
             MIXED
           </WButton>
@@ -424,20 +433,20 @@ const handleApplyCustomColor = () => {
     <div class="relative h-full flex flex-col">
       <WTextarea
         :model-value="editorContent"
-        @update:model-value="emit('update:editorContent', $event)"
+        @update:model-value="editorContent = $event"
         mono
         :resize="false"
         class="flex-1 w-full bg-[#050505] p-4"
         :rows="20"
       />
       <div class="absolute bottom-4 right-4 flex gap-2">
-        <WButton variant="warning" size="sm" icon="fas fa-undo" @click="emit('reset-editor')">RESET</WButton>
-        <WButton variant="secondary" size="sm" icon="fas fa-times" @click="emit('close-editor')">CANCEL</WButton>
+        <WButton variant="warning" size="sm" icon="fas fa-undo" @click="resetEditor()">RESET</WButton>
+        <WButton variant="secondary" size="sm" icon="fas fa-times" @click="showEditor = false">CANCEL</WButton>
         <WButton
           :variant="saveBtnText === 'SAVED' ? 'success' : 'primary'"
           size="sm"
           :icon="saveBtnText === 'SAVED' ? 'fas fa-check' : 'fas fa-save'"
-          @click="emit('save-editor')"
+          @click="saveEditor()"
         >
           {{ saveBtnText }}
         </WButton>
@@ -448,15 +457,15 @@ const handleApplyCustomColor = () => {
   <!-- Reset Confirmation Modal -->
   <WModal
     :model-value="showResetConfirm"
-    @update:model-value="emit('close-reset-confirm')"
+    @update:model-value="showResetConfirm = false"
     title="CONFIRM RESET"
     width="md"
   >
     <div class="text-sm text-gray-300">Reset to default configuration?</div>
     <template #footer>
       <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="emit('close-reset-confirm')">CANCEL</WButton>
-        <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="emit('confirm-reset')">RESET</WButton>
+        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="showResetConfirm = false">CANCEL</WButton>
+        <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="confirmReset()">RESET</WButton>
       </div>
     </template>
   </WModal>
@@ -511,7 +520,7 @@ const handleApplyCustomColor = () => {
     <template #footer>
       <div class="flex gap-3 w-full">
         <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="handleCloseThemeModal">CANCEL</WButton>
-        <WButton variant="primary" class="flex-1" icon="fas fa-check" @click="handleApplyCustomColor">APPLY</WButton>
+        <WButton variant="primary" class="flex-1" icon="fas fa-check" @click="applyCustomColor">APPLY</WButton>
       </div>
     </template>
   </WModal>
@@ -519,13 +528,13 @@ const handleApplyCustomColor = () => {
   <!-- Error Alert Modal -->
   <WModal
     :model-value="showErrorAlert"
-    @update:model-value="emit('close-error-alert')"
+    @update:model-value="showErrorAlert = false; appState.showErrorAlert.value = false"
     title="ERROR"
     width="md"
   >
     <div class="text-sm text-red-400 font-mono">{{ errorAlertMessage }}</div>
     <template #footer>
-      <WButton variant="primary" full-width icon="fas fa-check" @click="emit('close-error-alert')">OK</WButton>
+      <WButton variant="primary" full-width icon="fas fa-check" @click="showErrorAlert = false; appState.showErrorAlert.value = false">OK</WButton>
     </template>
   </WModal>
   </div>

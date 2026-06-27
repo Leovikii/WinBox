@@ -208,7 +208,12 @@ func (a *App) RestartCore() string {
 		return result
 	}
 
-	time.Sleep(1 * time.Second) // Give process time to bind ports and UI to show RESTARTING
+	// Wait for process to fully bind ports and start
+	ready := a.coreManager.WaitForReady(3 * time.Second)
+	if !ready {
+		a.appLogger.Warn("Core restart probe timed out, but proceeding anyway.")
+	}
+	
 	wailsRuntime.EventsEmit(a.ctx, "status", true)
 	a.emitStateSync(meta)
 
@@ -219,6 +224,13 @@ func (a *App) RestartCore() string {
 
 func (a *App) SetPreRelease(enabled bool) string {
 	if err := a.settingsManager.SetPreRelease(enabled); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
+func (a *App) SetCloseBehavior(behavior string) string {
+	if err := a.settingsManager.SetCloseBehavior(behavior); err != nil {
 		return "Error: " + err.Error()
 	}
 	return "Success"
@@ -252,6 +264,7 @@ func (a *App) GetInitData() map[string]interface{} {
 		"pre_release":       meta.PreRelease,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
+		"close_behavior":    meta.CloseBehavior,
 	}
 }
 

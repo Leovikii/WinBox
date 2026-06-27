@@ -1,28 +1,33 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import type { useAppState } from './useAppState'
+import { useAppState } from './useAppState'
 import { cleanLog } from '../utils/logUtils'
 import { isNewerVersion } from '../utils/versionCompare'
 
-export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
-  const localVer = ref("Unknown")
-  const remoteVer = ref("Unknown")
-  const updateState = ref("idle")
-  const downloadProgress = ref(0)
+const localVer = ref("Unknown")
+const remoteVer = ref("Unknown")
+const updateState = ref("idle")
+const downloadProgress = ref(0)
 
-  const showEditor = ref(false)
-  const editingType = ref<"tun" | "mixed" | "mirror">("tun")
-  const editorContent = ref("")
-  const saveBtnText = ref("SAVE")
+const showEditor = ref(false)
+const editingType = ref<"tun" | "mixed" | "mirror">("tun")
+const editorContent = ref("")
+const saveBtnText = ref("SAVE")
 
-  const showResetConfirm = ref(false)
-  const showErrorAlert = ref(false)
-  const errorAlertMessage = ref("")
+const showResetConfirm = ref(false)
+const showErrorAlert = ref(false)
+const errorAlertMessage = ref("")
 
-  // Store timeout IDs for cleanup
-  let updateStateTimeout: number | null = null
-  let editorCloseTimeout: number | null = null
+// Store timeout IDs for cleanup
+let updateStateTimeout: number | null = null
+let editorCloseTimeout: number | null = null
+
+let isInitialized = false
+let unsubscribeDownloadProgress: (() => void) | null = null
+
+export function useKernelUpdate() {
+  const appState = useAppState()
 
   const checkUpdate = async () => {
     updateState.value = "checking"
@@ -134,15 +139,20 @@ export function useKernelUpdate(appState: ReturnType<typeof useAppState>) {
   }
 
   onMounted(() => {
-    EventsOn("download-progress", (pct: number) => {
-      downloadProgress.value = pct
-    })
+    if (!isInitialized) {
+      isInitialized = true
+      unsubscribeDownloadProgress = EventsOn("download-progress", (pct: number) => {
+        downloadProgress.value = pct
+      })
+    }
   })
 
   onUnmounted(() => {
-    // Clean up any pending timeouts
-    if (updateStateTimeout) clearTimeout(updateStateTimeout)
-    if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
+    // For global state, we don't unsubscribe from EventsOn here.
+    // Timeouts can still be cleared safely if we leave a component, but since
+    // multiple might share this, we just leave them or clear if needed.
+    // if (updateStateTimeout) clearTimeout(updateStateTimeout)
+    // if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
   })
 
   return {

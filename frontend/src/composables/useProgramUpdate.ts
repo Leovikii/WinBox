@@ -2,17 +2,21 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import wailsConfig from '@wails'
-import type { useAppState } from './useAppState'
+import { useAppState } from './useAppState'
 import { isNewerVersion } from '../utils/versionCompare'
 
-export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
-  const programLocalVer = ref(wailsConfig.info.productVersion)
-  const programRemoteVer = ref("Unknown")
-  const programUpdateState = ref("idle")
-  const programDownloadProgress = ref(0)
-  const programChangelog = ref("")
+const programLocalVer = ref(wailsConfig.info.productVersion)
+const programRemoteVer = ref("Unknown")
+const programUpdateState = ref("idle")
+const programDownloadProgress = ref(0)
+const programChangelog = ref("")
 
-  let updateStateTimeout: number | null = null
+let updateStateTimeout: number | null = null
+let isInitialized = false
+let unsubscribeDownloadProgress: (() => void) | null = null
+
+export function useProgramUpdate() {
+  const appState = useAppState()
 
   const checkProgramUpdate = async () => {
     programUpdateState.value = "checking"
@@ -55,15 +59,18 @@ export function useProgramUpdate(appState: ReturnType<typeof useAppState>) {
   }
 
   onMounted(() => {
-    EventsOn("download-progress", (pct: number) => {
-      if (programUpdateState.value === "updating") {
-        programDownloadProgress.value = pct
-      }
-    })
+    if (!isInitialized) {
+      isInitialized = true
+      unsubscribeDownloadProgress = EventsOn("download-progress", (pct: number) => {
+        if (programUpdateState.value === "updating") {
+          programDownloadProgress.value = pct
+        }
+      })
+    }
   })
 
   onUnmounted(() => {
-    if (updateStateTimeout) clearTimeout(updateStateTimeout)
+    // if (updateStateTimeout) clearTimeout(updateStateTimeout)
   })
 
   return {

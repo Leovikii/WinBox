@@ -8,11 +8,12 @@ export interface UWPApp {
   isExempt: boolean
 }
 
+const apps = ref<UWPApp[]>([])
+const loading = ref(false)
+const saving = ref(false)
+const selectedSIDs = ref<string[]>([])
+
 export function useUWPLoopback() {
-  const apps = ref<UWPApp[]>([])
-  const loading = ref(false)
-  const saving = ref(false)
-  const selectedSIDs = ref<string[]>([])
 
   const loadApps = async () => {
     loading.value = true
