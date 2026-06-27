@@ -145,27 +145,19 @@ const handleRestartCore = async () => {
       <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
         <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
         WINBOX
-        <span 
-          class="text-xs font-medium tracking-normal relative transition-colors duration-200"
-          style="--wails-draggable: no-drag"
-          :title="programState.programUpdateState.value === 'available' ? 'Click to view update' : ''"
-          :class="programState.programUpdateState.value === 'available' ? 'text-blue-400 cursor-pointer hover:text-blue-300' : 'text-white/30'"
-          @click="programState.programUpdateState.value === 'available' && (showChangelogModal = true)"
-        >
-          v{{ wailsConfig.info.productVersion }}
-          <span 
-            v-if="programState.programUpdateState.value === 'available'"
-            class="absolute -top-0.5 -right-2 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse"
-          ></span>
-        </span>
+
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button 
           @click="showSettings = !showSettings" 
-          class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200"
+          class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200 relative"
           :title="showSettings ? 'Back to Home' : 'Settings'"
         >
           <i :class="showSettings ? 'fas fa-arrow-left' : 'fas fa-gear'" class="text-xs"></i>
+          <span 
+            v-if="programState.programUpdateState.value === 'available'"
+            class="absolute top-[14px] right-[14px] w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse pointer-events-none"
+          ></span>
         </button>
         <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
           <i class="fas fa-minus text-[10px]"></i>

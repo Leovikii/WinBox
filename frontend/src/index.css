@@ -13,10 +13,6 @@ body {
 
 /* Windows 11 Mica Material Effect - Dark Mode Only */
 @supports (backdrop-filter: blur(40px)) {
-    .mica-bg {
-        background: rgba(25, 25, 25, 0.4); /* Lifted black floor to reduce HDR Mini-LED blooming */
-    }
-
     .mica-card {
         background: #1c1c1c;
         border: 1px solid rgba(255, 255, 255, 0.05);
@@ -38,12 +34,7 @@ body {
     overflow: hidden;
 }
 
-/* GPU加速优化：强制开启独立合成层，解决 WebView2 透明窗口闪烁 */
-[class*="transition-"] {
-    will-change: transform, opacity;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-}
+
 
 /* Unified Modal Transition */
 .w-modal-enter-active,

@@ -176,11 +176,11 @@ onActivated(() => {
     <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
         
         <!-- Header: Status & Speed -->
-        <div class="h-12 shrink-0 flex justify-between items-center px-6 border-b border-white/5 bg-linear-to-b from-white/[0.03] to-transparent">
+        <div class="shrink-0 flex justify-between items-center p-6 bg-transparent">
           <!-- Left: Icon + Status -->
-          <div class="flex items-center gap-2" :style="getStatusStyle">
+          <div class="flex items-center gap-3" :style="getStatusStyle">
             <!-- Icon with Hardware LED Bloom -->
-            <div class="relative flex items-center justify-center">
+            <div class="relative flex items-center justify-center w-4">
               <!-- Ambient background bloom -->
               <div 
                 class="absolute inset-0 scale-[3] blur-[6px] transition-opacity duration-1000 pointer-events-none"
@@ -196,7 +196,7 @@ onActivated(() => {
                  }">
               </i>
             </div>
-            <span class="text-sm font-bold tracking-widest uppercase relative z-10 ml-1">{{ getStatusText }}</span>
+            <span class="text-sm font-bold tracking-wider uppercase relative z-10">{{ getStatusText }}</span>
           </div>
 
           <!-- Right: Speed -->
@@ -229,7 +229,7 @@ onActivated(() => {
           
           <!-- Log Content -->
           <div class="absolute inset-0">
-            <WScrollArea height="100%" class="w-full p-6 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
+            <WScrollArea height="100%" class="w-full px-6 pb-6 pt-0 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
               {{ appLogContent || 'No logs available.' }}
             </WScrollArea>
           </div>
@@ -243,7 +243,7 @@ onActivated(() => {
       <div class="flex justify-between items-center shrink-0">
           <div class="flex items-center gap-3">
             <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-xs font-bold text-gray-400 tracking-wider">PROFILE</span>
+            <span class="text-sm font-bold text-gray-400 tracking-wider">PROFILE</span>
           </div>
           <WButton 
             variant="secondary" 

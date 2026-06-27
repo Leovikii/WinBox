@@ -130,10 +130,6 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 		}
 	}
 
-	meta.TunMode = targetTun
-	meta.SysProxy = targetProxy
-	a.storage.SaveMeta(meta)
-
 	if !targetTun && !targetProxy {
 		wailsRuntime.EventsEmit(a.ctx, "core-stopping")
 		res := a.stopCore()
@@ -141,6 +137,10 @@ func (a *App) ApplyState(targetTun bool, targetProxy bool) string {
 		wailsRuntime.EventsEmit(a.ctx, "status", false)
 		return res
 	}
+
+	meta.TunMode = targetTun
+	meta.SysProxy = targetProxy
+	a.storage.SaveMeta(meta)
 
 	if needsRestart {
 		wailsRuntime.EventsEmit(a.ctx, "core-starting")

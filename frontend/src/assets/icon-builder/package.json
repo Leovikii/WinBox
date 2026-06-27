@@ -1,6 +1,6 @@
 {
   "name": "winbox-icon-builder",
-  "version": "2.8.0-beta.2",
+  "version": "2.8.0-beta.3",
   "description": "Script to generate WinBox icons from SVGs",
   "main": "build.js",
   "scripts": {
