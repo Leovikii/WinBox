@@ -124,6 +124,7 @@ export function useAppState() {
       sysProxy.value = true
       Backend.SaveMode(false, true)
     }
+
     startOnBoot.value = data.startOnBoot
     autoConnectState.value = data.autoConnectState
     mirrorUrl.value = data.mirror
