@@ -25,6 +25,7 @@ export function useAppState() {
   const preRelease = ref(false)
   const logLevel = ref("warning")
   const logToFile = ref(true)
+  const closeBehavior = ref("ask")
 
   let unsubscribeStatus: (() => void) | null = null
   let unsubscribeStateSync: (() => void) | null = null
@@ -128,6 +129,7 @@ export function useAppState() {
     preRelease.value = data.pre_release
     logLevel.value = data.log_level || "warning"
     logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
+    closeBehavior.value = data.close_behavior || "ask"
     return data
   }
 
@@ -398,7 +400,7 @@ export function useAppState() {
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
     errorLog, startOnBoot, autoConnectState,
-    mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile,
+    mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile, closeBehavior,
     showErrorAlert, errorAlertMessage,
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,

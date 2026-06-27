@@ -38,6 +38,7 @@ defineProps<{
   uwpLoading: boolean
   uwpSaving: boolean
   uwpHasChanges: boolean
+  closeBehavior: string
 }>()
 
 const openGitHub = () => {
@@ -73,6 +74,7 @@ const emit = defineEmits<{
   'select-all-uwp': []
   'deselect-all-uwp': []
   'save-uwp-exemptions': []
+  'update-close-behavior': [value: string]
 }>()
 
 const showThemeModal = ref(false)
@@ -177,6 +179,7 @@ const handleApplyCustomColor = () => {
               size="sm"
               icon="fas fa-rotate"
               @click="emit('check-program-update')"
+              class="w-28 justify-center"
             >
               CHECK
             </WButton>
@@ -190,6 +193,7 @@ const handleApplyCustomColor = () => {
             size="sm"
             icon="fa-brands fa-github"
             @click="openGitHub"
+            class="w-28 justify-center"
           >
             OPEN
           </WButton>
@@ -201,6 +205,20 @@ const handleApplyCustomColor = () => {
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Close Window Behavior</span>
+          <WSelect
+            :model-value="closeBehavior"
+            @update:model-value="emit('update-close-behavior', $event as string)"
+            :options="[
+              { value: 'ask', label: 'ASK' },
+              { value: 'tray', label: 'MINIMIZE' },
+              { value: 'quit', label: 'QUIT' }
+            ]"
+            class="w-28"
+          />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -264,7 +282,7 @@ const handleApplyCustomColor = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-rotate"
-              :class="!coreExists ? 'border-yellow-600 text-yellow-500' : ''"
+              :class="[!coreExists ? 'border-yellow-600 text-yellow-500' : '', 'w-28 justify-center']"
               @click="emit('check-update')"
             >
               {{ coreExists ? "CHECK" : "DOWNLOAD" }}
@@ -292,13 +310,13 @@ const handleApplyCustomColor = () => {
               { value: 'on', label: 'ON' },
               { value: 'off', label: 'OFF' }
             ]"
-            class="w-24"
+            class="w-28"
           />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal">
+          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="w-28 justify-center">
             <div class="flex items-center gap-2">
               <i class="fas fa-palette" :style="{ color: accentColor }"></i>
               <span>SELECT</span>
@@ -316,7 +334,7 @@ const handleApplyCustomColor = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Inbound Config</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'tun')">EDIT</WButton>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'tun')" class="w-28 justify-center">EDIT</WButton>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -340,7 +358,7 @@ const handleApplyCustomColor = () => {
               { value: 'warning', label: 'WARNING' },
               { value: 'error', label: 'ERROR' }
             ]"
-            class="w-24"
+            class="w-28"
           />
         </div>
       </WCard>
@@ -360,13 +378,13 @@ const handleApplyCustomColor = () => {
         <WExpandable :expanded="mirrorEnabled">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
             <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'mirror')">EDIT</WButton>
+            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-editor', 'mirror')" class="w-28 justify-center">EDIT</WButton>
           </div>
         </WExpandable>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')">
+          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="w-28 justify-center">
             MANAGE
           </WButton>
         </div>

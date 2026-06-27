@@ -31,6 +31,7 @@ type MetaData struct {
 	AutoConnect     *bool     `json:"auto_connect,omitempty"`
 	AutoConnectState string   `json:"auto_connect_state"`
 	StartOnBoot     bool      `json:"start_on_boot"`
+	CloseBehavior   string    `json:"close_behavior"`    // ask, tray, quit
 	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"
 	AccentColor     string    `json:"accent_color"`      // hex color code
 	IPv6Enabled     bool      `json:"ipv6_enabled"`      // IPv6 support toggle

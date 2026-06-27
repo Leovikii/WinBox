@@ -224,6 +224,13 @@ func (a *App) SetPreRelease(enabled bool) string {
 	return "Success"
 }
 
+func (a *App) SetCloseBehavior(behavior string) string {
+	if err := a.settingsManager.SetCloseBehavior(behavior); err != nil {
+		return "Error: " + err.Error()
+	}
+	return "Success"
+}
+
 func (a *App) GetInitData() map[string]interface{} {
 	meta, _ := a.storage.LoadMeta()
 	var active Profile
@@ -252,6 +259,7 @@ func (a *App) GetInitData() map[string]interface{} {
 		"pre_release":       meta.PreRelease,
 		"log_level":         meta.LogLevel,
 		"log_to_file":       meta.LogToFile,
+		"close_behavior":    meta.CloseBehavior,
 	}
 }
 
