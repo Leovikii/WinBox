@@ -1,26 +1,28 @@
 import { ref, computed, shallowRef } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
-import type { useAppState } from './useAppState'
+import { useAppState } from './useAppState'
 import { cleanLog } from '../utils/logUtils'
 
-export function useProfiles(appState: ReturnType<typeof useAppState>) {
-  const profiles = shallowRef<any[]>([])
-  const activeProfile = ref<any>(null)
-  const isUpdatingProfile = ref(false)
+const profiles = shallowRef<any[]>([])
+const activeProfile = ref<any>(null)
+const isUpdatingProfile = ref(false)
 
-  const showAddProfileModal = ref(false)
-  const newName = ref("")
-  const newUrl = ref("")
-  const isAddingProfile = ref(false)
+const showAddProfileModal = ref(false)
+const newName = ref("")
+const newUrl = ref("")
+const isAddingProfile = ref(false)
 
-  const showEditProfileModal = ref(false)
-  const editingProfileId = ref("")
-  const editName = ref("")
-  const editUrl = ref("")
-  const isEditingProfile = ref(false)
+const showEditProfileModal = ref(false)
+const editingProfileId = ref("")
+const editName = ref("")
+const editUrl = ref("")
+const isEditingProfile = ref(false)
 
-  const showDeleteConfirm = ref(false)
-  const deletingProfileId = ref("")
+const showDeleteConfirm = ref(false)
+const deletingProfileId = ref("")
+
+export function useProfiles() {
+  const appState = useAppState()
 
   const refreshProfiles = async () => {
     const data = await appState.refreshData()

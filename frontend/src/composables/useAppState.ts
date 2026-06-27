@@ -4,32 +4,35 @@ import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { cleanLog } from '../utils/logUtils'
 import { getModeColor } from '../utils/modeColors'
 
+const running = ref(false)
+const coreExists = ref(true)
+const msg = ref("READY")
+const tunMode = ref(false)
+const sysProxy = ref(false)
+const isProcessing = ref(false)
+const errorLog = ref("")
+
+const showErrorAlert = ref(false)
+const errorAlertMessage = ref("")
+
+const startOnBoot = ref(false)
+const autoConnectState = ref("smart")
+const mirrorUrl = ref("")
+const mirrorEnabled = ref(false)
+
+const ipv6Enabled = ref(true)
+const preRelease = ref(false)
+const logLevel = ref("warning")
+const logToFile = ref(true)
+const closeBehavior = ref("ask")
+
+let unsubscribeStatus: (() => void) | null = null
+let unsubscribeStateSync: (() => void) | null = null
+let unsubscribeLog: (() => void) | null = null
+
+let isInitialized = false
+
 export function useAppState() {
-  const running = ref(false)
-  const coreExists = ref(true)
-  const msg = ref("READY")
-  const tunMode = ref(false)
-  const sysProxy = ref(false)
-  const isProcessing = ref(false)
-  const errorLog = ref("")
-
-  const showErrorAlert = ref(false)
-  const errorAlertMessage = ref("")
-
-  const startOnBoot = ref(false)
-  const autoConnectState = ref("smart")
-  const mirrorUrl = ref("")
-  const mirrorEnabled = ref(false)
-
-  const ipv6Enabled = ref(true)
-  const preRelease = ref(false)
-  const logLevel = ref("warning")
-  const logToFile = ref(true)
-  const closeBehavior = ref("ask")
-
-  let unsubscribeStatus: (() => void) | null = null
-  let unsubscribeStateSync: (() => void) | null = null
-  let unsubscribeLog: (() => void) | null = null
 
   const getStatusText = computed(() => {
     if (!coreExists.value) return "WARNING"
@@ -387,14 +390,18 @@ export function useAppState() {
   }
 
   onMounted(() => {
-    refreshData()
-    setupEventListeners()
+    if (!isInitialized) {
+      isInitialized = true
+      refreshData()
+      setupEventListeners()
+    }
   })
 
+  // We intentionally do NOT unmount event listeners if this is a singleton 
+  // because multiple components might be sharing this state.
+  // We leave them attached for the lifetime of the application.
   onUnmounted(() => {
-    if (unsubscribeStatus) unsubscribeStatus()
-    if (unsubscribeStateSync) unsubscribeStateSync()
-    if (unsubscribeLog) unsubscribeLog()
+    // Intentionally empty for global state singleton
   })
 
   return {

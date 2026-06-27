@@ -26,9 +26,9 @@ const uploadSpeed = ref(0);
 const downloadSpeed = ref(0);
 
 const appState = useAppState();
-const profilesState = useProfiles(appState);
-const kernelState = useKernelUpdate(appState);
-const programState = useProgramUpdate(appState);
+const profilesState = useProfiles();
+const kernelState = useKernelUpdate();
+const programState = useProgramUpdate();
 const themeState = useTheme();
 const uwpState = useUWPLoopback();
 
@@ -181,23 +181,9 @@ const handleRestartCore = async () => {
         <KeepAlive>
           <WScrollArea key="dashboard" v-if="!showSettings" class="absolute inset-0 w-full h-full">
             <DashboardControl
-              :running="appState.running.value"
-              :coreExists="appState.coreExists.value"
-              :msg="appState.msg.value"
-              :tunMode="appState.tunMode.value"
-              :sysProxy="appState.sysProxy.value"
-              :isProcessing="appState.isProcessing.value"
-              :profilesState="profilesState"
-              :errorLog="appState.errorLog.value"
-              :getStatusText="appState.getStatusText.value"
-              :getStatusStyle="appState.getStatusStyle.value"
-              :getControlBg="appState.getControlBg.value"
-              :accentColor="themeState.accentColor.value"
               :hasDashboard="true"
               :uploadSpeed="uploadSpeed"
               :downloadSpeed="downloadSpeed"
-              @toggle="handleToggle"
-              @toggle-service="appState.handleServiceToggle"
               @switch-mode="handleSwitchMode"
               @open-dashboard="Backend.OpenDashboard"
               @restart-core="handleRestartCore"
@@ -206,67 +192,11 @@ const handleRestartCore = async () => {
 
           <SettingsDrawer key="settings" v-else class="absolute inset-0 w-full h-full"
             :isOpen="true"
-            :programLocalVer="programState.programLocalVer.value"
-            :programRemoteVer="programState.programRemoteVer.value"
-            :programUpdateState="programState.programUpdateState.value"
-            :programDownloadProgress="programState.programDownloadProgress.value"
-            :localVer="kernelState.localVer.value"
-            :remoteVer="kernelState.remoteVer.value"
-            :updateState="kernelState.updateState.value"
-            :downloadProgress="kernelState.downloadProgress.value"
-            :coreExists="appState.coreExists.value"
-            :mirrorUrl="appState.mirrorUrl.value"
-            :mirrorEnabled="appState.mirrorEnabled.value"
-            :startOnBoot="appState.startOnBoot.value"
-            :autoConnectState="appState.autoConnectState.value"
-            :showEditor="kernelState.showEditor.value"
-            :editingType="kernelState.editingType.value"
-            :editorContent="kernelState.editorContent.value"
-            :saveBtnText="kernelState.saveBtnText.value"
-            :showResetConfirm="kernelState.showResetConfirm.value"
-            :showErrorAlert="kernelState.showErrorAlert.value || appState.showErrorAlert.value"
-            :errorAlertMessage="kernelState.showErrorAlert.value ? kernelState.errorAlertMessage.value : appState.errorAlertMessage.value"
-            :accentColor="themeState.accentColor.value"
-            :ipv6Enabled="appState.ipv6Enabled.value"
-            :preRelease="appState.preRelease.value"
-            :logLevel="appState.logLevel.value"
-            :logToFile="appState.logToFile.value"
-            :closeBehavior="appState.closeBehavior.value"
             :showUWPModal="showUWPModal"
-            :uwpApps="uwpState.apps.value"
-            :uwpSelectedSIDs="uwpState.selectedSIDs.value"
-            :uwpLoading="uwpState.loading.value"
-            :uwpSaving="uwpState.saving.value"
-            :uwpHasChanges="uwpState.hasChanges()"
             @close="showSettings = false"
-            @check-program-update="programState.checkProgramUpdate"
             @open-program-changelog="showChangelogModal = true"
-            @perform-program-update="programState.performProgramUpdate"
-            @check-update="kernelState.checkUpdate"
-            @perform-update="kernelState.performUpdate"
-            @toggle-pre-release="handlePreReleaseToggleWrapper"
-            @toggle-mirror="appState.handleMirrorToggle"
-            @toggle-start-on-boot="appState.handleStartOnBootToggle"
-            @change-auto-connect="appState.handleAutoConnectChange"
-            @open-editor="kernelState.openEditor"
-            @save-editor="kernelState.saveEditor"
-            @reset-editor="kernelState.resetEditor"
-            @close-editor="kernelState.showEditor.value = false"
-            @update:editorContent="(val) => kernelState.editorContent.value = val"
-            @confirm-reset="kernelState.confirmReset"
-            @close-reset-confirm="kernelState.showResetConfirm.value = false"
-            @close-error-alert="kernelState.showErrorAlert.value = false; appState.showErrorAlert.value = false"
-            @change-accent-color="handleAccentColorChange"
-            @toggle-ipv6="appState.handleIPv6Toggle"
-            @change-log-config="appState.handleLogConfigChange"
-            @update-close-behavior="(val) => { appState.closeBehavior.value = val; Backend.SetCloseBehavior(val); }"
-            @switch-editor-tab="kernelState.switchEditorTab"
             @open-uwp-modal="handleOpenUWPModal"
             @close-uwp-modal="handleCloseUWPModal"
-            @toggle-uwp-app="uwpState.toggleApp"
-            @select-all-uwp="uwpState.selectAll"
-            @deselect-all-uwp="uwpState.deselectAll"
-            @save-uwp-exemptions="handleSaveUWPExemptions"
           />
         </KeepAlive>
       </Transition>

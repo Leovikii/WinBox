@@ -208,7 +208,12 @@ func (a *App) RestartCore() string {
 		return result
 	}
 
-	time.Sleep(1 * time.Second) // Give process time to bind ports and UI to show RESTARTING
+	// Wait for process to fully bind ports and start
+	ready := a.coreManager.WaitForReady(3 * time.Second)
+	if !ready {
+		a.appLogger.Warn("Core restart probe timed out, but proceeding anyway.")
+	}
+	
 	wailsRuntime.EventsEmit(a.ctx, "status", true)
 	a.emitStateSync(meta)
 

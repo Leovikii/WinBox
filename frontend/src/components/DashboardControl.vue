@@ -3,29 +3,34 @@ import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vu
 import * as Backend from '../../wailsjs/go/internal/App'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl } from './ui'
 
+import { useAppState } from '../composables/useAppState'
+import { useProfiles } from '../composables/useProfiles'
+import { useTheme } from '../composables/useTheme'
+
 interface Profile {
   name: string
   url: string
   updated: string
 }
 
+const appState = useAppState()
+const profilesState = useProfiles()
+const themeState = useTheme()
+
+const {
+  running, coreExists, tunMode, sysProxy, isProcessing, msg, errorLog,
+  getStatusText, getStatusStyle, getControlBg, handleServiceToggle
+} = appState
+
+const { accentColor } = themeState
+
 const props = defineProps<{
-  running: boolean
-  coreExists: boolean
-  tunMode: boolean
-  sysProxy: boolean
-  isProcessing: boolean
-  profilesState: any
-  getStatusText: string
-  getStatusStyle: { color: string; filter: string }
-  accentColor: string
   hasDashboard: boolean
   uploadSpeed: number
   downloadSpeed: number
 }>()
 
 const emit = defineEmits<{
-  'toggle-service': []
   'switch-mode': [{ tunMode: boolean, sysProxy: boolean }]
   'open-dashboard': []
   'restart-core': []
@@ -40,7 +45,7 @@ const formatSpeed = (bytesPerSecond: number): string => {
 }
 
 const showSpeedInfo = computed(() => {
-  return props.running && (props.tunMode || props.sysProxy) && !props.isProcessing
+  return running.value && (tunMode.value || sysProxy.value) && !isProcessing.value
 })
 
 const modeOptions = [
@@ -51,8 +56,8 @@ const modeOptions = [
 
 const currentMode = computed({
   get() {
-    if (props.tunMode && props.sysProxy) return 'full'
-    if (props.tunMode) return 'tun'
+    if (tunMode.value && sysProxy.value) return 'full'
+    if (tunMode.value) return 'tun'
     return 'proxy'
   },
   set(val: string) {
@@ -71,32 +76,32 @@ const activeColor = computed(() => {
 })
 
 const activeProfileName = computed(() => {
-  return props.profilesState.activeProfile.value?.name || ''
+  return profilesState.activeProfile.value?.name || ''
 })
 
 const profileOptions = computed(() => {
-  return props.profilesState.profiles.value.map((p: Profile) => ({
+  return profilesState.profiles.value.map((p: Profile) => ({
     label: p.name,
     value: p.name
   }))
 })
 
 const handleProfileChange = (val: string | number) => {
-  if (props.isProcessing) return
-  const p = props.profilesState.profiles.value.find((p: Profile) => p.name === val)
+  if (isProcessing.value) return
+  const p = profilesState.profiles.value.find((p: Profile) => p.name === val)
   if (p) {
-    props.profilesState.switchProfile(p.id)
+    profilesState.switchProfile(p.id)
   }
 }
 
 const handleEdit = (e: any) => {
-  const p = props.profilesState.activeProfile.value
-  if (p) props.profilesState.editProfile(p.id, e)
+  const p = profilesState.activeProfile.value
+  if (p) profilesState.editProfile(p.id, e)
 }
 
 const handleDelete = (e: any) => {
-  const p = props.profilesState.activeProfile.value
-  if (p) props.profilesState.deleteProfile(p.id, e)
+  const p = profilesState.activeProfile.value
+  if (p) profilesState.deleteProfile(p.id, e)
 }
 
 // Log Viewer Logic
@@ -171,7 +176,7 @@ onActivated(() => {
     <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
         
         <!-- Header: Status & Speed -->
-        <div class="h-11 shrink-0 flex justify-between items-center px-4 border-b border-white/5 bg-linear-to-b from-white/[0.03] to-transparent">
+        <div class="h-12 shrink-0 flex justify-between items-center px-6 border-b border-white/5 bg-linear-to-b from-white/[0.03] to-transparent">
           <!-- Left: Icon + Status -->
           <div class="flex items-center gap-2" :style="getStatusStyle">
             <!-- Icon with Hardware LED Bloom -->
@@ -217,14 +222,14 @@ onActivated(() => {
           <!-- Maximize Button -->
           <button 
             @click="showLogModal = true"
-            class="absolute top-2 right-2 w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10 backdrop-blur-md shadow-sm"
+            class="absolute top-3 right-3 w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10 backdrop-blur-md shadow-sm"
           >
             <i class="fas fa-expand text-[10px]"></i>
           </button>
           
           <!-- Log Content -->
           <div class="absolute inset-0">
-            <WScrollArea height="100%" class="w-full p-4 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
+            <WScrollArea height="100%" class="w-full p-6 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
               {{ appLogContent || 'No logs available.' }}
             </WScrollArea>
           </div>
@@ -232,7 +237,7 @@ onActivated(() => {
     </div>
 
     <!-- ==================== BOTTOM AREA: CONTROLS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-5 relative flex-1 min-h-0 z-20 justify-between">
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative flex-1 min-h-0 z-20 justify-between">
       
       <!-- Row 1: Profile Title & Add -->
       <div class="flex justify-between items-center shrink-0">
@@ -273,7 +278,7 @@ onActivated(() => {
           </div>
 
           <!-- Row 3: Buttons -->
-          <div class="flex gap-2 w-full">
+          <div class="flex gap-2 w-full pb-3 border-b border-white/[0.05]">
             <WButton 
               class="flex-1"
               variant="secondary" 
@@ -307,11 +312,8 @@ onActivated(() => {
             </WButton>
           </div>
 
-          <!-- Divider (Row 4) -->
-          <div class="w-full h-[1px] bg-white/[0.05]"></div>
-
           <!-- Row 5: Mode -->
-          <div class="flex gap-2 w-full">
+          <div class="flex gap-2 w-full pt-1">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
               <span class="text-xs font-bold text-gray-400 tracking-wider">MODE</span>
@@ -335,23 +337,23 @@ onActivated(() => {
             <WButton 
               v-if="running && hasDashboard"
               key="dashboard"
-              class="w-[calc((100%-1rem)/3)] shrink-0 px-0"
+              class="w-[calc((100%_-_1rem)_/_3)] shrink-0 px-0 whitespace-nowrap"
               variant="secondary" 
               icon="fas fa-globe" 
               @click="emit('open-dashboard')"
               :disabled="isProcessing"
             >
-              WEB UI
+              WEBUI
             </WButton>
 
             <WButton 
               key="power"
               variant="primary"
-              class="transition-all duration-400 ease-out shrink-0 px-0"
-              :class="running ? 'w-[calc((100%-1rem)/3)]' : 'absolute inset-0 w-full'"
+              class="transition-all duration-400 ease-out shrink-0 px-0 whitespace-nowrap"
+              :class="running ? 'w-[calc((100%_-_1rem)_/_3)]' : 'absolute inset-0 w-full'"
               :loading="isProcessing"
               :disabled="!coreExists || !profilesState.activeProfile.value"
-              @click="emit('toggle-service')"
+              @click="handleServiceToggle"
               :style="{
                 backgroundColor: running ? '#dc2626' : activeColor,
                 borderColor: running ? '#ef4444' : activeColor,
@@ -365,7 +367,7 @@ onActivated(() => {
             <WButton 
               v-if="running"
               key="restart"
-              class="w-[calc((100%-1rem)/3)] shrink-0 px-0"
+              class="w-[calc((100%_-_1rem)_/_3)] shrink-0 px-0 whitespace-nowrap"
               variant="secondary" 
               :icon="getStatusText === 'RESTARTING...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
               @click="emit('restart-core')"
