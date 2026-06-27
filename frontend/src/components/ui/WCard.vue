@@ -21,6 +21,8 @@ const cardClasses = computed(() => {
 
   if (props.variant === 'default') {
     classes.push('bg-[#111] border-[#222]')
+  } else if (props.variant === 'ghost') {
+    classes.push('bg-white/[0.02] border-white/[0.05]')
   } else if (props.variant === 'mica') {
     classes.push('mica-card border-[#2a2a2a] shadow-[0_4px_16px_rgba(0,0,0,0.2)]')
   } else if (props.variant === 'list-item') {

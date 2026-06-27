@@ -104,11 +104,12 @@ const handleApplyCustomColor = () => {
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col bg-[#090909]">
-    <WScrollArea class="flex-1 px-4 pt-6 pb-28 space-y-4">
+  <div class="w-full h-full relative">
+    <div class="w-full h-full flex flex-col bg-transparent">
+      <WScrollArea class="flex-1 px-4 pt-6 pb-28 space-y-4">
 
       <!-- About Section -->
-      <WCard variant="default" padding="lg">
+      <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-info-circle text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">About</h3>
@@ -196,7 +197,7 @@ const handleApplyCustomColor = () => {
       </WCard>
 
       <!-- General Section -->
-      <WCard variant="default" padding="lg">
+      <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
@@ -307,7 +308,7 @@ const handleApplyCustomColor = () => {
       </WCard>
 
       <!-- Config Override Section -->
-      <WCard variant="default" padding="lg">
+      <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-file-code text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Config Override</h3>
@@ -345,7 +346,7 @@ const handleApplyCustomColor = () => {
       </WCard>
 
       <!-- Network Section -->
-      <WCard variant="default" padding="lg">
+      <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4">
           <i class="fa-solid fa-network-wired text-gray-500 text-xs"></i>
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Network</h3>
@@ -527,4 +528,5 @@ const handleApplyCustomColor = () => {
       <WButton variant="primary" full-width icon="fas fa-check" @click="emit('close-error-alert')">OK</WButton>
     </template>
   </WModal>
+  </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl } from './ui'
 
@@ -107,21 +107,19 @@ const fullLogContainer = ref<any>(null)
 const copyState = ref("COPY")
 let logInterval: any = null
 
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
+    if (fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
+  })
+}
+
 const loadAppLog = async () => {
   try {
     const content = await Backend.GetAppLog()
     if (content !== appLogContent.value) {
       appLogContent.value = content
-      nextTick(() => {
-        setTimeout(() => {
-          if (inlineLogContainer.value?.$el) {
-            inlineLogContainer.value.$el.scrollTop = inlineLogContainer.value.$el.scrollHeight
-          }
-          if (fullLogContainer.value?.$el && showLogModal.value) {
-            fullLogContainer.value.$el.scrollTop = fullLogContainer.value.$el.scrollHeight
-          }
-        }, 50)
-      })
+      scrollToBottom()
     }
   } catch (error) {
     appLogContent.value = "> Failed to load app log"
@@ -151,6 +149,7 @@ const copyAppLog = async () => {
 
 onMounted(() => {
   loadAppLog()
+  scrollToBottom()
   logInterval = setInterval(loadAppLog, 1500)
 })
 
@@ -158,6 +157,10 @@ onUnmounted(() => {
   if (logInterval) {
     clearInterval(logInterval)
   }
+})
+
+onActivated(() => {
+  scrollToBottom()
 })
 </script>
 
@@ -189,15 +192,13 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Inline Log Area (Skeuomorphic Monitor Style) -->
-        <div class="w-full flex-1 min-h-0 mt-2 relative bg-[#050505] rounded-[10px] border border-[#1a1a1a] shadow-[inset_0_5px_20px_rgba(0,0,0,1)] overflow-hidden group">
-          <!-- Screen Glare / Reflection -->
-          <div class="absolute inset-0 pointer-events-none bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.04]"></div>
+        <!-- Inline Log Area (Sunken Style) -->
+        <div class="w-full flex-1 min-h-0 mt-2 relative bg-[#151515] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-[#2a2a2a] rounded-lg overflow-hidden group">
           
           <!-- Maximize Button -->
           <button 
             @click="showLogModal = true"
-            class="absolute top-2 right-2 w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-white/30 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
+            class="absolute top-2 right-2 w-6 h-6 rounded bg-white/5 hover:bg-[#2d2d2d] border border-transparent hover:border-white/5 hover:shadow-[0_1px_3px_rgba(0,0,0,0.5)] text-gray-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
           >
             <i class="fas fa-expand text-[10px]"></i>
           </button>
@@ -441,27 +442,27 @@ onUnmounted(() => {
     </WModal>
 
     <!-- App Log Fullscreen Modal -->
-    <Transition name="slide-fade">
+    <Transition name="w-modal">
       <div v-if="showLogModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
-        <div class="w-full h-full max-w-4xl bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl flex flex-col relative overflow-hidden">
+        <div class="w-full h-full max-w-4xl mica-card border border-[#333] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col relative overflow-hidden w-modal-container">
           <!-- Header -->
-          <div class="h-14 flex items-center justify-between px-6 border-b border-white/5 shrink-0 bg-[#0f0f0f]">
-            <div class="flex items-center gap-3">
-              <i class="fas fa-file-lines text-[var(--accent-color)]"></i>
-              <span class="text-sm font-bold tracking-widest text-gray-200">APP LOGS</span>
+          <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
+              <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">APP LOGS</h2>
             </div>
-            <button @click="showLogModal = false" class="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
-              <i class="fas fa-xmark text-lg"></i>
+            <button @click="showLogModal = false" class="text-[#888] hover:text-white transition-colors shrink-0 ml-4">
+              <i class="fas fa-times"></i>
             </button>
           </div>
           
           <!-- Content -->
-          <WScrollArea height="100%" class="flex-1 w-full p-6 font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all" ref="fullLogContainer">
+          <WScrollArea height="100%" class="flex-1 w-full p-5 font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all" ref="fullLogContainer">
             {{ appLogContent || 'No logs available.' }}
           </WScrollArea>
 
           <!-- Fixed Bottom Right Controls -->
-          <div class="absolute bottom-6 right-6 flex items-center gap-3">
+          <div class="absolute bottom-5 right-5 flex items-center gap-3">
             <WButton variant="secondary" size="sm" icon="fas fa-trash" @click="clearAppLog">
               CLEAR
             </WButton>
@@ -497,11 +498,7 @@ onUnmounted(() => {
 
 .glass-card {
   border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-  backdrop-filter: blur(20px);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: #1c1c1c; /* Solid WinUI 3 card */
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 

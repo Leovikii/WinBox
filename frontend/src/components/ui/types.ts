@@ -2,7 +2,7 @@
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'warning' | 'ghost' | 'link'
 export type ButtonSize = 'sm' | 'md' | 'lg'
-export type CardVariant = 'default' | 'mica' | 'list-item'
+export type CardVariant = 'default' | 'mica' | 'list-item' | 'ghost'
 export type SwitchColor = 'blue' | 'purple' | 'green'
 export type ModalWidth = 'sm' | 'md' | 'lg' | 'xl'
 export type ModalHeight = 'auto' | 'sm' | 'md' | 'lg'
