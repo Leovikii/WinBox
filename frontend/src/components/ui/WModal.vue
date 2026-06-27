@@ -37,8 +37,7 @@ const handleClose = () => {
 const modalClasses = computed(() => {
   const classes = [
     'mica-card border border-[#333] rounded-xl',
-    'shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden',
-    'transform transition-transform duration-300'
+    'shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden w-modal-container'
   ]
 
   if (props.width === 'sm') classes.push('w-[70%]')
@@ -50,24 +49,18 @@ const modalClasses = computed(() => {
   else if (props.height === 'md') classes.push('h-[60%]')
   else if (props.height === 'lg') classes.push('h-[70%]')
 
-  if (props.modelValue) classes.push('scale-100')
-  else classes.push('scale-95')
-
   return classes.join(' ')
 })
 </script>
 
 <template>
-  <div
-    :class="[
-      'absolute inset-0 z-80 bg-black/90',
-      'flex items-center justify-center transition-opacity duration-300',
-      modelValue ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-    ]"
-    :style="{ contentVisibility: modelValue ? 'auto' : 'hidden' }"
-    @click="handleBackdropClick"
-  >
-    <div :class="modalClasses" @click.stop class="flex flex-col max-h-[90vh]">
+  <Transition name="w-modal">
+    <div
+      v-if="modelValue"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      @click="handleBackdropClick"
+    >
+      <div :class="modalClasses" @click.stop class="flex flex-col max-h-[90vh]">
       <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
         <slot name="header">
           <h2 v-if="title" class="text-xs font-bold text-[#888] uppercase tracking-widest">{{ title }}</h2>
@@ -83,5 +76,6 @@ const modalClasses = computed(() => {
         <slot name="footer" />
       </div>
     </div>
-  </div>
+    </div>
+  </Transition>
 </template>

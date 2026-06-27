@@ -30,17 +30,17 @@ const buttonClasses = computed(() => {
   else if (props.size === 'lg') classes.push('h-12 px-6 text-xs')
 
   if (props.variant === 'primary') {
-    classes.push('bg-[var(--accent-color)] text-white hover:brightness-110 shadow-[0_4px_12px_rgba(var(--accent-color-rgb),0.4)] border border-[var(--accent-color)]')
+    classes.push('bg-[var(--accent-color)]/90 text-white/95 hover:brightness-110')
   } else if (props.variant === 'secondary') {
-    classes.push('bg-[#1a1a1a] border border-[#333] text-gray-300 hover:bg-[#222]')
+    classes.push('bg-[#242424] border border-[#3a3a3a] text-gray-300 hover:bg-[#333]')
   } else if (props.variant === 'danger') {
-    classes.push('bg-red-600 text-white hover:bg-red-500 shadow-[0_4px_12px_rgba(220,38,38,0.4)] border border-red-500')
+    classes.push('bg-red-600 text-white hover:bg-red-500')
   } else if (props.variant === 'success') {
     classes.push('bg-emerald-500/10 text-emerald-500 border border-emerald-500/20')
   } else if (props.variant === 'warning') {
     classes.push('bg-yellow-500/10 text-yellow-500 border border-yellow-900/30 hover:bg-yellow-900/10')
   } else if (props.variant === 'ghost') {
-    classes.push('bg-transparent border border-[#333] text-gray-300 hover:bg-[#222]')
+    classes.push('bg-transparent border border-transparent text-gray-300 hover:bg-[#222]')
   } else if (props.variant === 'link') {
     classes.push('bg-[var(--accent-color)]/10 text-[var(--accent-color)] border-none hover:bg-[var(--accent-color)]/20')
   }

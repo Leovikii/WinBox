@@ -112,8 +112,8 @@ const handleRestartCore = async () => {
 </script>
 
 <template>
-  <div class="h-screen w-screen relative bg-[#090909] text-white select-none overflow-hidden font-sans flex flex-col">
-    <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-[#0a0a0a] z-60 relative border-b border-white/5" style="--wails-draggable: drag">
+  <div class="h-screen w-screen relative bg-transparent text-white select-none overflow-hidden font-sans flex flex-col">
+    <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative" style="--wails-draggable: drag">
       <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
         <div :class="['w-2 h-2 rounded-full shadow-[0_0_10px_currentcolor]', appState.coreExists.value ? 'bg-emerald-500 text-emerald-500' : 'bg-red-500 text-red-500']"></div>
         WINBOX
@@ -127,7 +127,7 @@ const handleRestartCore = async () => {
           v{{ wailsConfig.info.productVersion }}
           <span 
             v-if="programState.programUpdateState.value === 'available'"
-            class="absolute -bottom-0.5 -right-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse"
+            class="absolute -top-0.5 -right-2 w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse"
           ></span>
         </span>
       </div>
@@ -152,34 +152,34 @@ const handleRestartCore = async () => {
     </div>
 
     <div class="flex-1 relative overflow-hidden w-full">
-      <Transition name="slide-left">
-        <WScrollArea v-if="!showSettings" class="absolute inset-0 w-full h-full">
-          <DashboardControl
-            :running="appState.running.value"
-            :coreExists="appState.coreExists.value"
-            :msg="appState.msg.value"
-            :tunMode="appState.tunMode.value"
-            :sysProxy="appState.sysProxy.value"
-            :isProcessing="appState.isProcessing.value"
-            :profilesState="profilesState"
-            :errorLog="appState.errorLog.value"
-            :getStatusText="appState.getStatusText.value"
-            :getStatusStyle="appState.getStatusStyle.value"
-            :getControlBg="appState.getControlBg.value"
-            :accentColor="themeState.accentColor.value"
-            :hasDashboard="true"
-            :uploadSpeed="uploadSpeed"
-            :downloadSpeed="downloadSpeed"
-            @toggle="handleToggle"
-            @toggle-service="appState.handleServiceToggle"
-            @switch-mode="handleSwitchMode"
-            @open-dashboard="Backend.OpenDashboard"
-            @restart-core="handleRestartCore"
-          />
-        </WScrollArea>
+      <Transition name="page-fade">
+        <KeepAlive>
+          <WScrollArea key="dashboard" v-if="!showSettings" class="absolute inset-0 w-full h-full">
+            <DashboardControl
+              :running="appState.running.value"
+              :coreExists="appState.coreExists.value"
+              :msg="appState.msg.value"
+              :tunMode="appState.tunMode.value"
+              :sysProxy="appState.sysProxy.value"
+              :isProcessing="appState.isProcessing.value"
+              :profilesState="profilesState"
+              :errorLog="appState.errorLog.value"
+              :getStatusText="appState.getStatusText.value"
+              :getStatusStyle="appState.getStatusStyle.value"
+              :getControlBg="appState.getControlBg.value"
+              :accentColor="themeState.accentColor.value"
+              :hasDashboard="true"
+              :uploadSpeed="uploadSpeed"
+              :downloadSpeed="downloadSpeed"
+              @toggle="handleToggle"
+              @toggle-service="appState.handleServiceToggle"
+              @switch-mode="handleSwitchMode"
+              @open-dashboard="Backend.OpenDashboard"
+              @restart-core="handleRestartCore"
+            />
+          </WScrollArea>
 
-        <div v-else class="absolute inset-0 w-full h-full bg-[#090909]">
-          <SettingsDrawer
+          <SettingsDrawer key="settings" v-else class="absolute inset-0 w-full h-full"
             :isOpen="true"
             :programLocalVer="programState.programLocalVer.value"
             :programRemoteVer="programState.programRemoteVer.value"
@@ -241,7 +241,7 @@ const handleRestartCore = async () => {
             @deselect-all-uwp="uwpState.deselectAll"
             @save-uwp-exemptions="handleSaveUWPExemptions"
           />
-        </div>
+        </KeepAlive>
       </Transition>
     </div>
 
@@ -340,32 +340,22 @@ const handleRestartCore = async () => {
   margin: 1.5rem 0;
 }
 
-.slide-left-enter-active,
-.slide-left-leave-active,
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+
+
+.depth-enter-active,
+.depth-leave-active {
+  transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
   position: absolute;
   width: 100%;
 }
 
-.slide-left-enter-from {
-  transform: translateX(20%);
+.depth-enter-from {
   opacity: 0;
-}
-.slide-left-leave-to {
-  transform: translateX(-20%);
-  opacity: 0;
-  filter: blur(4px);
+  transform: scale(1.02);
 }
 
-.slide-right-enter-from {
-  transform: translateX(-20%);
+.depth-leave-to {
   opacity: 0;
-}
-.slide-right-leave-to {
-  transform: translateX(20%);
-  opacity: 0;
-  filter: blur(4px);
+  transform: scale(0.98);
 }
 </style>

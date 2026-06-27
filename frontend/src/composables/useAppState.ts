@@ -52,30 +52,30 @@ export function useAppState() {
 
   const getStatusStyle = computed(() => {
     if (!coreExists.value)
-      return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.8))' }
+      return { color: '#FCD575 !important', filter: 'none' }
 
     if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
-      return { color: '#F4A7B0 !important', filter: 'drop-shadow(0 0 25px rgba(233, 84, 100, 0.8))' }
+      return { color: '#F4A7B0 !important', filter: 'none' }
 
     if (msg.value === "DETECTING" || (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING...")))
-      return { color: '#FCD575 !important', filter: 'drop-shadow(0 0 25px rgba(248, 181, 0, 0.6))' }
+      return { color: '#FCD575 !important', filter: 'none' }
 
     if (msg.value === "STANDBY")
-      return { color: '#B4A2CC !important', filter: 'drop-shadow(0 0 25px rgba(180, 162, 204, 0.8))' }
+      return { color: '#B4A2CC !important', filter: 'none' }
 
     if (!running.value)
       return { color: '#9E9E9E !important', filter: 'none' }
 
     if (tunMode.value && sysProxy.value)
-      return { color: '#C5A3BF !important', filter: 'drop-shadow(0 0 25px rgba(139, 127, 168, 0.8))' }
+      return { color: '#C5A3BF !important', filter: 'none' }
 
     if (tunMode.value)
-      return { color: '#89C3EB !important', filter: 'drop-shadow(0 0 25px rgba(83, 131, 195, 0.8))' }
+      return { color: '#89C3EB !important', filter: 'none' }
 
     if (sysProxy.value)
-      return { color: '#7EBEAB !important', filter: 'drop-shadow(0 0 25px rgba(56, 180, 139, 0.8))' }
+      return { color: '#7EBEAB !important', filter: 'none' }
 
-    return { color: '#F0F0F0 !important', filter: 'drop-shadow(0 0 25px rgba(224, 224, 224, 0.5))' }
+    return { color: '#F0F0F0 !important', filter: 'none' }
   })
 
   const getControlBg = computed(() => {

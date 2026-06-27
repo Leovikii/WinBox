@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = withDefaults(defineProps<{
   height?: string
@@ -25,10 +25,23 @@ const computedStyle = computed(() => {
     overflowX: (props.horizontal ? 'auto' : 'hidden') as 'auto' | 'hidden'
   }
 })
+
+const scrollContainer = ref<HTMLElement | null>(null)
+
+const scrollToBottom = () => {
+  if (scrollContainer.value) {
+    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
+  }
+}
+
+defineExpose({
+  $el: scrollContainer,
+  scrollToBottom
+})
 </script>
 
 <template>
-  <div class="w-scroll-area" :style="computedStyle">
+  <div class="w-scroll-area" :style="computedStyle" ref="scrollContainer">
     <slot />
   </div>
 </template>
