@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"os"
+	"time"
 
 	"WinBox/internal"
 
@@ -35,7 +36,9 @@ func main() {
 	for _, arg := range os.Args {
 		if arg == "-minimized" {
 			startMinimized = true
-			break
+		}
+		if arg == "-delay-start" {
+			time.Sleep(1500 * time.Millisecond)
 		}
 	}
 
