@@ -300,15 +300,17 @@ func (a *App) launchUpdaterAndRestart(newExePath string) {
 	exe, _ := os.Executable()
 
 	if runtime.GOOS == "windows" {
-		psCommand := fmt.Sprintf(
-			"Start-Sleep -Seconds 2; "+
-				"Remove-Item '%s' -Force; "+
-				"Rename-Item '%s' 'WinBox.exe'; "+
-				"Start-Process '%s'",
-			exe, newExePath, exe,
-		)
-		cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", psCommand)
-		cmd.Start()
+		exeDir := filepath.Dir(exe)
+		oldExePath := filepath.Join(exeDir, "WinBox.old.exe")
+		
+		os.Remove(oldExePath)
+		
+		err := os.Rename(exe, oldExePath)
+		if err == nil {
+			os.Rename(newExePath, exe)
+		}
+		
+		a.Restart()
 	} else {
 		shCommand := fmt.Sprintf(
 			"sleep 2; rm -f '%s'; mv '%s' '%s'; chmod +x '%s'; '%s' &",

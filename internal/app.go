@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
+
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -102,6 +102,15 @@ func (a *App) Startup(ctx context.Context) {
 	os.WriteFile(kernelLogPath, []byte(""), 0644)
 
 	a.appLogger.Info("Application started")
+	
+	go func() {
+		time.Sleep(2 * time.Second)
+		exe, err := os.Executable()
+		if err == nil {
+			oldExe := filepath.Join(filepath.Dir(exe), "WinBox.old.exe")
+			os.Remove(oldExe)
+		}
+	}()
 	
 	// Environment Cleanup: Ensure no zombie instances or stale system proxy settings exist
 	a.coreManager.KillZombieInstances()
@@ -205,15 +214,12 @@ func (a *App) Restart() {
 		return
 	}
 
-	// Use cmd to wait briefly, then launch new instance.
-	// This avoids PowerShell which is often flagged by antivirus software.
-	cmdCommand := fmt.Sprintf("ping 127.0.0.1 -n 2 > nul & start \"\" \"%s\"", exe)
-	cmd := exec.Command("cmd", "/c", cmdCommand)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: windows.CREATE_NO_WINDOW,
-	}
-	cmd.Start()
+	verbPtr, _ := syscall.UTF16PtrFromString("open")
+	filePtr, _ := syscall.UTF16PtrFromString(exe)
+	argsPtr, _ := syscall.UTF16PtrFromString("-delay-start")
+	cwdPtr, _ := syscall.UTF16PtrFromString(filepath.Dir(exe))
+
+	windows.ShellExecute(0, verbPtr, filePtr, argsPtr, cwdPtr, windows.SW_SHOWNORMAL)
 
 	// Quit current instance (OnShutdown will handle stopCore)
 	systray.Quit()
