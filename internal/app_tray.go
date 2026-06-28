@@ -96,6 +96,9 @@ func (a *App) StartTray() {
 
 // MinimizeToTray hides the window to system tray
 func (a *App) MinimizeToTray() {
+	if a.trafficMonitor != nil {
+		a.trafficMonitor.SetIPCPaused(true)
+	}
 	wailsRuntime.WindowHide(a.ctx)
 }
 
@@ -106,6 +109,9 @@ func (a *App) Minimize() {
 
 // Show shows and focuses the window
 func (a *App) Show() {
+	if a.trafficMonitor != nil {
+		a.trafficMonitor.SetIPCPaused(false)
+	}
 	wailsRuntime.WindowShow(a.ctx)
 	wailsRuntime.WindowUnminimise(a.ctx)
 	wailsRuntime.WindowSetAlwaysOnTop(a.ctx, true)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
-import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl } from './ui'
+import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
 
 import { useAppState } from '../composables/useAppState'
 import { useProfiles } from '../composables/useProfiles'
@@ -99,6 +99,27 @@ const handleEdit = (e: any) => {
   if (p) profilesState.editProfile(p.id, e)
 }
 
+const formattedUpdatedTime = computed(() => {
+  const updatedStr = profilesState.activeProfile.value?.updated
+  if (!updatedStr) return 'NEVER'
+  
+  const updatedDate = new Date(updatedStr)
+  if (isNaN(updatedDate.getTime())) return updatedStr
+
+  const now = new Date()
+  const diffSecs = Math.floor((now.getTime() - updatedDate.getTime()) / 1000)
+  const diffMins = Math.floor(diffSecs / 60)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffSecs < 60) return 'JUST NOW'
+  if (diffMins < 60) return `${diffMins} MIN${diffMins > 1 ? 'S' : ''} AGO`
+  if (diffHours < 24) return `${diffHours} HR${diffHours > 1 ? 'S' : ''} AGO`
+  if (diffDays < 7) return `${diffDays} DAY${diffDays > 1 ? 'S' : ''} AGO`
+  
+  return updatedStr.split(' ')[0]
+})
+
 const handleDelete = (e: any) => {
   const p = profilesState.activeProfile.value
   if (p) profilesState.deleteProfile(p.id, e)
@@ -172,7 +193,7 @@ onActivated(() => {
 <template>
   <div class="w-full h-full flex flex-col justify-center gap-6 relative px-6 py-6 items-center overflow-hidden">
     
-    <!-- ==================== TOP AREA: DISPLAY ==================== -->
+    <!-- ==================== TOP AREA: INFO ==================== -->
     <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
         
         <!-- Header: Status & Speed -->
@@ -216,17 +237,39 @@ onActivated(() => {
             </div>
           </div>
         </div>
+        
+        <!-- Placeholder for Speed Chart -->
+        <div class="w-full flex-1 min-h-0 relative bg-transparent pointer-events-none">
+          <WSpeedChart 
+            v-if="running"
+            :upload-speed="uploadSpeed"
+            :download-speed="downloadSpeed"
+          />
+        </div>
+    </div>
+
+    <!-- ==================== MIDDLE AREA: LOGS ==================== -->
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
+        
+        <!-- Header: Logs & Expand -->
+        <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
+            <span class="text-sm font-bold text-gray-400 tracking-wider">LOGS</span>
+          </div>
+          <!-- Maximize Button -->
+          <WButton 
+            variant="secondary"
+            size="sm"
+            class="w-7 !px-0"
+            icon="fas fa-expand text-[10px]"
+            @click="showLogModal = true"
+            title="Expand Logs"
+          />
+        </div>
 
         <!-- Inline Log Area (Seamless) -->
-        <div class="w-full flex-1 min-h-0 relative group bg-transparent">
-          <!-- Maximize Button -->
-          <button 
-            @click="showLogModal = true"
-            class="absolute top-3 right-3 w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10 backdrop-blur-md shadow-sm"
-          >
-            <i class="fas fa-expand text-[10px]"></i>
-          </button>
-          
+        <div class="w-full flex-1 min-h-0 relative bg-transparent">
           <!-- Log Content -->
           <div class="absolute inset-0">
             <WScrollArea height="100%" class="w-full px-6 pb-6 pt-0 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
@@ -239,81 +282,81 @@ onActivated(() => {
     <!-- ==================== BOTTOM AREA: CONTROLS ==================== -->
     <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative flex-1 min-h-0 z-20 justify-between">
       
-      <!-- Row 1: Profile Title & Add -->
-      <div class="flex justify-between items-center shrink-0">
-          <div class="flex items-center gap-3">
+      <!-- Row 1: Profile Title & Global Actions -->
+      <div class="flex items-center justify-between shrink-0 w-full gap-2">
+          <div class="flex items-center gap-2 justify-start">
             <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
             <span class="text-sm font-bold text-gray-400 tracking-wider">PROFILE</span>
           </div>
+          <!-- Global Action: ADD -->
+          <WButton 
+            variant="ghost" 
+            size="sm" 
+            class="w-7 !px-0 bg-white/5 hover:bg-white/10 rounded"
+            icon="fas fa-plus text-[10px]" 
+            @click="profilesState.showAddProfileModal.value = true"
+            :disabled="isProcessing"
+            title="ADD PROFILE"
+          />
+      </div>
+
+      <!-- Row 2: Profile Selection & Actions -->
+      <div v-if="profilesState.profiles.value.length > 0" class="flex gap-2 w-full mt-3">
+        <!-- Left: Dropdown -->
+        <div class="flex-1 min-w-0">
+          <WSelect
+            :modelValue="activeProfileName"
+            @update:modelValue="handleProfileChange"
+            :options="profileOptions"
+            :disabled="isProcessing"
+            class="w-full"
+          />
+        </div>
+
+        <!-- Right: Action Buttons -->
+        <div class="flex gap-2 shrink-0">
+          <!-- Update Button (with Date) -->
           <WButton 
             variant="secondary" 
             size="sm" 
-            icon="fas fa-plus" 
-            @click="profilesState.showAddProfileModal.value = true"
-            :disabled="isProcessing"
+            icon="fas fa-rotate" 
+            @click="profilesState.updateActive"
+            :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
+            :loading="profilesState.isUpdatingProfile.value"
+            title="UPDATE"
           >
-            ADD
+            {{ formattedUpdatedTime }}
           </WButton>
+
+          <!-- Edit -->
+          <WButton 
+            class="w-7 !px-0"
+            variant="secondary" 
+            size="sm"
+            icon="fas fa-pen" 
+            @click="handleEdit"
+            :disabled="isProcessing || !profilesState.activeProfile.value"
+            title="EDIT"
+          />
+
+          <!-- Delete -->
+          <WButton 
+            class="w-7 !px-0"
+            variant="danger" 
+            size="sm" 
+            icon="fas fa-trash" 
+            @click="handleDelete"
+            :disabled="isProcessing || !profilesState.activeProfile.value"
+            title="DELETE"
+          />
         </div>
+      </div>
 
-      <!-- Row 2 to 6: Configs -->
+      <!-- Row 3 to 4: Configs -->
       <template v-if="profilesState.profiles.value.length > 0">
-          
-          <!-- Row 2: Select & Date -->
-          <div class="flex gap-2 w-full">
-            <div class="w-2/3">
-              <WSelect
-                :modelValue="activeProfileName"
-                @update:modelValue="handleProfileChange"
-                :options="profileOptions"
-                :disabled="isProcessing"
-                class="w-full"
-              />
-            </div>
-            <div class="w-1/3 flex justify-end items-center">
-              <span class="text-[10px] text-gray-500 font-medium whitespace-nowrap text-right uppercase tracking-wide">
-                {{ profilesState.activeProfile.value?.updated || 'NEVER UPDATED' }}
-              </span>
-            </div>
-          </div>
 
-          <!-- Row 3: Buttons -->
-          <div class="flex gap-2 w-full pb-3 border-b border-white/[0.05]">
-            <WButton 
-              class="flex-1"
-              variant="secondary" 
-              size="sm" 
-              icon="fas fa-pen" 
-              @click="handleEdit"
-              :disabled="isProcessing || !profilesState.activeProfile.value"
-            >
-              EDIT
-            </WButton>
-            <WButton 
-              class="flex-1"
-              variant="secondary" 
-              size="sm" 
-              icon="fas fa-rotate" 
-              @click="profilesState.updateActive"
-              :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
-              :loading="profilesState.isUpdatingProfile.value"
-            >
-              UPDATE
-            </WButton>
-            <WButton 
-              class="flex-1"
-              variant="danger" 
-              size="sm" 
-              icon="fas fa-trash" 
-              @click="handleDelete"
-              :disabled="isProcessing || !profilesState.activeProfile.value"
-            >
-              DELETE
-            </WButton>
-          </div>
-
-          <!-- Row 5: Mode -->
-          <div class="flex gap-2 w-full pt-1">
+          <!-- Row 3: Mode -->
+          <div class="flex gap-2 w-full items-center">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
               <span class="text-xs font-bold text-gray-400 tracking-wider">MODE</span>

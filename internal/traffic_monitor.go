@@ -14,10 +14,11 @@ import (
 // TrafficMonitor monitors network traffic through Clash API WebSocket
 type TrafficMonitor struct {
 	ctx     context.Context
-	running bool
-	mu      sync.RWMutex
-	conn    *websocket.Conn
-	apiURL  string
+	running   bool
+	ipcPaused bool
+	mu        sync.RWMutex
+	conn      *websocket.Conn
+	apiURL    string
 }
 
 // TrafficData represents the traffic statistics from WebSocket
@@ -137,6 +138,13 @@ func (tm *TrafficMonitor) IsRunning() bool {
 	return tm.running
 }
 
+// SetIPCPaused pauses or resumes IPC event emission
+func (tm *TrafficMonitor) SetIPCPaused(paused bool) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.ipcPaused = paused
+}
+
 // readLoop continuously reads messages from WebSocket
 func (tm *TrafficMonitor) readLoop() {
 	for {
@@ -166,11 +174,17 @@ func (tm *TrafficMonitor) readLoop() {
 			continue
 		}
 
-		// Emit to frontend (data.Up and data.Down are already in bytes/second)
-		wailsRuntime.EventsEmit(tm.ctx, "traffic-update", map[string]int64{
-			"upload":   data.Up,
-			"download": data.Down,
-		})
+		// Emit to frontend if not paused
+		tm.mu.RLock()
+		paused := tm.ipcPaused
+		tm.mu.RUnlock()
+
+		if !paused {
+			wailsRuntime.EventsEmit(tm.ctx, "traffic-update", map[string]int64{
+				"upload":   data.Up,
+				"download": data.Down,
+			})
+		}
 	}
 
 	// Clean up
