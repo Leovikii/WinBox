@@ -69,8 +69,8 @@ func (tm *TrafficMonitor) Start() error {
 		var conn *websocket.Conn
 		var err error
 
-		// Retry connection up to 5 times
-		for i := 0; i < 5; i++ {
+		// Retry connection up to 60 times (1 minute) to allow for geoip.db downloading and firewall prompts on first run
+		for i := 0; i < 60; i++ {
 			tm.mu.RLock()
 			running := tm.running
 			tm.mu.RUnlock()
