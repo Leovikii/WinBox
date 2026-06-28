@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const buttonClasses = computed(() => {
   const classes = [
-    'rounded-md font-bold tracking-wide transition-all duration-200 active:scale-95',
+    'rounded font-bold tracking-wide transition-all duration-200 active:scale-95',
     'flex items-center justify-center gap-1.5'
   ]
 

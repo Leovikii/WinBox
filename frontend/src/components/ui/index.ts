@@ -12,9 +12,11 @@ import WExpandable from './WExpandable.vue'
 import WNavBar from './WNavBar.vue'
 import WScrollArea from './WScrollArea.vue'
 import WSegmentedControl from './WSegmentedControl.vue'
+import WSpeedChart from './WSpeedChart.vue'
 
 export {
   WButton,
+  WSpeedChart,
   WScrollArea,
   WIconButton,
   WInput,

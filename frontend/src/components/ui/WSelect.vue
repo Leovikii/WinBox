@@ -87,7 +87,7 @@ watch(isOpen, (newVal) => {
 const buttonClasses = computed(() => {
   const classes = [
     'w-full relative bg-[#242424] text-[11px] text-gray-300 border border-[#3a3a3a]',
-    'rounded-lg px-3 h-7 outline-none text-center font-bold cursor-pointer',
+    'rounded px-3 h-7 outline-none text-center font-bold cursor-pointer',
     'transition-colors duration-300 flex items-center justify-between gap-2',
     'hover:bg-[#222] hover:border-[#444]'
   ]
@@ -105,7 +105,7 @@ const buttonClasses = computed(() => {
 
 const dropdownClasses = computed(() => {
   const classes = [
-    'fixed z-[9999] bg-[#242424] border border-[#3a3a3a] rounded-lg overflow-hidden',
+    'fixed z-[9999] bg-[#242424] border border-[#3a3a3a] rounded overflow-hidden',
     'shadow-2xl',
     'transition-all duration-300 origin-top'
   ]

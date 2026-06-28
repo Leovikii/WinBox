@@ -36,7 +36,7 @@ const handleClose = () => {
 
 const modalClasses = computed(() => {
   const classes = [
-    'mica-card border border-[#333] rounded-xl',
+    'mica-card border border-[#333] rounded-lg',
     'shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden w-modal-container'
   ]
 

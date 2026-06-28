@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const itemClasses = computed(() => {
   const classes = [
-    'p-3 rounded-xl border flex items-center transition-all duration-300 mb-2 last:mb-0'
+    'p-3 rounded border flex items-center transition-all duration-300 mb-2 last:mb-0'
   ]
 
   if (props.clickable) classes.push('cursor-pointer')

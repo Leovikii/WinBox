@@ -17,7 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const buttonClasses = computed(() => {
   const classes = [
-    'rounded-md flex items-center justify-center transition-all duration-200 active:scale-95'
+    'rounded flex items-center justify-center transition-all duration-200 active:scale-95'
   ]
 
   if (props.size === 'sm') classes.push('w-7 h-7 text-[10px]')
