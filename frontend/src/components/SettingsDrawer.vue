@@ -68,6 +68,7 @@ const showThemeModal = ref(false)
 const customColor = ref('#2563eb')
 
 const handleOpenThemeModal = () => {
+  customColor.value = accentColor.value
   showThemeModal.value = true
 }
 
@@ -77,7 +78,6 @@ const handleCloseThemeModal = () => {
 
 const handleSelectPresetColor = (color: string) => {
   customColor.value = color
-  setTheme(color)
 }
 
 const handleCustomColorChange = (event: Event) => {
@@ -170,7 +170,7 @@ const openGitHub = () => {
               size="sm"
               icon="fas fa-rotate"
               @click="checkProgramUpdate()"
-              class="w-28 justify-center"
+              class="min-w-[5rem]"
             >
               CHECK
             </WButton>
@@ -184,7 +184,7 @@ const openGitHub = () => {
             size="sm"
             icon="fa-brands fa-github"
             @click="openGitHub"
-            class="w-28 justify-center"
+            class="min-w-[5rem]"
           >
             OPEN
           </WButton>
@@ -208,7 +208,7 @@ const openGitHub = () => {
               { value: 'tray', label: 'MINIMIZE' },
               { value: 'quit', label: 'QUIT' }
             ]"
-            class="w-28"
+            class="w-32"
           />
         </div>
 
@@ -273,7 +273,7 @@ const openGitHub = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-rotate"
-              :class="[!coreExists ? 'border-yellow-600 text-yellow-500' : '', 'w-28 justify-center']"
+              :class="[!coreExists ? 'border-yellow-600 text-yellow-500' : '', 'min-w-[5rem]']"
               @click="checkUpdate()"
             >
               {{ coreExists ? "CHECK" : "DOWNLOAD" }}
@@ -301,13 +301,13 @@ const openGitHub = () => {
               { value: 'on', label: 'ON' },
               { value: 'off', label: 'OFF' }
             ]"
-            class="w-28"
+            class="w-32"
           />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="w-28 justify-center">
+          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="min-w-[5rem]">
             <div class="flex items-center gap-2">
               <i class="fas fa-palette" :style="{ color: accentColor }"></i>
               <span>SELECT</span>
@@ -325,7 +325,7 @@ const openGitHub = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Inbound Config</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="w-28 justify-center">EDIT</WButton>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">EDIT</WButton>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -349,7 +349,7 @@ const openGitHub = () => {
               { value: 'warning', label: 'WARNING' },
               { value: 'error', label: 'ERROR' }
             ]"
-            class="w-28"
+            class="w-32"
           />
         </div>
       </WCard>
@@ -369,13 +369,13 @@ const openGitHub = () => {
         <WExpandable :expanded="mirrorEnabled">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
             <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="w-28 justify-center">EDIT</WButton>
+            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="min-w-[5rem]">EDIT</WButton>
           </div>
         </WExpandable>
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="w-28 justify-center">
+          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="min-w-[5rem]">
             MANAGE
           </WButton>
         </div>
@@ -481,7 +481,7 @@ const openGitHub = () => {
       <div>
         <h4 class="text-xs font-bold text-gray-400 mb-3">PRESET COLORS</h4>
         <WColorPicker
-          :model-value="accentColor"
+          :model-value="customColor"
           @update:model-value="handleSelectPresetColor"
           :colors="[
             { name: 'Blue', value: '#2563eb' },
