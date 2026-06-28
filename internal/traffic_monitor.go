@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,19 +45,13 @@ func (tm *TrafficMonitor) Start() error {
 		return fmt.Errorf("traffic monitor already running")
 	}
 
-	// Replace 0.0.0.0 with 127.0.0.1 for client connection
+	// Parse and construct WebSocket URL safely
 	wsURL := tm.apiURL
-	if len(wsURL) > 14 && wsURL[:14] == "http://0.0.0.0" {
-		wsURL = "http://127.0.0.1" + wsURL[14:]
-	}
-
-	// Convert http:// to ws://
-	if len(wsURL) > 7 && wsURL[:7] == "http://" {
-		wsURL = "ws://" + wsURL[7:]
-	} else if len(wsURL) > 8 && wsURL[:8] == "https://" {
-		wsURL = "wss://" + wsURL[8:]
-	}
-	wsURL = wsURL + "/traffic"
+	wsURL = strings.Replace(wsURL, "http://0.0.0.0", "http://127.0.0.1", 1)
+	wsURL = strings.Replace(wsURL, "https://0.0.0.0", "https://127.0.0.1", 1)
+	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
+	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
+	wsURL = strings.TrimSuffix(wsURL, "/") + "/traffic"
 
 	// Mark as running before starting goroutine to avoid race
 	tm.running = true
@@ -168,22 +163,19 @@ func (tm *TrafficMonitor) readLoop() {
 			break
 		}
 
-		// Parse traffic data
-		var data TrafficData
-		if err := json.Unmarshal(message, &data); err != nil {
-			continue
-		}
-
-		// Emit to frontend if not paused
+		// Only parse and emit if frontend is visible
 		tm.mu.RLock()
 		paused := tm.ipcPaused
 		tm.mu.RUnlock()
 
 		if !paused {
-			wailsRuntime.EventsEmit(tm.ctx, "traffic-update", map[string]int64{
-				"upload":   data.Up,
-				"download": data.Down,
-			})
+			var data TrafficData
+			if err := json.Unmarshal(message, &data); err == nil {
+				wailsRuntime.EventsEmit(tm.ctx, "traffic-update", map[string]int64{
+					"upload":   data.Up,
+					"download": data.Down,
+				})
+			}
 		}
 	}
 
