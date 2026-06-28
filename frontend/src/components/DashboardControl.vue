@@ -289,6 +289,7 @@ onActivated(() => {
           </div>
           <!-- Global Action: ADD -->
           <WButton 
+            v-if="profilesState.profiles.value.length > 0"
             variant="ghost" 
             size="sm" 
             class="w-7 !px-0 bg-white/5 hover:bg-white/10 rounded"
@@ -349,6 +350,19 @@ onActivated(() => {
             title="DELETE"
           />
         </div>
+      </div>
+
+      <!-- Empty Profile State (Dashed Button) -->
+      <div v-else class="flex-1 w-full mt-3">
+        <button
+          @click="profilesState.showAddProfileModal.value = true"
+          class="w-full h-full rounded border-2 border-dashed border-[#333] hover:border-[var(--accent-color)] hover:bg-[var(--accent-color)]/5 flex items-center justify-center text-gray-500 hover:text-[var(--accent-color)] transition-all duration-300 group cursor-pointer"
+        >
+          <div class="flex items-center gap-2">
+            <i class="fas fa-plus text-[10px] group-hover:scale-110 transition-transform"></i>
+            <span class="text-xs font-bold tracking-wider">CREATE NEW PROFILE</span>
+          </div>
+        </button>
       </div>
     </div>
 
@@ -423,10 +437,9 @@ onActivated(() => {
       </template>
 
       <!-- Empty State -->
-      <div v-else class="flex-1 flex flex-col items-center justify-center text-center opacity-40 select-none">
-        <i class="fa-solid fa-ghost text-4xl mb-3"></i>
-        <p class="text-xs font-medium tracking-wide">No profiles yet.</p>
-        <p class="text-[10px] mt-1">Click + ADD to start your journey.</p>
+      <div v-else class="flex-1 flex flex-col items-center justify-center text-center opacity-30 select-none">
+        <i class="fa-solid fa-lock text-2xl mb-3 text-gray-400"></i>
+        <p class="text-xs font-bold tracking-widest text-gray-400 uppercase">Profile Required</p>
       </div>
       
     </div>
