@@ -15,6 +15,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/sys/windows"
 )
@@ -257,6 +259,23 @@ func (cm *CoreManager) GetLocalVersion() string {
 	return "Unknown"
 }
 
+// CheckConfig validates a configuration file using sing-box check
+func (cm *CoreManager) CheckConfig(configPath string) error {
+	coreExe := filepath.Join(cm.appDir, "data", "core", "sing-box.exe")
+	
+	if _, err := os.Stat(coreExe); os.IsNotExist(err) {
+		return fmt.Errorf("kernel not installed")
+	}
+
+	cmd := exec.Command(coreExe, "check", "-c", configPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("config check failed: %s", string(output))
+	}
+	
+	return nil
+}
+
 // processConfig processes the configuration file and returns API URL
 func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, enableProxy bool, tunConfig, mixedConfig string, ipv6Enabled bool, logLevel string, logToFile bool) (string, error) {
 	content, err := os.ReadFile(srcPath)
@@ -264,13 +283,8 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 		return "", err
 	}
 
-	var config map[string]interface{}
-	if err := json.Unmarshal(content, &config); err != nil {
-		return "", err
-	}
-
 	// Extract API URL before modifying config
-	apiURL := cm.extractAPIURL(config)
+	apiURL := cm.extractAPIURL(content)
 
 	// Process inbounds
 	newInbounds := make([]interface{}, 0)
@@ -315,9 +329,10 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 		}
 	}
 
-	config["inbounds"] = newInbounds
-
-
+	content, err = sjson.SetBytes(content, "inbounds", newInbounds)
+	if err != nil {
+		return "", err
+	}
 
 	// Process log configuration
 	logConfig := map[string]interface{}{
@@ -327,20 +342,31 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 	if logToFile {
 		logConfig["output"] = "box.log"
 	}
-	config["log"] = logConfig
 
-	newContent, err := json.MarshalIndent(config, "", "  ")
+	content, err = sjson.SetBytes(content, "log", logConfig)
 	if err != nil {
 		return "", err
 	}
 
 	os.MkdirAll(filepath.Dir(dstPath), 0755)
 
-	if err := os.WriteFile(dstPath, newContent, 0644); err != nil {
+	if err := os.WriteFile(dstPath, content, 0644); err != nil {
 		return "", err
 	}
 
 	return apiURL, nil
+}
+
+// extractAPIURL extracts the Clash API URL from config
+func (cm *CoreManager) extractAPIURL(content []byte) string {
+	externalController := gjson.GetBytes(content, "experimental.clash_api.external_controller").String()
+	if externalController != "" {
+		if externalController[0] == ':' {
+			return "http://127.0.0.1" + externalController
+		}
+		return "http://" + externalController
+	}
+	return "http://127.0.0.1:9090" // default fallback
 }
 
 // monitorProcess monitors the core process and emits events
@@ -428,21 +454,4 @@ func (cm *CoreManager) WaitForReady(timeout time.Duration) bool {
 	}
 	
 	return false
-}
-
-// extractAPIURL extracts the Clash API URL from config
-func (cm *CoreManager) extractAPIURL(config map[string]interface{}) string {
-	// Check for experimental.clash_api configuration
-	if experimental, ok := config["experimental"].(map[string]interface{}); ok {
-		if clashAPI, ok := experimental["clash_api"].(map[string]interface{}); ok {
-			if externalController, ok := clashAPI["external_controller"].(string); ok && externalController != "" {
-				// Format: "127.0.0.1:9090" or ":9090"
-				if externalController[0] == ':' {
-					return "http://127.0.0.1" + externalController
-				}
-				return "http://" + externalController
-			}
-		}
-	}
-	return ""
 }

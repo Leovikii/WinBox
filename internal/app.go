@@ -91,7 +91,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.httpClient = NewHTTPClient()
 	a.storage = NewStorage(filepath.Join(appDir, "data", "config"))
 	a.coreManager = NewCoreManager(appDir, ctx)
-	a.profileManager = NewProfileManager(a.storage, a.httpClient, appDir)
+	a.profileManager = NewProfileManager(a.storage, a.httpClient, a.coreManager, appDir)
 	a.settingsManager = NewSettingsManager(a.storage)
 	a.uwpLoopbackManager = NewUWPLoopbackManager()
 	a.appLogger = NewAppLogger(appDir)

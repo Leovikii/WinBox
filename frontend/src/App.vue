@@ -179,6 +179,7 @@ const handleRestartCore = async () => {
               @switch-mode="handleSwitchMode"
               @open-dashboard="Backend.OpenDashboard"
               @restart-core="handleRestartCore"
+              @open-settings="showSettings = true"
             />
           </WScrollArea>
 
