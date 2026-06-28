@@ -109,7 +109,7 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Program Version</span>
+          <span class="text-xs font-bold text-gray-400">App Version</span>
           <div class="flex items-center gap-3">
             <span class="text-xs text-gray-500 font-mono">{{ programLocalVer }}</span>
             <WButton
@@ -178,42 +178,7 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">GitHub Repository</span>
-          <WButton
-            variant="secondary"
-            size="sm"
-            icon="fa-brands fa-github"
-            @click="openGitHub"
-            class="min-w-[5rem]"
-          >
-            OPEN
-          </WButton>
-        </div>
-      </WCard>
-
-      <!-- General Section -->
-      <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4 justify-start">
-          <i class="fa-solid fa-cog text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">General</h3>
-        </div>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Close Window Behavior</span>
-          <WSelect
-            :model-value="closeBehavior"
-            @update:model-value="updateCloseBehavior($event as string)"
-            :options="[
-              { value: 'ask', label: 'ASK' },
-              { value: 'tray', label: 'MINIMIZE' },
-              { value: 'quit', label: 'QUIT' }
-            ]"
-            class="w-32"
-          />
-        </div>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Local Kernel</span>
+          <span class="text-xs font-bold text-gray-400">Kernel Version</span>
           <div class="flex items-center gap-3">
             <span class="text-xs text-gray-500 font-mono">{{ localVer }}</span>
             <WButton
@@ -279,6 +244,41 @@ const openGitHub = () => {
               {{ coreExists ? "CHECK" : "DOWNLOAD" }}
             </WButton>
           </div>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">GitHub Repository</span>
+          <WButton
+            variant="secondary"
+            size="sm"
+            icon="fa-brands fa-github"
+            @click="openGitHub"
+            class="min-w-[5rem]"
+          >
+            OPEN
+          </WButton>
+        </div>
+      </WCard>
+
+      <!-- General Section -->
+      <WCard variant="mica" padding="lg">
+        <div class="flex items-center gap-2 mb-4 justify-start">
+          <i class="fa-solid fa-cog text-[var(--accent-color)] w-4 text-center"></i>
+          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">General</h3>
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Close Window Behavior</span>
+          <WSelect
+            :model-value="closeBehavior"
+            @update:model-value="updateCloseBehavior($event as string)"
+            :options="[
+              { value: 'ask', label: 'ASK' },
+              { value: 'tray', label: 'MINIMIZE' },
+              { value: 'quit', label: 'QUIT' }
+            ]"
+            class="w-32"
+          />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">

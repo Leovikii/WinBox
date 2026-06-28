@@ -133,6 +133,13 @@ const fullLogContainer = ref<any>(null)
 const copyState = ref("COPY")
 let logInterval: any = null
 
+const isAtBottom = (container: any) => {
+  if (!container || !container.$el) return true
+  const el = container.$el
+  // Within 50px is considered bottom
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= 50
+}
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
@@ -140,12 +147,24 @@ const scrollToBottom = () => {
   })
 }
 
+const openFullLog = () => {
+  showLogModal.value = true
+  scrollToBottom()
+}
+
 const loadAppLog = async () => {
   try {
     const content = await Backend.GetAppLog()
     if (content !== appLogContent.value) {
+      const inlineAtBottom = isAtBottom(inlineLogContainer.value)
+      const fullAtBottom = isAtBottom(fullLogContainer.value)
+      
       appLogContent.value = content
-      scrollToBottom()
+      
+      nextTick(() => {
+        if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
+        if (fullAtBottom && fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
+      })
     }
   } catch (error) {
     appLogContent.value = "> Failed to load app log"
@@ -263,7 +282,7 @@ onActivated(() => {
             size="sm"
             class="w-7 !px-0"
             icon="fas fa-expand text-[10px]"
-            @click="showLogModal = true"
+            @click="openFullLog"
             title="Expand Logs"
           />
         </div>
