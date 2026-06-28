@@ -247,6 +247,11 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
+          <span class="text-xs font-bold text-gray-400">Pre-release Updates</span>
+          <WSwitch :model-value="preRelease" @update:model-value="handlePreReleaseToggleWrapper()" />
+        </div>
+
+        <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">GitHub Repository</span>
           <WButton
             variant="secondary"
@@ -279,11 +284,6 @@ const openGitHub = () => {
             ]"
             class="w-28"
           />
-        </div>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Pre-release Updates</span>
-          <WSwitch :model-value="preRelease" @update:model-value="handlePreReleaseToggleWrapper()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
