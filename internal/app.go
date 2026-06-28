@@ -89,7 +89,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	// Initialize managers
 	a.httpClient = NewHTTPClient()
-	a.storage = NewStorage(filepath.Join(appDir, "data", "meta.json"))
+	a.storage = NewStorage(filepath.Join(appDir, "data", "config"))
 	a.coreManager = NewCoreManager(appDir, ctx)
 	a.profileManager = NewProfileManager(a.storage, a.httpClient, appDir)
 	a.settingsManager = NewSettingsManager(a.storage)
