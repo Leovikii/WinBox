@@ -277,7 +277,7 @@ const openGitHub = () => {
               { value: 'tray', label: 'MINIMIZE' },
               { value: 'quit', label: 'QUIT' }
             ]"
-            class="w-32"
+            class="w-28"
           />
         </div>
 
@@ -301,7 +301,7 @@ const openGitHub = () => {
               { value: 'on', label: 'ON' },
               { value: 'off', label: 'OFF' }
             ]"
-            class="w-32"
+            class="w-28"
           />
         </div>
 
@@ -349,7 +349,7 @@ const openGitHub = () => {
               { value: 'warning', label: 'WARNING' },
               { value: 'error', label: 'ERROR' }
             ]"
-            class="w-32"
+            class="w-28"
           />
         </div>
       </WCard>
