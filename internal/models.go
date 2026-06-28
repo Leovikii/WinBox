@@ -41,6 +41,29 @@ type MetaData struct {
 	Profiles        []Profile `json:"profiles"`
 }
 
+// GlobalSettings represents user preferences
+type GlobalSettings struct {
+	Mirror          string `json:"mirror"`
+	MirrorEnabled   bool   `json:"mirror_enabled"`
+	AutoConnect     *bool  `json:"auto_connect,omitempty"`
+	AutoConnectState string `json:"auto_connect_state"`
+	StartOnBoot     bool   `json:"start_on_boot"`
+	CloseBehavior   string `json:"close_behavior"`
+	ThemeMode       string `json:"theme_mode"`
+	AccentColor     string `json:"accent_color"`
+	IPv6Enabled     bool   `json:"ipv6_enabled"`
+	LogLevel        string `json:"log_level"`
+	LogToFile       bool   `json:"log_to_file"`
+	PreRelease      bool   `json:"pre_release"`
+}
+
+// AppState represents UI runtime state
+type AppState struct {
+	ActiveID string `json:"active_id"`
+	TunMode  bool   `json:"tun_mode"`
+	SysProxy bool   `json:"sys_proxy"`
+}
+
 // ReleaseAsset represents a GitHub release asset
 type ReleaseAsset struct {
 	Name               string `json:"name"`

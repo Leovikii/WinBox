@@ -49,7 +49,9 @@ const calculateThumb = () => {
   // Scroll ratio
   const scrollRatio = scrollTop / (scrollHeight - clientHeight)
   const visualTop = scrollRatio * (clientHeight - thumbHeight.value)
-  thumbTop.value = scrollTop + visualTop
+  
+  // Prevent floating point rounding from extending the scrollHeight, causing infinite loops
+  thumbTop.value = Math.min(scrollTop + visualTop, scrollHeight - thumbHeight.value - 1)
 }
 
 const onScroll = () => {

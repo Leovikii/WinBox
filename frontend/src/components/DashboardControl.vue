@@ -34,6 +34,7 @@ const emit = defineEmits<{
   'switch-mode': [{ tunMode: boolean, sysProxy: boolean }]
   'open-dashboard': []
   'restart-core': []
+  'open-settings': []
 }>()
 
 const formatSpeed = (bytesPerSecond: number): string => {
@@ -133,6 +134,13 @@ const fullLogContainer = ref<any>(null)
 const copyState = ref("COPY")
 let logInterval: any = null
 
+const isAtBottom = (container: any) => {
+  if (!container || !container.$el) return true
+  const el = container.$el
+  // Within 50px is considered bottom
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= 50
+}
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
@@ -140,12 +148,24 @@ const scrollToBottom = () => {
   })
 }
 
+const openFullLog = () => {
+  showLogModal.value = true
+  scrollToBottom()
+}
+
 const loadAppLog = async () => {
   try {
     const content = await Backend.GetAppLog()
     if (content !== appLogContent.value) {
+      const inlineAtBottom = isAtBottom(inlineLogContainer.value)
+      const fullAtBottom = isAtBottom(fullLogContainer.value)
+      
       appLogContent.value = content
-      scrollToBottom()
+      
+      nextTick(() => {
+        if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
+        if (fullAtBottom && fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
+      })
     }
   } catch (error) {
     appLogContent.value = "> Failed to load app log"
@@ -205,15 +225,16 @@ onActivated(() => {
               <!-- Ambient background bloom -->
               <div 
                 class="absolute inset-0 scale-[3] blur-[6px] transition-opacity duration-1000 pointer-events-none"
-                :class="{'opacity-40': running || getStatusText.includes('ING'), 'opacity-0': !running && !getStatusText.includes('ING')}"
+                :class="{'opacity-40': running || ['STARTING...', 'STOPPING...'].includes(getStatusText), 'opacity-0': !running && !['STARTING...', 'STOPPING...'].includes(getStatusText)}"
                 style="background-color: currentColor;"
               ></div>
               <!-- Core Icon -->
               <i class="fas text-[11px] relative z-10 transition-all duration-500" 
                  :class="{
-                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': getStatusText.includes('ING'),
-                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !getStatusText.includes('ING'),
-                   'fa-power-off opacity-60': !running && !getStatusText.includes('ING')
+                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['STARTING...', 'STOPPING...'].includes(getStatusText),
+                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['STARTING...', 'STOPPING...'].includes(getStatusText),
+                   'fa-exclamation-triangle': getStatusText === 'WARNING',
+                   'fa-power-off opacity-60': !running && !['STARTING...', 'STOPPING...'].includes(getStatusText) && getStatusText !== 'WARNING'
                  }">
               </i>
             </div>
@@ -263,7 +284,7 @@ onActivated(() => {
             size="sm"
             class="w-7 !px-0"
             icon="fas fa-expand text-[10px]"
-            @click="showLogModal = true"
+            @click="openFullLog"
             title="Expand Logs"
           />
         </div>
@@ -281,26 +302,27 @@ onActivated(() => {
 
     <!-- ==================== AREA 3: PROFILE ==================== -->
     <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
-      <!-- Row 1: Profile Title & Global Actions -->
-      <div class="flex items-center justify-between shrink-0 w-full gap-2">
-          <div class="flex items-center gap-2 justify-start">
-            <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-sm font-bold text-gray-400 tracking-wider">PROFILE</span>
-          </div>
-          <!-- Global Action: ADD -->
-          <WButton 
-            variant="ghost" 
-            size="sm" 
-            class="w-7 !px-0 bg-white/5 hover:bg-white/10 rounded"
-            icon="fas fa-plus text-[10px]" 
-            @click="profilesState.showAddProfileModal.value = true"
-            :disabled="isProcessing"
-            title="ADD PROFILE"
-          />
-      </div>
+      <template v-if="profilesState.profiles.value.length > 0">
+        <!-- Row 1: Profile Title & Global Actions -->
+        <div class="flex items-center justify-between shrink-0 w-full gap-2">
+            <div class="flex items-center gap-2 justify-start">
+              <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
+              <span class="text-sm font-bold text-gray-400 tracking-wider">PROFILE</span>
+            </div>
+            <!-- Global Action: ADD -->
+            <WButton 
+              variant="ghost" 
+              size="sm" 
+              class="w-7 !px-0 bg-white/5 hover:bg-white/10 rounded"
+              icon="fas fa-plus text-[10px]" 
+              @click="profilesState.showAddProfileModal.value = true"
+              :disabled="isProcessing"
+              title="ADD PROFILE"
+            />
+        </div>
 
-      <!-- Row 2: Profile Selection & Actions -->
-      <div v-if="profilesState.profiles.value.length > 0" class="flex gap-2 w-full mt-3">
+        <!-- Row 2: Profile Selection & Actions -->
+        <div class="flex gap-2 w-full mt-3">
         <!-- Left: Dropdown -->
         <div class="flex-1 min-w-0">
           <WSelect
@@ -349,6 +371,21 @@ onActivated(() => {
             title="DELETE"
           />
         </div>
+      </div>
+      </template>
+
+      <!-- Empty Profile State -->
+      <div v-else class="flex-1 flex flex-col items-center justify-center text-center select-none" :class="!coreExists ? 'opacity-30' : 'opacity-100'">
+        <i class="fa-solid fa-server text-2xl mb-3 text-gray-400"></i>
+        <p class="text-xs font-bold tracking-widest text-gray-400 uppercase" :class="coreExists ? 'mb-4' : ''">No Profile Found</p>
+        <WButton 
+          v-if="coreExists"
+          variant="secondary" 
+          size="sm" 
+          @click="profilesState.showAddProfileModal.value = true"
+        >
+          ADD PROFILE
+        </WButton>
       </div>
     </div>
 
@@ -423,10 +460,16 @@ onActivated(() => {
       </template>
 
       <!-- Empty State -->
-      <div v-else class="flex-1 flex flex-col items-center justify-center text-center opacity-40 select-none">
-        <i class="fa-solid fa-ghost text-4xl mb-3"></i>
-        <p class="text-xs font-medium tracking-wide">No profiles yet.</p>
-        <p class="text-[10px] mt-1">Click + ADD to start your journey.</p>
+      <div v-else class="flex-1 flex flex-col items-center justify-center text-center select-none" :class="!coreExists ? 'opacity-100' : 'opacity-30'">
+        <template v-if="!coreExists">
+          <i class="fa-solid fa-download text-2xl mb-3 text-gray-400"></i>
+          <p class="text-xs font-bold tracking-widest text-gray-400 uppercase mb-4">Kernel Missing</p>
+          <WButton variant="secondary" size="sm" @click="emit('open-settings')">INSTALL KERNEL</WButton>
+        </template>
+        <template v-else>
+          <i class="fa-solid fa-lock text-2xl mb-3 text-gray-400"></i>
+          <p class="text-xs font-bold tracking-widest text-gray-400 uppercase">Profile Required</p>
+        </template>
       </div>
       
     </div>

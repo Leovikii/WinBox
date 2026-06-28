@@ -14,14 +14,16 @@ import (
 type ProfileManager struct {
 	storage    *Storage
 	httpClient *HTTPClient
+	coreManager *CoreManager
 	appDir     string
 }
 
 // NewProfileManager creates a new profile manager
-func NewProfileManager(storage *Storage, httpClient *HTTPClient, appDir string) *ProfileManager {
+func NewProfileManager(storage *Storage, httpClient *HTTPClient, coreManager *CoreManager, appDir string) *ProfileManager {
 	return &ProfileManager{
 		storage:    storage,
 		httpClient: httpClient,
+		coreManager: coreManager,
 		appDir:     appDir,
 	}
 }
@@ -39,16 +41,31 @@ func (pm *ProfileManager) Add(name, url string) error {
 	defer resp.Body.Close()
 
 	id := uuid.New().String()
-	savePath := filepath.Join(pm.appDir, "data", "profiles", id+".json")
+	realPath := filepath.Join(pm.appDir, "data", "profiles", id+".json")
+	tmpPath := realPath + ".tmp"
 
-	out, err := os.Create(savePath)
+	os.MkdirAll(filepath.Dir(realPath), 0755)
+
+	out, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("create file failed: %w", err)
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
+		out.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("copy failed: %w", err)
+	}
+	out.Close()
+
+	if err := pm.coreManager.CheckConfig(tmpPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("invalid profile config: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, realPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("save profile failed: %w", err)
 	}
 
 	meta, err := pm.storage.LoadMeta()
@@ -61,7 +78,7 @@ func (pm *ProfileManager) Add(name, url string) error {
 		ID:      id,
 		Name:    name,
 		Url:     url,
-		Path:    savePath,
+		Path:    realPath,
 		Updated: now,
 	})
 
@@ -148,15 +165,28 @@ func (pm *ProfileManager) Update() error {
 	defer resp.Body.Close()
 
 	realPath := filepath.Join(pm.appDir, "data", "profiles", target.ID+".json")
+	tmpPath := realPath + ".tmp"
 
-	out, err := os.Create(realPath)
+	out, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("create file failed: %w", err)
 	}
-	defer out.Close()
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
+		out.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("copy failed: %w", err)
+	}
+	out.Close()
+
+	if err := pm.coreManager.CheckConfig(tmpPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("invalid profile config: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, realPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("save profile failed: %w", err)
 	}
 
 	target.Updated = time.Now().Format("2006-01-02 15:04")
