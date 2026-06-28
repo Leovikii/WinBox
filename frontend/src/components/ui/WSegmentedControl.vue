@@ -1,12 +1,12 @@
 <template>
   <div 
-    class="bg-[#151515] rounded-lg p-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-[#2a2a2a] select-none h-9"
+    class="bg-[#151515] rounded p-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-[#2a2a2a] select-none h-9"
     :class="[disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : '']"
   >
     <div class="relative w-full h-full flex">
       <!-- Sliding Indicator -->
       <div 
-        class="absolute top-0 bottom-0 rounded-md bg-[#2d2d2d] border border-white/5 shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-300 ease-out"
+        class="absolute top-0 bottom-0 rounded-sm bg-[#2d2d2d] border border-white/5 shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-300 ease-out"
         :style="indicatorStyle"
       ></div>
 
@@ -16,7 +16,7 @@
         :key="option.value"
         type="button"
         @click="selectOption(option.value)"
-        class="relative flex-1 flex items-center justify-center z-10 transition-colors duration-200 rounded-md"
+        class="relative flex-1 flex items-center justify-center z-10 transition-colors duration-200 rounded-sm"
         :class="[
           modelValue === option.value 
             ? 'text-white font-bold text-shadow-sm' 

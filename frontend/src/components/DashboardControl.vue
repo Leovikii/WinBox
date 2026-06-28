@@ -191,13 +191,13 @@ onActivated(() => {
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col justify-center gap-6 relative px-6 py-6 items-center overflow-hidden">
+  <div class="w-full h-full grid grid-rows-4 gap-6 relative px-6 py-6 justify-items-center items-stretch overflow-hidden">
     
     <!-- ==================== TOP AREA: INFO ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
         
         <!-- Header: Status & Speed -->
-        <div class="shrink-0 flex justify-between items-center p-6 bg-transparent">
+        <div class="shrink-0 flex justify-between items-center bg-transparent" :class="running ? 'pb-2' : ''">
           <!-- Left: Icon + Status -->
           <div class="flex items-center gap-3" :style="getStatusStyle">
             <!-- Icon with Hardware LED Bloom -->
@@ -249,7 +249,7 @@ onActivated(() => {
     </div>
 
     <!-- ==================== MIDDLE AREA: LOGS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative flex-1 min-h-0 z-10 overflow-hidden">
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 overflow-hidden">
         
         <!-- Header: Logs & Expand -->
         <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
@@ -279,9 +279,8 @@ onActivated(() => {
         </div>
     </div>
 
-    <!-- ==================== BOTTOM AREA: CONTROLS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative flex-1 min-h-0 z-20 justify-between">
-      
+    <!-- ==================== AREA 3: PROFILE ==================== -->
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
       <!-- Row 1: Profile Title & Global Actions -->
       <div class="flex items-center justify-between shrink-0 w-full gap-2">
           <div class="flex items-center gap-2 justify-start">
@@ -351,8 +350,10 @@ onActivated(() => {
           />
         </div>
       </div>
+    </div>
 
-      <!-- Row 3 to 4: Configs -->
+    <!-- ==================== AREA 4: CORE CONTROLS ==================== -->
+    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
       <template v-if="profilesState.profiles.value.length > 0">
 
           <!-- Row 3: Mode -->

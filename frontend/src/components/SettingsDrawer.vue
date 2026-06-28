@@ -103,9 +103,9 @@ const openGitHub = () => {
 
       <!-- About Section -->
       <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-info-circle text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">About</h3>
+        <div class="flex items-center gap-2 mb-4 justify-start">
+          <i class="fa-solid fa-info-circle text-[var(--accent-color)] w-4 text-center"></i>
+          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">About</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -193,9 +193,9 @@ const openGitHub = () => {
 
       <!-- General Section -->
       <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-cog text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">General</h3>
+        <div class="flex items-center gap-2 mb-4 justify-start">
+          <i class="fa-solid fa-cog text-[var(--accent-color)] w-4 text-center"></i>
+          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">General</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -318,9 +318,9 @@ const openGitHub = () => {
 
       <!-- Config Override Section -->
       <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-file-code text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Config Override</h3>
+        <div class="flex items-center gap-2 mb-4 justify-start">
+          <i class="fa-solid fa-file-code text-[var(--accent-color)] w-4 text-center"></i>
+          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Config Override</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -356,9 +356,9 @@ const openGitHub = () => {
 
       <!-- Network Section -->
       <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fa-solid fa-network-wired text-gray-500 text-xs"></i>
-          <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Network</h3>
+        <div class="flex items-center gap-2 mb-4 justify-start">
+          <i class="fa-solid fa-network-wired text-[var(--accent-color)] w-4 text-center"></i>
+          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Network</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">

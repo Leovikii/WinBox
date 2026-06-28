@@ -23,7 +23,7 @@ const emit = defineEmits<{
 
 const inputClasses = computed(() => {
   const classes = [
-    'w-full bg-[#050505] border rounded-xl px-4 py-3 text-xs',
+    'w-full bg-[#050505] border rounded px-4 py-3 text-xs',
     'focus:outline-none transition-all'
   ]
 
