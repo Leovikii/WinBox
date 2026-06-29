@@ -285,9 +285,9 @@ const openGitHub = () => {
             :model-value="autoConnectState"
             @update:model-value="handleAutoConnectChange($event)"
             :options="[
-              { value: 'smart', label: 'SMART' },
-              { value: 'on', label: 'ON' },
-              { value: 'off', label: 'OFF' }
+              { value: 'smart', label: 'Smart' },
+              { value: 'on', label: 'On' },
+              { value: 'off', label: 'Off' }
             ]"
             class="w-28"
           />
@@ -332,10 +332,10 @@ const openGitHub = () => {
             :model-value="logLevel"
             @update:model-value="handleLogConfigChange(String($event), logToFile)"
             :options="[
-              { value: 'debug', label: 'DEBUG' },
-              { value: 'info', label: 'INFO' },
-              { value: 'warning', label: 'WARNING' },
-              { value: 'error', label: 'ERROR' }
+              { value: 'debug', label: 'Debug' },
+              { value: 'info', label: 'Info' },
+              { value: 'warning', label: 'Warning' },
+              { value: 'error', label: 'Error' }
             ]"
             class="w-28"
           />
@@ -363,9 +363,7 @@ const openGitHub = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="min-w-[5rem]">
-            MANAGE
-          </WButton>
+          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="min-w-[5rem]">Manage</WButton>
         </div>
       </WCard>
     </WScrollArea>
@@ -395,8 +393,8 @@ const openGitHub = () => {
   >
     <template #header>
       <div class="flex items-center gap-4">
-        <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest whitespace-nowrap">
-          EDIT {{ editingType === 'mirror' ? 'Mirror' : 'Inbound' }}
+        <h2 class="text-xs font-bold text-[#888] tracking-widest whitespace-nowrap">
+          Edit {{ editingType === 'mirror' ? 'Mirror' : 'Inbound' }}
         </h2>
         <div v-if="editingType !== 'mirror'" class="flex gap-2">
           <WButton
@@ -404,17 +402,13 @@ const openGitHub = () => {
             size="sm"
             icon="fas fa-diagram-project"
             @click="switchEditorTab('tun')"
-          >
-            TUN
-          </WButton>
+          >Tun</WButton>
           <WButton
             :variant="editingType === 'mixed' ? 'primary' : 'secondary'"
             size="sm"
             icon="fas fa-shuffle"
             @click="switchEditorTab('mixed')"
-          >
-            MIXED
-          </WButton>
+          >Mixed</WButton>
         </div>
       </div>
     </template>
@@ -446,7 +440,7 @@ const openGitHub = () => {
   <WModal
     :model-value="showResetConfirm"
     @update:model-value="showResetConfirm = false"
-    title="CONFIRM RESET"
+    title="Confirm Reset"
     width="md"
   >
     <div class="text-sm text-gray-300">Reset to default configuration?</div>
@@ -462,12 +456,12 @@ const openGitHub = () => {
   <WModal
     :model-value="showThemeModal"
     @update:model-value="handleCloseThemeModal"
-    title="THEME COLOR"
+    title="Theme Color"
     width="md"
   >
     <div class="space-y-4">
       <div>
-        <h4 class="text-xs font-bold text-gray-400 mb-3">PRESET COLORS</h4>
+        <h4 class="text-xs font-bold text-gray-400 mb-3">Preset Colors</h4>
         <WColorPicker
           :model-value="customColor"
           @update:model-value="handleSelectPresetColor"
@@ -485,7 +479,7 @@ const openGitHub = () => {
       </div>
 
       <div>
-        <h4 class="text-xs font-bold text-gray-400 mb-3">CUSTOM COLOR</h4>
+        <h4 class="text-xs font-bold text-gray-400 mb-3">Custom Color</h4>
         <div class="flex items-center gap-3">
           <label class="relative cursor-pointer">
             <input
@@ -517,7 +511,7 @@ const openGitHub = () => {
   <WModal
     :model-value="showErrorAlert"
     @update:model-value="showErrorAlert = false; appState.showErrorAlert.value = false"
-    title="ERROR"
+    title="Error"
     width="md"
   >
     <div class="text-sm text-red-400 font-mono">{{ errorAlertMessage }}</div>

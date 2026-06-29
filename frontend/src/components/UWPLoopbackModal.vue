@@ -38,7 +38,7 @@ watch(() => props.modelValue, (newVal) => {
   <WModal
     :model-value="modelValue"
     @update:model-value="emit('update:modelValue', $event)"
-    title="UWP LOOPBACK EXEMPTION"
+    title="UWP Loopback Exemption"
     width="lg"
   >
     <div class="flex flex-col gap-4">
@@ -54,18 +54,14 @@ watch(() => props.modelValue, (newVal) => {
             icon="fas fa-check-double"
             @click="emit('selectAll')"
             :disabled="loading || saving"
-          >
-            ALL
-          </WButton>
+          >All</WButton>
           <WButton
             variant="secondary"
             size="sm"
             icon="fas fa-times"
             @click="emit('deselectAll')"
             :disabled="loading || saving"
-          >
-            NONE
-          </WButton>
+          >None</WButton>
         </div>
       </div>
 
@@ -129,9 +125,7 @@ watch(() => props.modelValue, (newVal) => {
           class="flex-1"
           @click="emit('update:modelValue', false)"
           :disabled="saving"
-        >
-          CANCEL
-        </WButton>
+        >Cancel</WButton>
         <WButton
           variant="primary"
           class="flex-1"
@@ -139,7 +133,7 @@ watch(() => props.modelValue, (newVal) => {
           :disabled="loading || saving || !hasChanges"
           :loading="saving"
         >
-          {{ saving ? 'SAVING...' : 'SAVE' }}
+          {{ saving ? 'Saving...' : 'Save' }}
         </WButton>
       </div>
     </template>

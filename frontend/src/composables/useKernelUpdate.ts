@@ -13,7 +13,7 @@ const downloadProgress = ref(0)
 const showEditor = ref(false)
 const editingType = ref<"tun" | "mixed" | "mirror">("tun")
 const editorContent = ref("")
-const saveBtnText = ref("SAVE")
+const saveBtnText = ref("Save")
 
 const showResetConfirm = ref(false)
 const showErrorAlert = ref(false)
@@ -68,7 +68,7 @@ export function useKernelUpdate() {
 
   const openEditor = async (type: "tun" | "mixed" | "mirror") => {
     editingType.value = type
-    saveBtnText.value = "SAVE"
+    saveBtnText.value = "Save"
     if (type === 'mirror') {
       editorContent.value = appState.mirrorUrl.value
     } else {
@@ -94,7 +94,7 @@ export function useKernelUpdate() {
       res = await Backend.SaveOverride(editingType.value as string, editorContent.value)
     }
     if (res === "Success") {
-      saveBtnText.value = "SAVED"
+      saveBtnText.value = "Saved"
       if (appState.running.value && editingType.value !== 'mirror') appState.msg.value = "RESTART TO APPLY"
       if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
       editorCloseTimeout = window.setTimeout(() => {
@@ -128,7 +128,7 @@ export function useKernelUpdate() {
 
   const switchEditorTab = async (type: "tun" | "mixed") => {
     editingType.value = type
-    saveBtnText.value = "SAVE"
+    saveBtnText.value = "Save"
     const content = await Backend.GetOverride(type)
     try {
       const obj = JSON.parse(content)
