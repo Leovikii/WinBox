@@ -48,6 +48,6 @@
   <g>
     <!-- Clean badge base with soft gradient and drop shadow. No fake inner bevels. -->
     <rect x="23.5" y="44" width="35" height="35" rx="8" fill="url(#badge)" filter="url(#badge-shadow)" />
-    <text x="41" y="72.5" font-family="Segoe UI, sans-serif" font-weight="bold" font-size="33" fill="#FFFFFF" text-anchor="middle" filter="url(#text-shadow)">F</text>
+    <text x="41" y="72.5" font-family="Segoe UI, sans-serif" font-weight="bold" font-size="33" fill="#FFFFFF" text-anchor="middle" filter="url(#text-shadow)">M</text>
   </g>
 </svg>
