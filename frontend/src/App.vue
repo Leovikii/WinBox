@@ -142,10 +142,9 @@ const handleRestartCore = async () => {
 <template>
   <div class="h-screen w-screen relative bg-transparent text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative" style="--wails-draggable: drag">
-      <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
+      <div class="text-sm font-semibold text-white flex items-center gap-2.5">
         <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
-        WINBOX
-
+        WinBox
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button 
@@ -198,7 +197,7 @@ const handleRestartCore = async () => {
     <WModal
       :model-value="showQuitConfirm"
       @update:model-value="showQuitConfirm = false"
-      title="EXIT OPTIONS"
+      title="Exit options"
       width="md"
     >
       <div class="text-sm text-gray-300 mb-4">Do you want to minimize to the system tray or quit the application?</div>
@@ -215,8 +214,8 @@ const handleRestartCore = async () => {
 
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="handleMinimizeChoice">MINIMIZE</WButton>
-          <WButton variant="danger" class="flex-1" @click="handleQuitChoice">QUIT</WButton>
+          <WButton variant="secondary" class="flex-1" @click="handleMinimizeChoice">Minimize</WButton>
+          <WButton variant="danger" class="flex-1" @click="handleQuitChoice">Quit</WButton>
         </div>
       </template>
     </WModal>
@@ -225,7 +224,7 @@ const handleRestartCore = async () => {
     <WModal
       :model-value="showChangelogModal"
       @update:model-value="showChangelogModal = false"
-      :title="'WHAT\'S NEW IN ' + programState.programRemoteVer.value"
+      :title="`What's new in ${programState.programRemoteVer.value}`"
       width="md"
     >
       <div 
@@ -234,13 +233,13 @@ const handleRestartCore = async () => {
       ></div>
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">LATER</WButton>
+          <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">Later</WButton>
           <WButton 
             variant="primary" 
             class="flex-1" 
             @click="() => { showChangelogModal = false; showSettings = true; programState.performProgramUpdate(); }"
           >
-            UPDATE NOW
+            Update now
           </WButton>
         </div>
       </template>

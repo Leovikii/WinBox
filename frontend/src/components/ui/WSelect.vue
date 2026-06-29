@@ -86,18 +86,18 @@ watch(isOpen, (newVal) => {
 
 const buttonClasses = computed(() => {
   const classes = [
-    'w-full relative bg-[#242424] text-[11px] text-gray-300 border border-[#3a3a3a]',
+    'w-full relative bg-white/[0.06] text-[11px] text-gray-300 border border-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]',
     'rounded px-3 h-7 outline-none text-center font-bold cursor-pointer',
     'transition-colors duration-300 flex items-center justify-between gap-2',
-    'hover:bg-[#222] hover:border-[#444]'
+    'hover:bg-white/10'
   ]
 
   if (isOpen.value) {
-    classes.push('border-[var(--accent-color)] bg-[#222]')
+    classes.push('border-[var(--accent-color)] bg-white/10')
   }
 
   if (props.disabled) {
-    classes.push('opacity-60 cursor-not-allowed hover:bg-[#1a1a1a] hover:border-[#333]')
+    classes.push('opacity-60 cursor-not-allowed hover:bg-white/[0.06] hover:border-white/5')
   }
 
   return classes.join(' ')
@@ -105,8 +105,8 @@ const buttonClasses = computed(() => {
 
 const dropdownClasses = computed(() => {
   const classes = [
-    'fixed z-[9999] bg-[#242424] border border-[#3a3a3a] rounded overflow-hidden',
-    'shadow-2xl',
+    'fixed z-[9999] bg-[#242424] border border-white/5 rounded-md overflow-hidden',
+    'shadow-[0_8px_32px_rgba(0,0,0,0.4)]',
     'transition-all duration-300 origin-top'
   ]
 
@@ -150,7 +150,7 @@ const dropdownClasses = computed(() => {
           @click="selectOption(option.value)"
           :class="[
             'px-3 py-2 text-[11px] font-bold cursor-pointer transition-colors duration-200 whitespace-nowrap',
-            'hover:bg-[#333333] hover:text-[var(--accent-color)]',
+            'hover:bg-white/10 hover:text-[var(--accent-color)]',
             modelValue === option.value
               ? 'bg-(--accent-color)/10 text-(--accent-color)'
               : 'text-gray-300'

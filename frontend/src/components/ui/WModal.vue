@@ -36,8 +36,8 @@ const handleClose = () => {
 
 const modalClasses = computed(() => {
   const classes = [
-    'mica-card border border-[#333] rounded-lg',
-    'shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden w-modal-container'
+    'bg-[#1c1c1c] border border-white/5 rounded-lg',
+    'shadow-[0_16px_64px_rgba(0,0,0,0.5)] overflow-hidden w-modal-container'
   ]
 
   if (props.width === 'sm') classes.push('w-[70%]')
@@ -57,13 +57,13 @@ const modalClasses = computed(() => {
   <Transition name="w-modal">
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
       @click="handleBackdropClick"
     >
       <div :class="modalClasses" @click.stop class="flex flex-col max-h-[90vh]">
-      <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
+      <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-white/5">
         <slot name="header">
-          <h2 v-if="title" class="text-xs font-bold text-[#888] uppercase tracking-widest">{{ title }}</h2>
+          <h2 v-if="title" class="text-sm font-semibold text-gray-300">{{ title }}</h2>
         </slot>
         <button @click="handleClose" class="text-[#888] hover:text-white transition-colors shrink-0 ml-4">
           <i class="fas fa-times"></i>

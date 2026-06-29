@@ -1,12 +1,12 @@
 <template>
   <div 
-    class="bg-[#151515] rounded p-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] border border-[#2a2a2a] select-none h-9"
+    class="bg-black/30 rounded p-1 border border-white/5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] select-none h-9"
     :class="[disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : '']"
   >
     <div class="relative w-full h-full flex">
       <!-- Sliding Indicator -->
       <div 
-        class="absolute top-0 bottom-0 rounded-sm bg-[#2d2d2d] border border-white/5 shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-300 ease-out"
+        class="absolute top-0 bottom-0 rounded-sm bg-white/10 border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-300 ease-out"
         :style="indicatorStyle"
       ></div>
 

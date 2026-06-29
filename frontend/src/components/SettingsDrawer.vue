@@ -105,7 +105,7 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-info-circle text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">About</h3>
+          <h3 class="text-sm font-semibold text-gray-400">About</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -269,7 +269,7 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-cog text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">General</h3>
+          <h3 class="text-sm font-semibold text-gray-400">General</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -278,9 +278,9 @@ const openGitHub = () => {
             :model-value="closeBehavior"
             @update:model-value="updateCloseBehavior($event as string)"
             :options="[
-              { value: 'ask', label: 'ASK' },
-              { value: 'tray', label: 'MINIMIZE' },
-              { value: 'quit', label: 'QUIT' }
+              { value: 'ask', label: 'Ask' },
+              { value: 'tray', label: 'Minimize' },
+              { value: 'quit', label: 'Quit' }
             ]"
             class="w-28"
           />
@@ -320,7 +320,7 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-file-code text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Config Override</h3>
+          <h3 class="text-sm font-semibold text-gray-400">Config Override</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -358,7 +358,7 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-network-wired text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Network</h3>
+          <h3 class="text-sm font-semibold text-gray-400">Network</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">

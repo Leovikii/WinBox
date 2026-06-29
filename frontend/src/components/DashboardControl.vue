@@ -50,9 +50,9 @@ const showSpeedInfo = computed(() => {
 })
 
 const modeOptions = [
-  { label: 'PROXY', value: 'proxy', color: '#10b981' }, // emerald
-  { label: 'TUN', value: 'tun', color: '#3b82f6' }, // blue
-  { label: 'FULL', value: 'full', color: '#d946ef' } // fuchsia
+  { label: 'Proxy', value: 'proxy', color: '#10b981' }, // emerald
+  { label: 'Tun', value: 'tun', color: '#3b82f6' }, // blue
+  { label: 'Full', value: 'full', color: '#d946ef' } // fuchsia
 ]
 
 const currentMode = computed({
@@ -102,7 +102,7 @@ const handleEdit = (e: any) => {
 
 const formattedUpdatedTime = computed(() => {
   const updatedStr = profilesState.activeProfile.value?.updated
-  if (!updatedStr) return 'NEVER'
+  if (!updatedStr) return 'Never'
   
   const updatedDate = new Date(updatedStr)
   if (isNaN(updatedDate.getTime())) return updatedStr
@@ -113,10 +113,10 @@ const formattedUpdatedTime = computed(() => {
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffSecs < 60) return 'JUST NOW'
-  if (diffMins < 60) return `${diffMins} MIN${diffMins > 1 ? 'S' : ''} AGO`
-  if (diffHours < 24) return `${diffHours} HR${diffHours > 1 ? 'S' : ''} AGO`
-  if (diffDays < 7) return `${diffDays} DAY${diffDays > 1 ? 'S' : ''} AGO`
+  if (diffSecs < 60) return 'Just now'
+  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`
+  if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
   
   return updatedStr.split(' ')[0]
 })
@@ -131,7 +131,7 @@ const appLogContent = ref("")
 const showLogModal = ref(false)
 const inlineLogContainer = ref<any>(null)
 const fullLogContainer = ref<any>(null)
-const copyState = ref("COPY")
+const copyState = ref("Copy")
 let logInterval: any = null
 
 const isAtBottom = (container: any) => {
@@ -184,9 +184,9 @@ const copyAppLog = async () => {
   if (!appLogContent.value) return
   try {
     await navigator.clipboard.writeText(appLogContent.value)
-    copyState.value = "COPIED!"
+    copyState.value = "Copied!"
     setTimeout(() => {
-      copyState.value = "COPY"
+      copyState.value = "Copy"
     }, 2000)
   } catch (err) {
     console.error('Failed to copy text: ', err)
@@ -238,7 +238,7 @@ onActivated(() => {
                  }">
               </i>
             </div>
-            <span class="text-sm font-bold tracking-wider uppercase relative z-10">{{ getStatusText }}</span>
+            <span class="text-sm font-semibold relative z-10 capitalize">{{ getStatusText.toLowerCase() }}</span>
           </div>
 
           <!-- Right: Speed -->
@@ -276,7 +276,7 @@ onActivated(() => {
         <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
           <div class="flex items-center gap-3">
             <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-sm font-bold text-gray-400 tracking-wider">LOGS</span>
+            <span class="text-sm font-semibold text-gray-400">Logs</span>
           </div>
           <!-- Maximize Button -->
           <WButton 
@@ -307,7 +307,7 @@ onActivated(() => {
         <div class="flex items-center justify-between shrink-0 w-full gap-2">
             <div class="flex items-center gap-2 justify-start">
               <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-sm font-bold text-gray-400 tracking-wider">PROFILE</span>
+              <span class="text-sm font-semibold text-gray-400">Profile</span>
             </div>
             <!-- Global Action: ADD -->
             <WButton 
@@ -317,7 +317,7 @@ onActivated(() => {
               icon="fas fa-plus text-[10px]" 
               @click="profilesState.showAddProfileModal.value = true"
               :disabled="isProcessing"
-              title="ADD PROFILE"
+              title="Add profile"
             />
         </div>
 
@@ -344,7 +344,7 @@ onActivated(() => {
             @click="profilesState.updateActive"
             :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
             :loading="profilesState.isUpdatingProfile.value"
-            title="UPDATE"
+            title="Update"
           >
             {{ formattedUpdatedTime }}
           </WButton>
@@ -357,7 +357,7 @@ onActivated(() => {
             icon="fas fa-pen" 
             @click="handleEdit"
             :disabled="isProcessing || !profilesState.activeProfile.value"
-            title="EDIT"
+            title="Edit"
           />
 
           <!-- Delete -->
@@ -368,7 +368,7 @@ onActivated(() => {
             icon="fas fa-trash" 
             @click="handleDelete"
             :disabled="isProcessing || !profilesState.activeProfile.value"
-            title="DELETE"
+            title="Delete"
           />
         </div>
       </div>
@@ -377,14 +377,14 @@ onActivated(() => {
       <!-- Empty Profile State -->
       <div v-else class="flex-1 flex flex-col items-center justify-center text-center select-none" :class="!coreExists ? 'opacity-30' : 'opacity-100'">
         <i class="fa-solid fa-server text-2xl mb-3 text-gray-400"></i>
-        <p class="text-xs font-bold tracking-widest text-gray-400 uppercase" :class="coreExists ? 'mb-4' : ''">No Profile Found</p>
+        <p class="text-sm font-semibold text-gray-400" :class="coreExists ? 'mb-4' : ''">No profile found</p>
         <WButton 
           v-if="coreExists"
           variant="secondary" 
           size="sm" 
           @click="profilesState.showAddProfileModal.value = true"
         >
-          ADD PROFILE
+          Add profile
         </WButton>
       </div>
     </div>
@@ -397,7 +397,7 @@ onActivated(() => {
           <div class="flex gap-2 w-full items-center">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-xs font-bold text-gray-400 tracking-wider">MODE</span>
+              <span class="text-sm font-semibold text-gray-400">Mode</span>
             </div>
             <div class="w-2/3">
               <WSegmentedControl 
@@ -424,7 +424,7 @@ onActivated(() => {
               @click="emit('open-dashboard')"
               :disabled="isProcessing"
             >
-              WEBUI
+              Web UI
             </WButton>
 
             <WButton 
@@ -442,7 +442,7 @@ onActivated(() => {
               }"
               :icon="(getStatusText === 'STARTING...' || getStatusText === 'STOPPING...') ? 'fas fa-spinner fa-spin' : (running ? 'fas fa-square' : 'fas fa-power-off')"
             >
-              {{ running ? (getStatusText === 'STOPPING...' ? 'STOPPING' : 'STOP') : (getStatusText === 'STARTING...' ? 'STARTING' : 'START') }}
+              {{ running ? (getStatusText === 'STOPPING...' ? 'Stopping' : 'Stop') : (getStatusText === 'STARTING...' ? 'Starting' : 'Start') }}
             </WButton>
 
             <WButton 
@@ -454,7 +454,7 @@ onActivated(() => {
               @click="emit('restart-core')"
               :disabled="isProcessing"
             >
-              RESTART
+              Restart
             </WButton>
           </TransitionGroup>
       </template>
@@ -463,12 +463,12 @@ onActivated(() => {
       <div v-else class="flex-1 flex flex-col items-center justify-center text-center select-none" :class="!coreExists ? 'opacity-100' : 'opacity-30'">
         <template v-if="!coreExists">
           <i class="fa-solid fa-download text-2xl mb-3 text-gray-400"></i>
-          <p class="text-xs font-bold tracking-widest text-gray-400 uppercase mb-4">Kernel Missing</p>
-          <WButton variant="secondary" size="sm" @click="emit('open-settings')">INSTALL KERNEL</WButton>
+          <p class="text-sm font-semibold text-gray-400 mb-4">Kernel missing</p>
+          <WButton variant="secondary" size="sm" @click="emit('open-settings')">Install kernel</WButton>
         </template>
         <template v-else>
           <i class="fa-solid fa-lock text-2xl mb-3 text-gray-400"></i>
-          <p class="text-xs font-bold tracking-widest text-gray-400 uppercase">Profile Required</p>
+          <p class="text-sm font-semibold text-gray-400">Profile required</p>
         </template>
       </div>
       
@@ -478,11 +478,11 @@ onActivated(() => {
     <WModal
       :model-value="profilesState.showAddProfileModal.value"
       @update:model-value="profilesState.showAddProfileModal.value = false"
-      title="ADD PROFILE"
+      title="Add profile"
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">NAME</label>
+          <label class="block text-sm font-semibold text-gray-400 mb-2">Name</label>
           <WInput
             v-model="profilesState.newName.value"
             placeholder="e.g. My Provider"
@@ -490,7 +490,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">SUBSCRIPTION URL</label>
+          <label class="block text-sm font-semibold text-gray-400 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.newUrl.value"
             placeholder="https://..."
@@ -500,8 +500,8 @@ onActivated(() => {
       </div>
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">CANCEL</WButton>
-          <WButton variant="primary" class="flex-1" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">ADD</WButton>
+          <WButton variant="secondary" class="flex-1" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">Cancel</WButton>
+          <WButton variant="primary" class="flex-1" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">Add</WButton>
         </div>
       </template>
     </WModal>
@@ -509,11 +509,11 @@ onActivated(() => {
     <WModal
       :model-value="profilesState.showEditProfileModal.value"
       @update:model-value="profilesState.showEditProfileModal.value = false"
-      title="EDIT PROFILE"
+      title="Edit Profile"
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">NAME</label>
+          <label class="block text-sm font-semibold text-gray-400 mb-2">Name</label>
           <WInput
             v-model="profilesState.editName.value"
             placeholder="e.g. My Provider"
@@ -521,7 +521,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">SUBSCRIPTION URL</label>
+          <label class="block text-sm font-semibold text-gray-400 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.editUrl.value"
             placeholder="https://..."
@@ -531,8 +531,8 @@ onActivated(() => {
       </div>
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">CANCEL</WButton>
-          <WButton variant="primary" class="flex-1" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">SAVE</WButton>
+          <WButton variant="secondary" class="flex-1" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">Cancel</WButton>
+          <WButton variant="primary" class="flex-1" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">Save</WButton>
         </div>
       </template>
     </WModal>
@@ -540,26 +540,26 @@ onActivated(() => {
     <WModal
       :model-value="profilesState.showDeleteConfirm.value"
       @update:model-value="profilesState.showDeleteConfirm.value = false"
-      title="DELETE PROFILE"
+      title="Delete Profile"
     >
       <div class="text-sm text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showDeleteConfirm.value = false">CANCEL</WButton>
-          <WButton variant="danger" class="flex-1" @click="profilesState.confirmDelete">DELETE</WButton>
+          <WButton variant="secondary" class="flex-1" @click="profilesState.showDeleteConfirm.value = false">Cancel</WButton>
+          <WButton variant="danger" class="flex-1" @click="profilesState.confirmDelete">Delete</WButton>
         </div>
       </template>
     </WModal>
 
     <!-- App Log Fullscreen Modal -->
     <Transition name="w-modal">
-      <div v-if="showLogModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
-        <div class="w-full h-full max-w-4xl mica-card border border-[#333] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col relative overflow-hidden w-modal-container">
+      <div v-if="showLogModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/50">
+        <div class="w-full h-full max-w-4xl bg-[#1c1c1c] border border-white/5 rounded-lg shadow-[0_16px_64px_rgba(0,0,0,0.5)] flex flex-col relative overflow-hidden w-modal-container">
           <!-- Header -->
-          <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
+          <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-white/5">
             <div class="flex items-center gap-2">
               <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
-              <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">APP LOGS</h2>
+              <h2 class="text-sm font-semibold text-gray-300">App logs</h2>
             </div>
             <button @click="showLogModal = false" class="text-[#888] hover:text-white transition-colors shrink-0 ml-4">
               <i class="fas fa-times"></i>
@@ -574,7 +574,7 @@ onActivated(() => {
           <!-- Fixed Bottom Right Controls -->
           <div class="absolute bottom-5 right-5 flex items-center gap-3">
             <WButton variant="secondary" size="sm" icon="fas fa-trash" @click="clearAppLog">
-              CLEAR
+              Clear
             </WButton>
             <WButton variant="primary" size="sm" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog" class="min-w-[90px]">
               {{ copyState }}
@@ -607,9 +607,10 @@ onActivated(() => {
 }
 
 .glass-card {
-  border-radius: 1rem;
-  background: #1c1c1c; /* Solid WinUI 3 card */
+  border-radius: 8px;
+  background: #1c1c1c;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .expandable-content {
