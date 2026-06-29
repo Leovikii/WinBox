@@ -28,8 +28,8 @@ var trayTun []byte
 //go:embed frontend/icon/tray_proxy.ico
 var trayProxy []byte
 
-//go:embed frontend/icon/tray_full.ico
-var trayFull []byte
+//go:embed frontend/icon/tray_mixed.ico
+var trayMixed []byte
 
 func main() {
 	startMinimized := false
@@ -42,7 +42,7 @@ func main() {
 		}
 	}
 
-	app := internal.NewApp(icon, trayDefault, trayTun, trayProxy, trayFull, startMinimized)
+	app := internal.NewApp(icon, trayDefault, trayTun, trayProxy, trayMixed, startMinimized)
 
 	err := wails.Run(&options.App{
 		Title:         "WinBox",

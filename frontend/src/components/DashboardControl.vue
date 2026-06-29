@@ -52,19 +52,19 @@ const showSpeedInfo = computed(() => {
 const modeOptions = [
   { label: 'Proxy', value: 'proxy', color: '#10b981' }, // emerald
   { label: 'Tun', value: 'tun', color: '#3b82f6' }, // blue
-  { label: 'Full', value: 'full', color: '#d946ef' } // fuchsia
+  { label: 'Mixed', value: 'mixed', color: '#d946ef' } // fuchsia
 ]
 
 const currentMode = computed({
   get() {
-    if (tunMode.value && sysProxy.value) return 'full'
+    if (tunMode.value && sysProxy.value) return 'mixed'
     if (tunMode.value) return 'tun'
     return 'proxy'
   },
   set(val: string) {
     let tun = false
     let sys = false
-    if (val === 'full') { tun = true; sys = true }
+    if (val === 'mixed') { tun = true; sys = true }
     else if (val === 'tun') { tun = true }
     else if (val === 'proxy') { sys = true }
     emit('switch-mode', { tunMode: tun, sysProxy: sys })
@@ -311,10 +311,10 @@ onActivated(() => {
             </div>
             <!-- Global Action: ADD -->
             <WButton 
-              variant="ghost" 
+              variant="secondary" 
               size="sm" 
-              class="w-7 !px-0 bg-white/5 hover:bg-white/10 rounded"
-              icon="fas fa-plus text-[10px]" 
+              class="w-7 !px-0"
+              icon="fas fa-plus" 
               @click="profilesState.showAddProfileModal.value = true"
               :disabled="isProcessing"
               title="Add profile"

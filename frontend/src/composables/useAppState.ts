@@ -48,9 +48,9 @@ export function useAppState() {
     }
 
     if (!running.value) return "OFFLINE"
-    if (tunMode.value && sysProxy.value) return "FULL MODE"
-    if (tunMode.value) return "TUNNEL"
-    if (sysProxy.value) return "SYS PROXY"
+    if (tunMode.value && sysProxy.value) return "Mixed Routing"
+    if (tunMode.value) return "Tun Adapter"
+    if (sysProxy.value) return "System Proxy"
     return "ONLINE"
   })
 
