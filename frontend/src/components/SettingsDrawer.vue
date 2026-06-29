@@ -117,9 +117,7 @@ const openGitHub = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-spinner fa-spin"
-            >
-              CHECKING
-            </WButton>
+            >Checking</WButton>
             <WButton
               v-else-if="programUpdateState === 'available'"
               variant="primary"
@@ -152,9 +150,7 @@ const openGitHub = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-check-circle"
-            >
-              LATEST
-            </WButton>
+            >Latest</WButton>
             <WButton
               v-else-if="programUpdateState === 'error'"
               variant="warning"
@@ -171,9 +167,7 @@ const openGitHub = () => {
               icon="fas fa-rotate"
               @click="checkProgramUpdate()"
               class="min-w-[5rem]"
-            >
-              CHECK
-            </WButton>
+            >Check</WButton>
           </div>
         </div>
 
@@ -186,9 +180,7 @@ const openGitHub = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-spinner fa-spin"
-            >
-              CHECKING
-            </WButton>
+            >Checking</WButton>
             <WButton
               v-else-if="updateState === 'available'"
               variant="primary"
@@ -221,9 +213,7 @@ const openGitHub = () => {
               variant="secondary"
               size="sm"
               icon="fas fa-check-circle"
-            >
-              LATEST
-            </WButton>
+            >Latest</WButton>
             <WButton
               v-else-if="updateState === 'error'"
               variant="warning"
@@ -241,7 +231,7 @@ const openGitHub = () => {
               :class="[!coreExists ? 'border-yellow-600 text-yellow-500' : '', 'min-w-[5rem]']"
               @click="checkUpdate()"
             >
-              {{ coreExists ? "CHECK" : "DOWNLOAD" }}
+              {{ coreExists ? "Check" : "Download" }}
             </WButton>
           </div>
         </div>
@@ -259,9 +249,7 @@ const openGitHub = () => {
             icon="fa-brands fa-github"
             @click="openGitHub"
             class="min-w-[5rem]"
-          >
-            OPEN
-          </WButton>
+          >Open</WButton>
         </div>
       </WCard>
 
@@ -310,7 +298,7 @@ const openGitHub = () => {
           <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="min-w-[5rem]">
             <div class="flex items-center gap-2">
               <i class="fas fa-palette" :style="{ color: accentColor }"></i>
-              <span>SELECT</span>
+              <span>Select</span>
             </div>
           </WButton>
         </div>
@@ -325,7 +313,7 @@ const openGitHub = () => {
 
         <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-400">Inbound Config</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">EDIT</WButton>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">Edit</WButton>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
@@ -369,7 +357,7 @@ const openGitHub = () => {
         <WExpandable :expanded="mirrorEnabled">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
             <span class="text-xs font-bold text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="min-w-[5rem]">EDIT</WButton>
+            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="min-w-[5rem]">Edit</WButton>
           </div>
         </WExpandable>
 
@@ -408,7 +396,7 @@ const openGitHub = () => {
     <template #header>
       <div class="flex items-center gap-4">
         <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest whitespace-nowrap">
-          EDIT {{ editingType === 'mirror' ? 'MIRROR' : 'INBOUND' }}
+          EDIT {{ editingType === 'mirror' ? 'Mirror' : 'Inbound' }}
         </h2>
         <div v-if="editingType !== 'mirror'" class="flex gap-2">
           <WButton
@@ -440,12 +428,12 @@ const openGitHub = () => {
         :rows="20"
       />
       <div class="absolute bottom-4 right-4 flex gap-2">
-        <WButton variant="warning" size="sm" icon="fas fa-undo" @click="resetEditor()">RESET</WButton>
-        <WButton variant="secondary" size="sm" icon="fas fa-times" @click="showEditor = false">CANCEL</WButton>
+        <WButton variant="warning" size="sm" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>
+        <WButton variant="secondary" size="sm" icon="fas fa-times" @click="showEditor = false">Cancel</WButton>
         <WButton
-          :variant="saveBtnText === 'SAVED' ? 'success' : 'primary'"
+          :variant="saveBtnText === 'Saved' ? 'success' : 'primary'"
           size="sm"
-          :icon="saveBtnText === 'SAVED' ? 'fas fa-check' : 'fas fa-save'"
+          :icon="saveBtnText === 'Saved' ? 'fas fa-check' : 'fas fa-save'"
           @click="saveEditor()"
         >
           {{ saveBtnText }}
@@ -464,8 +452,8 @@ const openGitHub = () => {
     <div class="text-sm text-gray-300">Reset to default configuration?</div>
     <template #footer>
       <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="showResetConfirm = false">CANCEL</WButton>
-        <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="confirmReset()">RESET</WButton>
+        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="showResetConfirm = false">Cancel</WButton>
+        <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="confirmReset()">Reset</WButton>
       </div>
     </template>
   </WModal>
@@ -519,8 +507,8 @@ const openGitHub = () => {
     </div>
     <template #footer>
       <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="handleCloseThemeModal">CANCEL</WButton>
-        <WButton variant="primary" class="flex-1" icon="fas fa-check" @click="applyCustomColor">APPLY</WButton>
+        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="handleCloseThemeModal">Cancel</WButton>
+        <WButton variant="primary" class="flex-1" icon="fas fa-check" @click="applyCustomColor">Apply</WButton>
       </div>
     </template>
   </WModal>

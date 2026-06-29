@@ -225,16 +225,16 @@ onActivated(() => {
               <!-- Ambient background bloom -->
               <div 
                 class="absolute inset-0 scale-[3] blur-[6px] transition-opacity duration-1000 pointer-events-none"
-                :class="{'opacity-40': running || ['STARTING...', 'STOPPING...'].includes(getStatusText), 'opacity-0': !running && !['STARTING...', 'STOPPING...'].includes(getStatusText)}"
+                :class="{'opacity-40': running || ['Starting...', 'Stopping...'].includes(getStatusText), 'opacity-0': !running && !['Starting...', 'Stopping...'].includes(getStatusText)}"
                 style="background-color: currentColor;"
               ></div>
               <!-- Core Icon -->
               <i class="fas text-[11px] relative z-10 transition-all duration-500" 
                  :class="{
-                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['STARTING...', 'STOPPING...'].includes(getStatusText),
-                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['STARTING...', 'STOPPING...'].includes(getStatusText),
-                   'fa-exclamation-triangle': getStatusText === 'WARNING',
-                   'fa-power-off opacity-60': !running && !['STARTING...', 'STOPPING...'].includes(getStatusText) && getStatusText !== 'WARNING'
+                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['Starting...', 'Stopping...'].includes(getStatusText),
+                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['Starting...', 'Stopping...'].includes(getStatusText),
+                   'fa-exclamation-triangle': getStatusText === 'Warning',
+                   'fa-power-off opacity-60': !running && !['Starting...', 'Stopping...'].includes(getStatusText) && getStatusText !== 'Warning'
                  }">
               </i>
             </div>
@@ -254,7 +254,7 @@ onActivated(() => {
               </div>
             </div>
             <div v-else class="text-[10px] font-mono font-medium text-gray-600 tracking-widest uppercase">
-              IDLE
+              Idle
             </div>
           </div>
         </div>
@@ -440,9 +440,9 @@ onActivated(() => {
                 borderColor: running ? '#ef4444' : activeColor,
                 boxShadow: `0 4px 12px ${running ? '#dc262666' : activeColor + '66'}`
               }"
-              :icon="(getStatusText === 'STARTING...' || getStatusText === 'STOPPING...') ? 'fas fa-spinner fa-spin' : (running ? 'fas fa-square' : 'fas fa-power-off')"
+              :icon="(getStatusText === 'Starting...' || getStatusText === 'Stopping...') ? 'fas fa-spinner fa-spin' : (running ? 'fas fa-square' : 'fas fa-power-off')"
             >
-              {{ running ? (getStatusText === 'STOPPING...' ? 'Stopping' : 'Stop') : (getStatusText === 'STARTING...' ? 'Starting' : 'Start') }}
+              {{ running ? (getStatusText === 'Stopping...' ? 'Stopping' : 'Stop') : (getStatusText === 'Starting...' ? 'Starting' : 'Start') }}
             </WButton>
 
             <WButton 
@@ -450,7 +450,7 @@ onActivated(() => {
               key="restart"
               class="w-[calc((100%_-_1rem)_/_3)] shrink-0 px-0 whitespace-nowrap"
               variant="secondary" 
-              :icon="getStatusText === 'RESTARTING...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
+              :icon="getStatusText === 'Restarting...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
               @click="emit('restart-core')"
               :disabled="isProcessing"
             >
@@ -608,7 +608,7 @@ onActivated(() => {
 
 .glass-card {
   border-radius: 8px;
-  background: #1c1c1c;
+  background: #2a2a2a;
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }

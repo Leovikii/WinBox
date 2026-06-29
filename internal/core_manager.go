@@ -268,6 +268,7 @@ func (cm *CoreManager) CheckConfig(configPath string) error {
 	}
 
 	cmd := exec.Command(coreExe, "check", "-c", configPath)
+	SetCmdWindowHidden(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("config check failed: %s", string(output))

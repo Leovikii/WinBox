@@ -32,7 +32,7 @@ const buttonClasses = computed(() => {
   if (props.variant === 'primary') {
     classes.push('bg-[var(--accent-color)]/90 text-white hover:brightness-110 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]')
   } else if (props.variant === 'secondary') {
-    classes.push('bg-white/[0.06] border border-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] text-gray-300 hover:bg-white/10')
+    classes.push('bg-white/[0.07] border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] text-gray-300 hover:bg-white/[0.12]')
   } else if (props.variant === 'danger') {
     classes.push('bg-red-600 text-white hover:bg-red-500')
   } else if (props.variant === 'success') {
