@@ -388,8 +388,6 @@ const openGitHub = () => {
   <WModal
     :model-value="showEditor"
     @update:model-value="showEditor = false"
-    width="lg"
-    height="lg"
   >
     <template #header>
       <div class="flex items-center gap-4">

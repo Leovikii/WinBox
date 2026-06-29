@@ -551,28 +551,26 @@ onActivated(() => {
       </template>
     </WModal>
 
-    <!-- App Log Fullscreen Modal -->
-    <Transition name="w-modal">
-      <div v-if="showLogModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/50">
-        <div class="w-full h-full max-w-4xl bg-[#1c1c1c] border border-white/5 rounded-lg shadow-[0_16px_64px_rgba(0,0,0,0.5)] flex flex-col relative overflow-hidden w-modal-container">
-          <!-- Header -->
-          <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-white/5">
-            <div class="flex items-center gap-2">
-              <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
-              <h2 class="text-sm font-semibold text-gray-300">App logs</h2>
-            </div>
-            <button @click="showLogModal = false" class="text-[#888] hover:text-white transition-colors shrink-0 ml-4">
-              <i class="fas fa-times"></i>
-            </button>
+    <!-- App Log Modal -->
+      <WModal
+        :model-value="showLogModal"
+        @update:model-value="showLogModal = $event"
+        title="App logs"
+        ref="fullLogContainer"
+      >
+        <template #header>
+          <div class="flex items-center gap-2">
+            <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
+            <h2 class="text-sm font-semibold text-gray-300">App logs</h2>
           </div>
-          
-          <!-- Content -->
-          <WScrollArea height="100%" class="flex-1 w-full p-5 font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all" ref="fullLogContainer">
-            {{ appLogContent || 'No logs available.' }}
-          </WScrollArea>
-
-          <!-- Fixed Bottom Right Controls -->
-          <div class="absolute bottom-5 right-5 flex items-center gap-3">
+        </template>
+        
+        <div class="w-full font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
+          {{ appLogContent || 'No logs available.' }}
+        </div>
+        
+        <template #footer>
+          <div class="flex items-center justify-end gap-3 w-full">
             <WButton variant="secondary" size="sm" icon="fas fa-trash" @click="clearAppLog">
               Clear
             </WButton>
@@ -580,9 +578,8 @@ onActivated(() => {
               {{ copyState }}
             </WButton>
           </div>
-        </div>
-      </div>
-    </Transition>
+        </template>
+      </WModal>
 
   </div>
 </template>

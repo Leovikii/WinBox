@@ -39,7 +39,7 @@ watch(() => props.modelValue, (newVal) => {
     :model-value="modelValue"
     @update:model-value="emit('update:modelValue', $event)"
     title="UWP Loopback Exemption"
-    width="lg"
+    
   >
     <div class="flex flex-col gap-4">
       <!-- Header with stats and actions -->

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, watch, onMounted, onUnmounted, ref } from 'vue'
 import WScrollArea from './WScrollArea.vue'
 import type { ModalWidth, ModalHeight } from './types'
 
@@ -51,7 +51,20 @@ const modalClasses = computed(() => {
 
   return classes.join(' ')
 })
+
+const scrollAreaRef = ref<InstanceType<typeof WScrollArea> | null>(null)
+
+const scrollToBottom = () => {
+  if (scrollAreaRef.value) {
+    scrollAreaRef.value.scrollToBottom()
+  }
+}
+
+defineExpose({
+  scrollToBottom
+})
 </script>
+
 
 <template>
   <Transition name="w-modal">
@@ -60,7 +73,7 @@ const modalClasses = computed(() => {
       class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
       @click="handleBackdropClick"
     >
-      <div :class="modalClasses" @click.stop class="flex flex-col max-h-[90vh]">
+      <div :class="modalClasses" @click.stop class="flex flex-col max-h-[80vh]">
       <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-white/5">
         <slot name="header">
           <h2 v-if="title" class="text-sm font-semibold text-gray-300">{{ title }}</h2>
@@ -69,7 +82,7 @@ const modalClasses = computed(() => {
           <i class="fas fa-times"></i>
         </button>
       </div>
-      <WScrollArea class="flex-1 min-h-0 p-5 space-y-4">
+      <WScrollArea class="flex-1 min-h-0 p-5 space-y-4" ref="scrollAreaRef">
         <slot />
       </WScrollArea>
       <div v-if="$slots.footer" class="shrink-0 p-4 border-t border-[#2a2a2a]">
