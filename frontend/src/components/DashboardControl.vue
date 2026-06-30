@@ -214,7 +214,7 @@ onActivated(() => {
   <div class="w-full h-full grid grid-rows-4 gap-6 relative px-6 py-6 justify-items-center items-stretch overflow-hidden">
     
     <!-- ==================== TOP AREA: INFO ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
         
         <!-- Header: Status & Speed -->
         <div class="shrink-0 flex justify-between items-center bg-transparent" :class="running ? 'pb-2' : ''">
@@ -253,7 +253,7 @@ onActivated(() => {
                 <span class="text-[11px] font-mono font-medium tracking-wider speed-download">{{ formatSpeed(downloadSpeed) }}</span>
               </div>
             </div>
-            <div v-else class="text-[10px] font-mono font-medium text-gray-600 tracking-widest uppercase">
+            <div v-else class="text-[10px] font-mono font-medium text-gray-400 dark:text-gray-600 tracking-widest uppercase">
               Idle
             </div>
           </div>
@@ -270,13 +270,13 @@ onActivated(() => {
     </div>
 
     <!-- ==================== MIDDLE AREA: LOGS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 overflow-hidden">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 overflow-hidden">
         
         <!-- Header: Logs & Expand -->
         <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
           <div class="flex items-center gap-3">
             <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-sm font-semibold text-gray-400">Logs</span>
+            <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Logs</span>
           </div>
           <!-- Maximize Button -->
           <WButton 
@@ -293,21 +293,23 @@ onActivated(() => {
         <div class="w-full flex-1 min-h-0 relative bg-transparent">
           <!-- Log Content -->
           <div class="absolute inset-0">
-            <WScrollArea height="100%" class="w-full px-6 pb-6 pt-0 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
-              {{ appLogContent || 'No logs available.' }}
+            <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
+              <div class="px-6 pb-6 pt-0 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
+                {{ appLogContent || 'No logs available.' }}
+              </div>
             </WScrollArea>
           </div>
         </div>
     </div>
 
     <!-- ==================== AREA 3: PROFILE ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
       <template v-if="profilesState.profiles.value.length > 0">
         <!-- Row 1: Profile Title & Global Actions -->
         <div class="flex items-center justify-between shrink-0 w-full gap-2">
             <div class="flex items-center gap-2 justify-start">
               <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-sm font-semibold text-gray-400">Profile</span>
+              <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Profile</span>
             </div>
             <!-- Global Action: ADD -->
             <WButton 
@@ -390,14 +392,14 @@ onActivated(() => {
     </div>
 
     <!-- ==================== AREA 4: CORE CONTROLS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
       <template v-if="profilesState.profiles.value.length > 0">
 
           <!-- Row 3: Mode -->
           <div class="flex gap-2 w-full items-center">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-sm font-semibold text-gray-400">Mode</span>
+              <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Mode</span>
             </div>
             <div class="w-2/3">
               <WSegmentedControl 
@@ -482,7 +484,7 @@ onActivated(() => {
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-400 mb-2">Name</label>
+          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Name</label>
           <WInput
             v-model="profilesState.newName.value"
             placeholder="e.g. My Provider"
@@ -490,7 +492,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-400 mb-2">Subscription URL</label>
+          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.newUrl.value"
             placeholder="https://..."
@@ -513,7 +515,7 @@ onActivated(() => {
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-400 mb-2">Name</label>
+          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Name</label>
           <WInput
             v-model="profilesState.editName.value"
             placeholder="e.g. My Provider"
@@ -521,7 +523,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-400 mb-2">Subscription URL</label>
+          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.editUrl.value"
             placeholder="https://..."
@@ -542,7 +544,7 @@ onActivated(() => {
       @update:model-value="profilesState.showDeleteConfirm.value = false"
       title="Delete Profile"
     >
-      <div class="text-sm text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
+      <div class="text-sm text-gray-600 dark:text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
       <template #footer>
         <div class="flex items-center justify-end gap-3 w-full">
           <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showDeleteConfirm.value = false">Cancel</WButton>
@@ -561,11 +563,11 @@ onActivated(() => {
         <template #header>
           <div class="flex items-center gap-2">
             <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
-            <h2 class="text-sm font-semibold text-gray-300">App logs</h2>
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-300">App logs</h2>
           </div>
         </template>
         
-        <div class="w-full font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
+        <div class="w-full font-mono text-[11px] leading-relaxed text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
           {{ appLogContent || 'No logs available.' }}
         </div>
         
@@ -603,12 +605,7 @@ onActivated(() => {
   transform: scale(0.95) translateY(10px);
 }
 
-.glass-card {
-  border-radius: 8px;
-  background: #2a2a2a;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
+
 
 .expandable-content {
   overflow: hidden;

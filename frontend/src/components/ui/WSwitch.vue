@@ -38,7 +38,7 @@ const containerClasses = computed(() => {
     else if (props.color === 'purple') classes.push('bg-purple-600')
     else if (props.color === 'green') classes.push('bg-emerald-600')
   } else {
-    classes.push('bg-[#2a2a2a]')
+    classes.push('bg-gray-300 dark:bg-[#2a2a2a] border border-black/5 dark:border-transparent')
   }
 
   if (props.disabled) classes.push('opacity-50 cursor-not-allowed')

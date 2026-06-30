@@ -1,8 +1,35 @@
 @import "tailwindcss";
+@import "overlayscrollbars/overlayscrollbars.css";
+@custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+    --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, SFMono-Regular, monospace;
+}
 :root {
     --accent-color: #2563eb;
     --accent-color-rgb: 37, 99, 235;
+
+    /* Status Colors (Light Mode) */
+    --status-error: #e11d48; /* rose-600 */
+    --status-warning: #d97706; /* amber-600 */
+    --status-standby: #7e22ce; /* purple-700 */
+    --status-offline: #4b5563; /* gray-600 */
+    --status-mixed: #c026d3; /* fuchsia-600 */
+    --status-tun: #2563eb; /* blue-600 */
+    --status-proxy: #059669; /* emerald-600 */
+    --status-default: #374151; /* gray-700 */
+}
+
+.dark {
+    /* Status Colors (Dark Mode - Original Pastel Colors) */
+    --status-error: #F4A7B0;
+    --status-warning: #FCD575;
+    --status-standby: #B4A2CC;
+    --status-offline: #9E9E9E;
+    --status-mixed: #C5A3BF;
+    --status-tun: #89C3EB;
+    --status-proxy: #7EBEAB;
+    --status-default: #F0F0F0;
 }
 
 body {
@@ -12,35 +39,23 @@ body {
     user-select: none;
 }
 
-/* Global Native Win 11 Scrollbar Styling */
-::-webkit-scrollbar {
-    width: 14px;
-    height: 14px;
-}
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border: 5px solid transparent;
-    background-clip: padding-box;
-    border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-    border: 4px solid transparent;
-    background-clip: padding-box;
-}
 
 
-/* Windows 11 Mica Material Effect - Dark Mode Only */
+
+/* Windows 11 Mica Material Effect - Solid backgrounds for HDR optimization */
 @supports (backdrop-filter: blur(40px)) {
     .mica-card {
+        background: #fdfdfd;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255, 255, 255, 1);
+        border-radius: 8px;
+    }
+    
+    .dark .mica-card {
         background: #2a2a2a;
         border: 1px solid rgba(255, 255, 255, 0.05);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
         border-radius: 8px;
-        /* native Mica handles the blur behind the window */
     }
 }
 

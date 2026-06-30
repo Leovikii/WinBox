@@ -33,7 +33,13 @@ const {
   programLocalVer, programRemoteVer, programUpdateState, programDownloadProgress, checkProgramUpdate, performProgramUpdate
 } = programState
 
-const { accentColor, setTheme } = themeState
+const { accentColor, themeMode, setThemeColor, setThemeMode } = themeState
+
+const themeModeOptions = [
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+  { label: 'System', value: 'system' }
+]
 
 const {
   apps: uwpApps, selectedSIDs: uwpSelectedSIDs, loading: uwpLoading, saving: uwpSaving,
@@ -86,7 +92,7 @@ const handleCustomColorChange = (event: Event) => {
 }
 
 const applyCustomColor = () => {
-  setTheme(customColor.value)
+  setThemeColor(customColor.value)
   showThemeModal.value = false
 }
 
@@ -99,19 +105,20 @@ const openGitHub = () => {
 <template>
   <div class="w-full h-full relative">
     <div class="w-full h-full flex flex-col bg-transparent">
-      <WScrollArea class="flex-1 px-4 pt-6 pb-28 space-y-4">
+      <WScrollArea class="flex-1">
+        <div class="px-4 pt-6 pb-28 space-y-4">
 
       <!-- About Section -->
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-info-circle text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-400">About</h3>
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">About</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">App Version</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">App Version</span>
           <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-500 font-mono">{{ programLocalVer }}</span>
+            <span class="text-xs text-gray-600 dark:text-gray-500 font-mono">{{ programLocalVer }}</span>
             <WButton
               v-if="programUpdateState === 'checking'"
               variant="secondary"
@@ -172,9 +179,9 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Kernel Version</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Kernel Version</span>
           <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-500 font-mono">{{ localVer }}</span>
+            <span class="text-xs text-gray-600 dark:text-gray-500 font-mono">{{ localVer }}</span>
             <WButton
               v-if="updateState === 'checking'"
               variant="secondary"
@@ -237,12 +244,12 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Pre-release Updates</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Pre-release Updates</span>
           <WSwitch :model-value="preRelease" @update:model-value="handlePreReleaseToggleWrapper()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">GitHub Repository</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">GitHub Repository</span>
           <WButton
             variant="secondary"
             size="sm"
@@ -257,11 +264,11 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-cog text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-400">General</h3>
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">General</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Close Window Behavior</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Close Window Behavior</span>
           <WSelect
             :model-value="closeBehavior"
             @update:model-value="updateCloseBehavior($event as string)"
@@ -275,12 +282,12 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Start With Windows</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Start With Windows</span>
           <WSwitch :model-value="startOnBoot" @update:model-value="handleStartOnBootToggle()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Auto Connect</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Auto Connect</span>
           <WSelect
             :model-value="autoConnectState"
             @update:model-value="handleAutoConnectChange($event)"
@@ -293,14 +300,14 @@ const openGitHub = () => {
           />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Theme Color</span>
-          <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="min-w-[5rem]">
-            <div class="flex items-center gap-2">
-              <i class="fas fa-palette" :style="{ color: accentColor }"></i>
-              <span>Select</span>
-            </div>
-          </WButton>
+        <div class="flex items-center justify-between mt-4 mb-2">
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Theme</span>
+          <div class="flex items-center gap-2">
+            <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="w-8 h-8 !p-0 flex items-center justify-center rounded-full">
+              <div class="w-4 h-4 rounded-full shadow-inner border border-white/20" :style="{ backgroundColor: accentColor }"></div>
+            </WButton>
+            <WSelect v-model="themeMode" :options="themeModeOptions" @update:modelValue="(val) => setThemeMode(val as string)" class="w-28" />
+          </div>
         </div>
       </WCard>
 
@@ -308,26 +315,26 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-file-code text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-400">Config Override</h3>
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">Config Override</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Inbound Config</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Inbound Config</span>
           <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">Edit</WButton>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">IPv6 Support</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">IPv6 Support</span>
           <WSwitch :model-value="ipv6Enabled" @update:model-value="handleIPv6Toggle()" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Log To File</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Log To File</span>
           <WSwitch :model-value="logToFile" @update:model-value="handleLogConfigChange(logLevel, $event)" />
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">Log Level</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Log Level</span>
           <WSelect
             :model-value="logLevel"
             @update:model-value="handleLogConfigChange(String($event), logToFile)"
@@ -346,28 +353,29 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-network-wired text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-400">Network</h3>
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">Network</h3>
         </div>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">GitHub Mirror</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">GitHub Mirror</span>
           <WSwitch :model-value="mirrorEnabled" @update:model-value="handleMirrorToggle()" />
         </div>
 
         <WExpandable :expanded="mirrorEnabled">
           <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
-            <span class="text-xs font-bold text-gray-500">Mirror Config</span>
+            <span class="text-xs font-bold text-gray-600 dark:text-gray-500">Mirror Config</span>
             <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="min-w-[5rem]">Edit</WButton>
           </div>
         </WExpandable>
 
         <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-400">UWP Loopback</span>
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">UWP Loopback</span>
           <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="min-w-[5rem]">Manage</WButton>
         </div>
       </WCard>
-    </WScrollArea>
-  </div>
+        </div>
+      </WScrollArea>
+    </div>
 
   <!-- UWP Loopback Modal -->
   <UWPLoopbackModal
@@ -391,7 +399,7 @@ const openGitHub = () => {
   >
     <template #header>
       <div class="flex items-center gap-4">
-        <h2 class="text-xs font-bold text-[#888] tracking-widest whitespace-nowrap">
+        <h2 class="text-xs font-bold text-gray-800 dark:text-[#888] tracking-widest whitespace-nowrap">
           Edit {{ editingType === 'mirror' ? 'Mirror' : 'Inbound' }}
         </h2>
         <div v-if="editingType !== 'mirror'" class="flex gap-2">
@@ -416,7 +424,7 @@ const openGitHub = () => {
           @update:model-value="editorContent = $event"
           mono
           :resize="false"
-          class="flex-1 w-full bg-[#050505] p-4"
+          class="flex-1 w-full bg-white dark:bg-[#050505] text-gray-900 dark:text-gray-100 p-4 border border-black/10 dark:border-white/5 rounded-md"
           :rows="20"
         />
       </div>
@@ -443,7 +451,7 @@ const openGitHub = () => {
     title="Confirm Reset"
     width="md"
   >
-    <div class="text-sm text-gray-300">Reset to default configuration?</div>
+    <div class="text-sm text-gray-800 dark:text-gray-300">Reset to default configuration?</div>
     <template #footer>
       <div class="flex items-center justify-end gap-3 w-full">
         <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="showResetConfirm = false">Cancel</WButton>
@@ -461,7 +469,7 @@ const openGitHub = () => {
   >
     <div class="space-y-4">
       <div>
-        <h4 class="text-xs font-bold text-gray-400 mb-3">Preset Colors</h4>
+        <h4 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3">Preset Colors</h4>
         <WColorPicker
           :model-value="customColor"
           @update:model-value="handleSelectPresetColor"
@@ -479,7 +487,7 @@ const openGitHub = () => {
       </div>
 
       <div>
-        <h4 class="text-xs font-bold text-gray-400 mb-3">Custom Color</h4>
+        <h4 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3">Custom Color</h4>
         <div class="flex items-center gap-3">
           <label class="relative cursor-pointer">
             <input
@@ -488,13 +496,13 @@ const openGitHub = () => {
               @input="handleCustomColorChange"
               class="absolute inset-0 opacity-0 cursor-pointer"
             />
-            <div class="w-12 h-12 rounded-full border-2 border-gray-600 flex items-center justify-center bg-linear-to-br from-red-500 via-green-500 to-blue-500 hover:border-gray-400 transition-colors">
+            <div class="w-12 h-12 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center bg-linear-to-br from-red-500 via-green-500 to-blue-500 hover:border-gray-400 dark:hover:border-gray-400 transition-colors">
               <i class="fa-solid fa-edit text-white text-sm drop-shadow-lg"></i>
             </div>
           </label>
           <div class="min-w-[80px]">
-            <div class="text-xs text-gray-400 mb-1">Click the circle to pick a custom color</div>
-            <div class="text-xs text-gray-500 font-mono">{{ customColor }}</div>
+            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">Click the circle to pick a custom color</div>
+            <div class="text-xs text-gray-700 dark:text-gray-500 font-mono">{{ customColor }}</div>
           </div>
         </div>
       </div>
@@ -514,7 +522,7 @@ const openGitHub = () => {
     title="Error"
     width="md"
   >
-    <div class="text-sm text-red-400 font-mono">{{ errorAlertMessage }}</div>
+    <div class="text-sm text-red-500 dark:text-red-400 font-mono">{{ errorAlertMessage }}</div>
     <template #footer>
       <WButton variant="primary" full-width icon="fas fa-check" @click="showErrorAlert = false; appState.showErrorAlert.value = false">OK</WButton>
     </template>

@@ -56,30 +56,30 @@ export function useAppState() {
 
   const getStatusStyle = computed(() => {
     if (!coreExists.value)
-      return { color: '#FCD575 !important', filter: 'none' }
+      return { color: 'var(--status-warning)', filter: 'none' }
 
     if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
-      return { color: '#F4A7B0 !important', filter: 'none' }
+      return { color: 'var(--status-error)', filter: 'none' }
 
     if (msg.value === "DETECTING" || (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING...")))
-      return { color: '#FCD575 !important', filter: 'none' }
+      return { color: 'var(--status-warning)', filter: 'none' }
 
     if (msg.value === "STANDBY")
-      return { color: '#B4A2CC !important', filter: 'none' }
+      return { color: 'var(--status-standby)', filter: 'none' }
 
     if (!running.value)
-      return { color: '#9E9E9E !important', filter: 'none' }
+      return { color: 'var(--status-offline)', filter: 'none' }
 
     if (tunMode.value && sysProxy.value)
-      return { color: '#C5A3BF !important', filter: 'none' }
+      return { color: 'var(--status-mixed)', filter: 'none' }
 
     if (tunMode.value)
-      return { color: '#89C3EB !important', filter: 'none' }
+      return { color: 'var(--status-tun)', filter: 'none' }
 
     if (sysProxy.value)
-      return { color: '#7EBEAB !important', filter: 'none' }
+      return { color: 'var(--status-proxy)', filter: 'none' }
 
-    return { color: '#F0F0F0 !important', filter: 'none' }
+    return { color: 'var(--status-default)', filter: 'none' }
   })
 
   const getControlBg = computed(() => {

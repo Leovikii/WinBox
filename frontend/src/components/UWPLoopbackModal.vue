@@ -43,9 +43,9 @@ watch(() => props.modelValue, (newVal) => {
   >
     <div class="flex flex-col gap-4">
       <!-- Header with stats and actions -->
-      <div class="flex items-center justify-between pb-3 border-b border-white/10">
-        <div class="text-sm text-gray-400">
-          Selected: <span class="text-white font-medium">{{ selectedCount }}</span> / {{ totalCount }}
+      <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+        <div class="text-sm text-gray-600 dark:text-gray-400">
+          Selected: <span class="text-gray-900 dark:text-white font-medium">{{ selectedCount }}</span> / {{ totalCount }}
         </div>
         <div class="flex gap-2">
           <WButton
@@ -68,8 +68,8 @@ watch(() => props.modelValue, (newVal) => {
       <!-- Loading state -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="flex flex-col items-center gap-3">
-          <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <div class="text-sm text-gray-400">Loading UWP applications...</div>
+          <div class="w-8 h-8 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin"></div>
+          <div class="text-sm text-gray-600 dark:text-gray-400">Loading UWP applications...</div>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ watch(() => props.modelValue, (newVal) => {
           <div
             v-for="app in sortedApps"
             :key="app.sid"
-            class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group"
+            class="flex items-center gap-3 p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer group"
             @click="emit('toggle', app.sid)"
           >
             <div class="shrink-0">
@@ -87,8 +87,8 @@ watch(() => props.modelValue, (newVal) => {
                 :class="[
                   'w-5 h-5 rounded border-2 flex items-center justify-center transition-all',
                   selectedSIDs.includes(app.sid)
-                    ? 'bg-blue-500 border-blue-500'
-                    : 'border-gray-600 group-hover:border-gray-500'
+                    ? 'bg-[var(--accent-color)] border-[var(--accent-color)]'
+                    : 'border-gray-300 dark:border-gray-600 group-hover:border-gray-400 dark:group-hover:border-gray-500'
                 ]"
               >
                 <i
@@ -98,7 +98,7 @@ watch(() => props.modelValue, (newVal) => {
               </div>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium text-white truncate">
+              <div class="text-sm font-medium text-gray-800 dark:text-white truncate">
                 {{ app.displayName }}
               </div>
               <div v-if="app.packageName" class="text-xs text-gray-500 truncate">
@@ -112,8 +112,8 @@ watch(() => props.modelValue, (newVal) => {
       <!-- Empty state -->
       <div v-else class="flex items-center justify-center py-12">
         <div class="text-center">
-          <i class="fas fa-inbox text-4xl text-gray-600 mb-3"></i>
-          <div class="text-sm text-gray-400">No UWP applications found</div>
+          <i class="fas fa-inbox text-4xl text-gray-300 dark:text-gray-600 mb-3"></i>
+          <div class="text-sm text-gray-500 dark:text-gray-400">No UWP applications found</div>
         </div>
       </div>
     </div>

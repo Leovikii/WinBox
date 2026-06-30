@@ -1,5 +1,6 @@
 import { ref, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
+import { WindowSetSystemDefaultTheme, WindowSetLightTheme, WindowSetDarkTheme } from '../../wailsjs/runtime/runtime'
 
 export const ACCENT_COLORS = [
   { name: 'Blue', value: '#2563eb' },
@@ -28,7 +29,12 @@ function hexToRgb(hex: string): string {
 }
 
 const accentColor = ref('#2563eb')
+const themeMode = ref('system') // 'light' | 'dark' | 'system'
+const isDark = ref(false)
 let isInitialized = false
+
+// Set up media query listener
+const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
 export function useTheme() {
 
@@ -36,14 +42,45 @@ export function useTheme() {
     const root = document.documentElement
     root.style.setProperty('--accent-color', accentColor.value)
     root.style.setProperty('--accent-color-rgb', hexToRgb(accentColor.value))
+
+    // Handle Light/Dark Class
+    let isDarkValue = false
+    if (themeMode.value === 'dark') {
+      isDarkValue = true
+      WindowSetDarkTheme()
+    } else if (themeMode.value === 'light') {
+      isDarkValue = false
+      WindowSetLightTheme()
+    } else {
+      isDarkValue = mediaQuery.matches
+      WindowSetSystemDefaultTheme()
+    }
+    
+    isDark.value = isDarkValue
+
+    if (isDarkValue) {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
   }
 
-  const setTheme = async (color: string) => {
+  const setThemeColor = async (color: string) => {
     accentColor.value = color
     applyTheme()
+    saveThemeConfig()
+  }
 
+  const setThemeMode = async (mode: string) => {
+    themeMode.value = mode
+    applyTheme()
+    saveThemeConfig()
+  }
+
+  const saveThemeConfig = async () => {
     try {
-      await Backend.SaveTheme('dark', color)
+      localStorage.setItem('themeMode', themeMode.value)
+      await Backend.SaveTheme(themeMode.value, accentColor.value)
     } catch (error) {
       // Silent fail
     }
@@ -55,6 +92,10 @@ export function useTheme() {
       if (meta.accentColor) {
         accentColor.value = meta.accentColor
       }
+      if (meta.themeMode) {
+        themeMode.value = meta.themeMode
+        localStorage.setItem('themeMode', meta.themeMode)
+      }
       applyTheme()
     } catch (error) {
       // Silent fail
@@ -65,12 +106,16 @@ export function useTheme() {
     if (!isInitialized) {
       isInitialized = true
       loadTheme()
+      mediaQuery.addEventListener('change', applyTheme)
     }
   })
 
   return {
     accentColor,
-    setTheme,
+    themeMode,
+    isDark,
+    setThemeColor,
+    setThemeMode,
     loadTheme,
   }
 }

@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "marked": "^18.0.5",
+    "overlayscrollbars": "^2.16.0",
+    "overlayscrollbars-vue": "^0.5.10",
     "vue": "^3.4.0"
   },
   "devDependencies": {
