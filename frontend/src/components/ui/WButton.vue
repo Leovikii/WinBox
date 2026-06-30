@@ -30,11 +30,11 @@ const buttonClasses = computed(() => {
   else if (props.size === 'lg') classes.push('h-12 px-6 text-xs')
 
   if (props.variant === 'primary') {
-    classes.push('bg-[var(--accent-color)]/90 text-white hover:brightness-110 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]')
+    classes.push('bg-[var(--accent-color)]/90 text-white border border-transparent hover:brightness-110 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]')
   } else if (props.variant === 'secondary') {
     classes.push('bg-black/[0.02] dark:bg-white/[0.02] border border-black/10 dark:border-white/10 shadow-sm text-gray-700 dark:text-gray-300 hover:bg-black/[0.1] dark:hover:bg-white/[0.12]')
   } else if (props.variant === 'danger') {
-    classes.push('bg-red-600 text-white hover:bg-red-500')
+    classes.push('bg-red-600 text-white border border-transparent hover:bg-red-500')
   } else if (props.variant === 'success') {
     classes.push('bg-emerald-500/10 text-emerald-500 border border-emerald-500/20')
   } else if (props.variant === 'warning') {

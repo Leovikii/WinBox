@@ -74,7 +74,7 @@ defineExpose({
       @click="handleBackdropClick"
     >
       <div :class="modalClasses" @click.stop class="flex flex-col max-h-[80vh]">
-      <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-white/5">
+      <div class="h-12 shrink-0 flex justify-between items-center px-5 mt-2">
         <slot name="header">
           <div class="flex-1 flex justify-center">
             <h2 v-if="title" class="text-sm font-semibold text-gray-800 dark:text-gray-300">{{ title }}</h2>
@@ -89,7 +89,7 @@ defineExpose({
           <slot />
         </div>
       </WScrollArea>
-      <div v-if="$slots.footer" class="shrink-0 p-4 border-t border-[#2a2a2a]">
+      <div v-if="$slots.footer" class="shrink-0 px-5 py-4 bg-[#f3f3f3] dark:bg-black/20 border-t border-black/[0.05] dark:border-white/[0.05]">
         <slot name="footer" />
       </div>
     </div>
