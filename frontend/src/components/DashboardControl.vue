@@ -499,9 +499,9 @@ onActivated(() => {
         </div>
       </div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">Cancel</WButton>
-          <WButton variant="primary" class="flex-1" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">Add</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">Cancel</WButton>
+          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">Add</WButton>
         </div>
       </template>
     </WModal>
@@ -530,9 +530,9 @@ onActivated(() => {
         </div>
       </div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">Cancel</WButton>
-          <WButton variant="primary" class="flex-1" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">Save</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">Cancel</WButton>
+          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">Save</WButton>
         </div>
       </template>
     </WModal>
@@ -544,9 +544,9 @@ onActivated(() => {
     >
       <div class="text-sm text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showDeleteConfirm.value = false">Cancel</WButton>
-          <WButton variant="danger" class="flex-1" @click="profilesState.confirmDelete">Delete</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showDeleteConfirm.value = false">Cancel</WButton>
+          <WButton variant="danger" class="min-w-[80px]" @click="profilesState.confirmDelete">Delete</WButton>
         </div>
       </template>
     </WModal>
@@ -570,11 +570,11 @@ onActivated(() => {
         </div>
         
         <template #footer>
-          <div class="flex gap-3 w-full">
-            <WButton variant="secondary" class="flex-1" icon="fas fa-trash" @click="clearAppLog">
+          <div class="flex items-center justify-end gap-3 w-full">
+            <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-trash" @click="clearAppLog">
               Clear
             </WButton>
-            <WButton variant="primary" class="flex-1" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog">
+            <WButton variant="primary" class="min-w-[80px]" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog">
               {{ copyState }}
             </WButton>
           </div>

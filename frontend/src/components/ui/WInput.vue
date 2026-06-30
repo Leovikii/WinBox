@@ -30,7 +30,7 @@ const inputClasses = computed(() => {
   if (props.error) {
     classes.push('border-red-500/50')
   } else {
-    classes.push('border-[#2a2a2a] focus:border-blue-500/50')
+    classes.push('border-[#2a2a2a] focus:border-[var(--accent-color)]')
   }
 
   if (props.mono) {

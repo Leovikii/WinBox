@@ -119,16 +119,16 @@ watch(() => props.modelValue, (newVal) => {
     </div>
 
     <template #footer>
-      <div class="flex gap-3 w-full">
+      <div class="flex items-center justify-end gap-3 w-full">
         <WButton
           variant="secondary"
-          class="flex-1"
+          class="min-w-[80px]"
           @click="emit('update:modelValue', false)"
           :disabled="saving"
         >Cancel</WButton>
         <WButton
           variant="primary"
-          class="flex-1"
+          class="min-w-[80px]"
           @click="emit('save')"
           :disabled="loading || saving || !hasChanges"
           :loading="saving"

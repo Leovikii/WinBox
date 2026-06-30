@@ -421,12 +421,12 @@ const openGitHub = () => {
         />
       </div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>
-          <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="showEditor = false">Cancel</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="warning" class="min-w-[80px]" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>
+          <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="showEditor = false">Cancel</WButton>
           <WButton
             :variant="saveBtnText === 'Saved' ? 'success' : 'primary'"
-            class="flex-1"
+            class="min-w-[80px]"
             :icon="saveBtnText === 'Saved' ? 'fas fa-check' : 'fas fa-save'"
             @click="saveEditor()"
           >
@@ -445,9 +445,9 @@ const openGitHub = () => {
   >
     <div class="text-sm text-gray-300">Reset to default configuration?</div>
     <template #footer>
-      <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="showResetConfirm = false">Cancel</WButton>
-        <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="confirmReset()">Reset</WButton>
+      <div class="flex items-center justify-end gap-3 w-full">
+        <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="showResetConfirm = false">Cancel</WButton>
+        <WButton variant="warning" class="min-w-[80px]" icon="fas fa-undo" @click="confirmReset()">Reset</WButton>
       </div>
     </template>
   </WModal>
@@ -492,7 +492,7 @@ const openGitHub = () => {
               <i class="fa-solid fa-edit text-white text-sm drop-shadow-lg"></i>
             </div>
           </label>
-          <div class="flex-1">
+          <div class="min-w-[80px]">
             <div class="text-xs text-gray-400 mb-1">Click the circle to pick a custom color</div>
             <div class="text-xs text-gray-500 font-mono">{{ customColor }}</div>
           </div>
@@ -500,9 +500,9 @@ const openGitHub = () => {
       </div>
     </div>
     <template #footer>
-      <div class="flex gap-3 w-full">
-        <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="handleCloseThemeModal">Cancel</WButton>
-        <WButton variant="primary" class="flex-1" icon="fas fa-check" @click="applyCustomColor">Apply</WButton>
+      <div class="flex items-center justify-end gap-3 w-full">
+        <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="handleCloseThemeModal">Cancel</WButton>
+        <WButton variant="primary" class="min-w-[80px]" icon="fas fa-check" @click="applyCustomColor">Apply</WButton>
       </div>
     </template>
   </WModal>
