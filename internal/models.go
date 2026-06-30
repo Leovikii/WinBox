@@ -7,8 +7,24 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const DefaultTunConfig = `{"type":"tun","tag":"tun-in","address":["172.19.0.1/30","fdfe:dcba:9876::1/126"],"mtu":9000,"auto_route":true,"strict_route":true}`
-const DefaultMixedConfig = `{"type":"mixed","tag":"mixed-in","listen":"0.0.0.0","listen_port":7893,"set_system_proxy":true}`
+const DefaultTunConfig = `{
+  "type": "tun",
+  "tag": "tun-in",
+  "address": [
+    "172.19.0.1/30",
+    "fdfe:dcba:9876::1/126"
+  ],
+  "mtu": 9000,
+  "auto_route": true,
+  "strict_route": true
+}`
+const DefaultMixedConfig = `{
+  "type": "mixed",
+  "tag": "mixed-in",
+  "listen": "0.0.0.0",
+  "listen_port": 7893,
+  "set_system_proxy": true
+}`
 
 // Profile represents a configuration profile
 type Profile struct {

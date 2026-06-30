@@ -91,6 +91,14 @@ export function useKernelUpdate() {
         appState.mirrorUrl.value = editorContent.value
       }
     } else {
+      try {
+        const parsed = JSON.parse(editorContent.value)
+        editorContent.value = JSON.stringify(parsed, null, 2)
+      } catch (e) {
+        errorAlertMessage.value = "Invalid JSON format"
+        showErrorAlert.value = true
+        return
+      }
       res = await Backend.SaveOverride(editingType.value as string, editorContent.value)
     }
     if (res === "Success") {
