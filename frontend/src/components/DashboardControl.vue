@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
+import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
 
 import { useAppState } from '../composables/useAppState'
@@ -133,7 +134,6 @@ const inlineLogContainer = ref<any>(null)
 const fullLogContainer = ref<any>(null)
 const logScrollbox = ref<any>(null)
 const copyState = ref("Copy")
-let logInterval: any = null
 
 const isAtBottom = (container: any) => {
   if (!container) return true
@@ -164,22 +164,33 @@ const openFullLog = () => {
 const loadAppLog = async () => {
   try {
     const content = await Backend.GetAppLog()
-    if (content !== appLogContent.value) {
-      const inlineAtBottom = isAtBottom(inlineLogContainer.value)
-      const fullAtBottom = isAtBottom(logScrollbox.value)
-      
-      appLogContent.value = content
-      
-      nextTick(() => {
-        if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-        if (fullAtBottom && logScrollbox.value && showLogModal.value) {
-          logScrollbox.value.scrollToBottom()
-        }
-      })
-    }
+    appLogContent.value = content
+    scrollToBottom()
   } catch (error) {
     appLogContent.value = "> Failed to load app log"
   }
+}
+
+const handleNewLog = (newLogLine: string) => {
+  const inlineAtBottom = isAtBottom(inlineLogContainer.value)
+  const fullAtBottom = isAtBottom(logScrollbox.value)
+  
+  appLogContent.value += newLogLine
+  
+  // Prevent unbounded memory growth
+  if (appLogContent.value.length > 600000) {
+    const lines = appLogContent.value.split('\n')
+    if (lines.length > 5000) {
+      appLogContent.value = lines.slice(lines.length - 5000).join('\n')
+    }
+  }
+  
+  nextTick(() => {
+    if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
+    if (fullAtBottom && logScrollbox.value && showLogModal.value) {
+      logScrollbox.value.scrollToBottom()
+    }
+  })
 }
 
 const clearAppLog = async () => {
@@ -205,14 +216,11 @@ const copyAppLog = async () => {
 
 onMounted(() => {
   loadAppLog()
-  scrollToBottom()
-  logInterval = setInterval(loadAppLog, 1500)
+  EventsOn("onAppLog", handleNewLog)
 })
 
 onUnmounted(() => {
-  if (logInterval) {
-    clearInterval(logInterval)
-  }
+  EventsOff("onAppLog")
 })
 
 onActivated(() => {

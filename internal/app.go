@@ -95,6 +95,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.settingsManager = NewSettingsManager(a.storage)
 	a.uwpLoopbackManager = NewUWPLoopbackManager()
 	a.appLogger = NewAppLogger(appDir)
+	a.appLogger.SetContext(ctx)
 
 	// Clear previous session's logs
 	a.appLogger.Clear()
