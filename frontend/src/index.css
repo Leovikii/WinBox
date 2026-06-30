@@ -2,9 +2,6 @@
 @import "overlayscrollbars/overlayscrollbars.css";
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-    --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, SFMono-Regular, monospace;
-}
 :root {
     --accent-color: #2563eb;
     --accent-color-rgb: 37, 99, 235;
@@ -75,14 +72,21 @@ body {
 
 
 
-/* Unified Modal Transition */
-.w-modal-enter-active,
-.w-modal-leave-active {
-  transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1);
+/* Unified Modal Transition (WinUI 3 Spec) */
+/* Entrance - Slower, Decelerate */
+.w-modal-enter-active {
+  transition: opacity 0.25s cubic-bezier(0, 0, 0, 1);
 }
-.w-modal-enter-active .w-modal-container,
+.w-modal-enter-active .w-modal-container {
+  transition: transform 0.25s cubic-bezier(0, 0, 0, 1);
+}
+
+/* Exit - Faster, Accelerate */
+.w-modal-leave-active {
+  transition: opacity 0.1s cubic-bezier(1, 0, 1, 1);
+}
 .w-modal-leave-active .w-modal-container {
-  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 0.1s cubic-bezier(1, 0, 1, 1);
 }
 
 .w-modal-enter-from,
@@ -91,7 +95,7 @@ body {
 }
 .w-modal-enter-from .w-modal-container,
 .w-modal-leave-to .w-modal-container {
-  transform: scale(0.97) translateY(10px);
+  transform: scale(0.95);
 }
 
 /* Page Crossfade Transition */

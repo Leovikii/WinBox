@@ -27,18 +27,25 @@ const handleClick = () => {
 
 const containerClasses = computed(() => {
   const classes = [
-    'rounded-full p-0.5 cursor-pointer transition-colors duration-300 relative'
+    'group rounded-full cursor-pointer transition-all duration-200 relative shrink-0 box-border block'
   ]
 
-  if (props.size === 'sm') classes.push('w-9 h-5')
-  else classes.push('w-11 h-6')
+  if (props.size === 'sm') classes.push('w-[32px] h-[16px]')
+  else classes.push('w-[40px] h-[20px]')
 
   if (props.modelValue) {
+    // ON State Track
     if (props.color === 'blue') classes.push('bg-[var(--accent-color)]')
     else if (props.color === 'purple') classes.push('bg-purple-600')
     else if (props.color === 'green') classes.push('bg-emerald-600')
+    classes.push('hover:brightness-110 ring-1 ring-inset ring-transparent')
   } else {
-    classes.push('bg-gray-300 dark:bg-[#2a2a2a] border border-black/5 dark:border-transparent')
+    // OFF State Track (WinUI 3: Transparent, solid ring, subtle fill on hover)
+    classes.push(
+      'bg-transparent group-hover:bg-black/[0.04] dark:group-hover:bg-white/[0.04]',
+      'ring-1 ring-inset ring-[#8b8b8b] dark:ring-[#9e9e9e]',
+      'group-hover:ring-[#5d5d5d] dark:group-hover:ring-[#8b8b8b]'
+    )
   }
 
   if (props.disabled) classes.push('opacity-50 cursor-not-allowed')
@@ -48,18 +55,38 @@ const containerClasses = computed(() => {
 
 const knobClasses = computed(() => {
   const classes = [
-    'bg-white rounded-full transition-transform duration-300 shadow-lg absolute top-1 left-1'
+    'rounded-full transition-all duration-200 absolute pointer-events-none'
   ]
 
-  if (props.size === 'sm') {
-    classes.push('w-3 h-3')
-    if (props.modelValue) classes.push('translate-x-4')
+  // Color and Shadow
+  if (props.modelValue) {
+    // ON State Thumb: High contrast (White in Light Mode, Black in Dark Mode)
+    classes.push('bg-white dark:bg-[#1a1a1a] shadow-sm')
   } else {
-    classes.push('w-4 h-4')
-    if (props.modelValue) classes.push('translate-x-5')
+    // OFF State Thumb: Gray
+    classes.push('bg-[#5d5d5d] dark:bg-[#c8c8c8] group-hover:bg-[#333333] dark:group-hover:bg-[#ffffff]')
   }
 
-  if (!props.modelValue) classes.push('translate-x-0')
+  // Size and Position (Micro-animations on hover)
+  if (props.size === 'sm') {
+    // Track: 32x16
+    if (props.modelValue) {
+      classes.push('top-[3px] left-[19px] w-[10px] h-[10px]')
+      classes.push('group-hover:top-[2px] group-hover:left-[18px] group-hover:w-[12px] group-hover:h-[12px]')
+    } else {
+      classes.push('top-[3px] left-[3px] w-[10px] h-[10px]')
+      classes.push('group-hover:top-[2px] group-hover:left-[2px] group-hover:w-[12px] group-hover:h-[12px]')
+    }
+  } else {
+    // Track: 40x20
+    if (props.modelValue) {
+      classes.push('top-[4px] left-[24px] w-[12px] h-[12px]')
+      classes.push('group-hover:top-[3px] group-hover:left-[23px] group-hover:w-[14px] group-hover:h-[14px]')
+    } else {
+      classes.push('top-[4px] left-[4px] w-[12px] h-[12px]')
+      classes.push('group-hover:top-[3px] group-hover:left-[3px] group-hover:w-[14px] group-hover:h-[14px]')
+    }
+  }
 
   return classes.join(' ')
 })

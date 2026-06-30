@@ -300,7 +300,7 @@ const openGitHub = () => {
           />
         </div>
 
-        <div class="flex items-center justify-between mt-4 mb-2">
+        <div class="flex justify-between items-center py-2 min-h-10">
           <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Theme</span>
           <div class="flex items-center gap-2">
             <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="w-8 h-8 !p-0 flex items-center justify-center rounded-full">

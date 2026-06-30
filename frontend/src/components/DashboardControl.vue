@@ -294,7 +294,7 @@ onActivated(() => {
           <!-- Log Content -->
           <div class="absolute inset-0">
             <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
-              <div class="px-6 pb-6 pt-0 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
+              <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
                 {{ appLogContent || 'No logs available.' }}
               </div>
             </WScrollArea>
@@ -567,7 +567,7 @@ onActivated(() => {
           </div>
         </template>
         
-        <div class="w-full font-mono text-[11px] leading-relaxed text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
+        <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
           {{ appLogContent || 'No logs available.' }}
         </div>
         
