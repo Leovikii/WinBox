@@ -217,9 +217,9 @@ onActivated(() => {
     <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
         
         <!-- Header: Status & Speed -->
-        <div class="shrink-0 flex justify-between items-center bg-transparent" :class="running ? 'pb-2' : ''">
+        <div class="shrink-0 flex justify-between items-start bg-transparent" :class="running ? 'pb-2' : ''">
           <!-- Left: Icon + Status -->
-          <div class="flex items-center gap-3" :style="getStatusStyle">
+          <div class="flex items-center gap-3 mt-1" :style="getStatusStyle">
             <!-- Icon with Hardware LED Bloom -->
             <div class="relative flex items-center justify-center w-4">
               <!-- Ambient background bloom -->
@@ -242,20 +242,17 @@ onActivated(() => {
           </div>
 
           <!-- Right: Speed -->
-          <div class="flex items-center gap-4">
-            <div v-if="showSpeedInfo" class="flex items-center gap-3">
-              <div class="flex items-center gap-1.5 opacity-90">
-                <i class="fas fa-arrow-up text-[10px] speed-upload"></i>
-                <span class="text-[11px] font-mono font-medium tracking-wider speed-upload">{{ formatSpeed(uploadSpeed) }}</span>
-              </div>
-              <div class="flex items-center gap-1.5 opacity-90">
-                <i class="fas fa-arrow-down text-[10px] speed-download"></i>
-                <span class="text-[11px] font-mono font-medium tracking-wider speed-download">{{ formatSpeed(downloadSpeed) }}</span>
-              </div>
+          <div v-if="showSpeedInfo" class="flex items-center justify-center w-24 h-9 shrink-0 text-gray-600 dark:text-gray-400 group hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-default">
+            <div class="grid grid-cols-[12px_1fr] gap-x-1 gap-y-[2px] w-full px-2 items-center">
+              <i class="fas fa-arrow-up text-[9px] speed-upload opacity-50 justify-self-center"></i>
+              <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-upload text-right">{{ formatSpeed(uploadSpeed) }}</span>
+              
+              <i class="fas fa-arrow-down text-[9px] speed-download opacity-50 justify-self-center"></i>
+              <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-download text-right">{{ formatSpeed(downloadSpeed) }}</span>
             </div>
-            <div v-else class="text-[10px] font-mono font-medium text-gray-400 dark:text-gray-600 tracking-widest uppercase">
-              Idle
-            </div>
+          </div>
+          <div v-else class="flex items-center justify-center w-7 h-7 rounded shrink-0 text-gray-400 dark:text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-default" title="Idle">
+            <i class="fas fa-link-slash text-[10px]"></i>
           </div>
         </div>
         

@@ -57,7 +57,7 @@ defineExpose({
       scrollbars: { 
         autoHide: 'scroll', 
         autoHideDelay: 800, 
-        theme: themeState.isDark.value ? 'os-theme-light' : 'os-theme-dark' 
+        theme: themeState.isDark.value ? 'os-theme-dark' : 'os-theme-light' 
       },
       overflow: { x: props.horizontal ? 'scroll' : 'hidden', y: 'scroll' }
     }"
@@ -68,11 +68,50 @@ defineExpose({
 </template>
 
 <style scoped>
+/* Custom WinUI 3 Theme Overrides */
+:deep(.os-theme-dark) {
+  --os-handle-bg: rgba(255, 255, 255, 0.3);
+  --os-handle-bg-hover: rgba(255, 255, 255, 0.4);
+  --os-handle-bg-active: rgba(255, 255, 255, 0.5);
+}
+:deep(.os-theme-light) {
+  --os-handle-bg: rgba(0, 0, 0, 0.3);
+  --os-handle-bg-hover: rgba(0, 0, 0, 0.4);
+  --os-handle-bg-active: rgba(0, 0, 0, 0.5);
+}
 
 :deep(.os-scrollbar) {
-  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  --os-size: 14px;
+  --os-padding-perpendicular: 3px;
+  --os-padding-axis: 3px;
+  --os-track-bg: transparent;
+  --os-track-bg-hover: transparent;
+  --os-track-bg-active: transparent;
+  --os-handle-border-radius: 10px;
+  transition: opacity 0.3s ease, visibility 0.3s ease !important;
 }
-:deep(.os-scrollbar-handle) {
-  transition: background-color 0.2s ease-in-out !important;
+
+/* WinUI 3 Default State: Extremely thin (3px) floating line */
+:deep(.os-scrollbar-vertical .os-scrollbar-handle) {
+  width: 3px !important;
+  min-width: 3px;
+  margin-left: auto;
+  transition: width 0.15s cubic-bezier(0, 0, 0, 1), background-color 0.2s ease !important;
+}
+:deep(.os-scrollbar-horizontal .os-scrollbar-handle) {
+  height: 3px !important;
+  min-height: 3px;
+  margin-top: auto;
+  transition: height 0.15s cubic-bezier(0, 0, 0, 1), background-color 0.2s ease !important;
+}
+
+/* WinUI 3 Hover State: Expands to full width (8px) */
+:deep(.os-scrollbar-vertical:hover .os-scrollbar-handle),
+:deep(.os-scrollbar-vertical.os-scrollbar-interacting .os-scrollbar-handle) {
+  width: 8px !important;
+}
+:deep(.os-scrollbar-horizontal:hover .os-scrollbar-handle),
+:deep(.os-scrollbar-horizontal.os-scrollbar-interacting .os-scrollbar-handle) {
+  height: 8px !important;
 }
 </style>
