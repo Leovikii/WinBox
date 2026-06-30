@@ -86,18 +86,18 @@ watch(isOpen, (newVal) => {
 
 const buttonClasses = computed(() => {
   const classes = [
-    'w-full relative bg-[#242424] text-[11px] text-gray-300 border border-[#3a3a3a]',
+    'w-full relative bg-black/5 dark:bg-white/[0.07] text-[11px] text-gray-700 dark:text-gray-300 border border-black/10 dark:border-white/10 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]',
     'rounded px-3 h-7 outline-none text-center font-bold cursor-pointer',
     'transition-colors duration-300 flex items-center justify-between gap-2',
-    'hover:bg-[#222] hover:border-[#444]'
+    'hover:bg-black/10 dark:hover:bg-white/[0.12]'
   ]
 
   if (isOpen.value) {
-    classes.push('border-[var(--accent-color)] bg-[#222]')
+    classes.push('border-[var(--accent-color)] bg-black/10 dark:bg-white/10')
   }
 
   if (props.disabled) {
-    classes.push('opacity-60 cursor-not-allowed hover:bg-[#1a1a1a] hover:border-[#333]')
+    classes.push('opacity-60 cursor-not-allowed hover:bg-black/5 dark:hover:bg-white/[0.07] hover:border-black/10 dark:hover:border-white/10')
   }
 
   return classes.join(' ')
@@ -105,8 +105,8 @@ const buttonClasses = computed(() => {
 
 const dropdownClasses = computed(() => {
   const classes = [
-    'fixed z-[9999] bg-[#242424] border border-[#3a3a3a] rounded overflow-hidden',
-    'shadow-2xl',
+    'fixed z-[9999] bg-white dark:bg-[#242424] border border-black/10 dark:border-white/10 rounded-md overflow-hidden',
+    'shadow-[0_8px_32px_rgba(0,0,0,0.4)]',
     'transition-all duration-300 origin-top'
   ]
 
@@ -133,7 +133,7 @@ const dropdownClasses = computed(() => {
       <i
         :class="[
           'fas fa-chevron-down text-[9px] transition-transform duration-300',
-          isOpen ? 'rotate-180 text-(--accent-color)' : 'text-[#666]'
+          isOpen ? 'rotate-180 text-[var(--accent-color)]' : 'text-gray-400 dark:text-[#666]'
         ]"
       ></i>
     </button>
@@ -150,10 +150,10 @@ const dropdownClasses = computed(() => {
           @click="selectOption(option.value)"
           :class="[
             'px-3 py-2 text-[11px] font-bold cursor-pointer transition-colors duration-200 whitespace-nowrap',
-            'hover:bg-[#333333] hover:text-[var(--accent-color)]',
+            'hover:bg-black/5 dark:hover:bg-white/[0.12] hover:text-[var(--accent-color)]',
             modelValue === option.value
-              ? 'bg-(--accent-color)/10 text-(--accent-color)'
-              : 'text-gray-300'
+              ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]'
+              : 'text-gray-700 dark:text-gray-300'
           ]"
         >
           {{ option.label }}

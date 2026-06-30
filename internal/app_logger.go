@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"context"
+	
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // LogLevel represents log severity levels
@@ -23,6 +26,12 @@ type AppLogger struct {
 	logPath  string
 	maxSize  int64 // Maximum log file size in bytes (10MB)
 	maxFiles int   // Maximum number of archived log files
+	ctx      context.Context
+}
+
+// SetContext sets the Wails context for event emission
+func (al *AppLogger) SetContext(ctx context.Context) {
+	al.ctx = ctx
 }
 
 // NewAppLogger creates a new application logger
@@ -59,6 +68,11 @@ func (al *AppLogger) log(level LogLevel, message string) {
 	defer f.Close()
 
 	f.WriteString(logEntry)
+
+	// Emit event to frontend if context is available
+	if al.ctx != nil {
+		runtime.EventsEmit(al.ctx, "onAppLog", logEntry)
+	}
 }
 
 // Info logs an informational message

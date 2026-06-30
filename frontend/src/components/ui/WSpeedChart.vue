@@ -103,14 +103,14 @@ const downloadFillPath = computed(() => generateFillPath(downloadData.value))
       <defs>
         <!-- Upload Gradient (Emerald) -->
         <linearGradient id="uploadGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color="#10b981" stop-opacity="0.25" />
-          <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+          <stop offset="0%" stop-color="#10b981" stop-opacity="0.6" />
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0.05" />
         </linearGradient>
         
         <!-- Download Gradient (Blue) -->
         <linearGradient id="downloadGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25" />
-          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0" />
+          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.6" />
+          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.05" />
         </linearGradient>
       </defs>
 

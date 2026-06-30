@@ -23,20 +23,20 @@ const emit = defineEmits<{
 
 const inputClasses = computed(() => {
   const classes = [
-    'w-full bg-[#050505] border rounded px-4 py-3 text-xs',
+    'w-full bg-black/5 dark:bg-white/[0.04] border border-black/10 dark:border-white/10 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded px-4 py-3 text-xs',
     'focus:outline-none transition-all'
   ]
 
   if (props.error) {
     classes.push('border-red-500/50')
   } else {
-    classes.push('border-[#2a2a2a] focus:border-blue-500/50')
+    classes.push('border-[#2a2a2a] focus:border-[var(--accent-color)]')
   }
 
   if (props.mono) {
-    classes.push('font-mono text-[#888]')
+    classes.push('font-mono text-gray-500 dark:text-[#888]')
   } else {
-    classes.push('text-white')
+    classes.push('text-gray-900 dark:text-white')
   }
 
   if (props.disabled) {

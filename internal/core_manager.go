@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -268,6 +269,7 @@ func (cm *CoreManager) CheckConfig(configPath string) error {
 	}
 
 	cmd := exec.Command(coreExe, "check", "-c", configPath)
+	SetCmdWindowHidden(cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("config check failed: %s", string(output))
@@ -346,6 +348,11 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 	content, err = sjson.SetBytes(content, "log", logConfig)
 	if err != nil {
 		return "", err
+	}
+
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, content, "", "  "); err == nil {
+		content = prettyJSON.Bytes()
 	}
 
 	os.MkdirAll(filepath.Dir(dstPath), 0755)

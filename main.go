@@ -2,8 +2,12 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
+
+	"golang.org/x/sys/windows/registry"
 
 	"WinBox/internal"
 
@@ -28,8 +32,21 @@ var trayTun []byte
 //go:embed frontend/icon/tray_proxy.ico
 var trayProxy []byte
 
-//go:embed frontend/icon/tray_full.ico
-var trayFull []byte
+//go:embed frontend/icon/tray_mixed.ico
+var trayMixed []byte
+
+func isSystemDark() bool {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, registry.QUERY_VALUE)
+	if err != nil {
+		return true
+	}
+	defer k.Close()
+	val, _, err := k.GetIntegerValue("AppsUseLightTheme")
+	if err != nil {
+		return true
+	}
+	return val == 0
+}
 
 func main() {
 	startMinimized := false
@@ -42,9 +59,32 @@ func main() {
 		}
 	}
 
-	app := internal.NewApp(icon, trayDefault, trayTun, trayProxy, trayFull, startMinimized)
+	app := internal.NewApp(icon, trayDefault, trayTun, trayProxy, trayMixed, startMinimized)
 
-	err := wails.Run(&options.App{
+	// Determine initial theme for webview background to prevent flash
+	bgColour := &options.RGBA{R: 20, G: 20, B: 20, A: 0}
+	winTheme := windows.SystemDefault
+	exe, err := os.Executable()
+	if err == nil {
+		appDir := filepath.Dir(exe)
+		settingsPath := filepath.Join(appDir, "data", "config", "settings.json")
+		data, err := os.ReadFile(settingsPath)
+		if err == nil {
+			var meta struct {
+				ThemeMode string `json:"theme_mode"`
+			}
+			if json.Unmarshal(data, &meta) == nil {
+				if meta.ThemeMode == "light" || (meta.ThemeMode == "system" && !isSystemDark()) {
+					bgColour = &options.RGBA{R: 253, G: 253, B: 253, A: 0}
+					winTheme = windows.Light
+				} else if meta.ThemeMode == "dark" || (meta.ThemeMode == "system" && isSystemDark()) {
+					winTheme = windows.Dark
+				}
+			}
+		}
+	}
+
+	err = wails.Run(&options.App{
 		Title:         "WinBox",
 		Width:         400,
 		Height:        720,
@@ -53,7 +93,7 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 20, G: 20, B: 20, A: 0},
+		BackgroundColour: bgColour,
 		OnStartup:        app.Startup,
 		OnShutdown:       app.OnShutdown,
 		SingleInstanceLock: &options.SingleInstanceLock{
@@ -66,7 +106,7 @@ func main() {
 			app,
 		},
 		Windows: &windows.Options{
-			Theme:                             windows.Dark,
+			Theme:                             winTheme,
 			WebviewIsTransparent:              true,
 			WindowIsTranslucent:               true,
 			BackdropType:                      windows.Mica,

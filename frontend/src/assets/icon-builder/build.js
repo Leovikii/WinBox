@@ -8,7 +8,7 @@ const frontendIconDir = path.resolve(__dirname, '..', '..', '..', 'icon');
 const buildDir = path.resolve(__dirname, '..', '..', '..', '..', 'build');
 const buildWindowsDir = path.join(buildDir, 'windows');
 
-const icons = ['tray', 'tray_tun', 'tray_proxy', 'tray_full'];
+const icons = ['tray', 'tray_tun', 'tray_proxy', 'tray_mixed'];
 const sizes = [256, 64, 32, 16];
 
 async function main() {

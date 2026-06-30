@@ -111,7 +111,7 @@ const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean })
 };
 
 const handleAccentColorChange = (color: string) => {
-  themeState.setTheme(color);
+  themeState.setThemeColor(color);
 };
 
 const handleOpenUWPModal = async () => {
@@ -142,15 +142,14 @@ const handleRestartCore = async () => {
 <template>
   <div class="h-screen w-screen relative bg-transparent text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative" style="--wails-draggable: drag">
-      <div class="text-xs font-bold tracking-[0.2em] text-white flex items-center gap-2.5">
+      <div class="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2.5">
         <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
-        WINBOX
-
+        WinBox
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button 
           @click="showSettings = !showSettings" 
-          class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200 relative"
+          class="text-gray-500 dark:text-[#888] w-12 h-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-800 dark:hover:text-white transition-all duration-200 relative"
           :title="showSettings ? 'Back to Home' : 'Settings'"
         >
           <i :class="showSettings ? 'fas fa-arrow-left' : 'fas fa-gear'" class="text-xs"></i>
@@ -159,10 +158,10 @@ const handleRestartCore = async () => {
             class="absolute top-[14px] right-[14px] w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.8)] animate-pulse pointer-events-none"
           ></span>
         </button>
-        <button @click="minimize" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-white/5 hover:text-white transition-all duration-200">
+        <button @click="minimize" class="text-gray-500 dark:text-[#888] w-12 h-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-800 dark:hover:text-white transition-all duration-200">
           <i class="fas fa-minus text-[10px]"></i>
         </button>
-        <button @click="requestQuit" class="text-[#888] w-12 h-12 flex items-center justify-center hover:bg-red-600/90 hover:text-white transition-all duration-200">
+        <button @click="requestQuit" class="text-gray-500 dark:text-[#888] w-12 h-12 flex items-center justify-center hover:bg-red-600/90 hover:text-white transition-all duration-200">
           <i class="fas fa-xmark text-base"></i>
         </button>
       </div>
@@ -198,25 +197,25 @@ const handleRestartCore = async () => {
     <WModal
       :model-value="showQuitConfirm"
       @update:model-value="showQuitConfirm = false"
-      title="EXIT OPTIONS"
+      title="Exit options"
       width="md"
     >
-      <div class="text-sm text-gray-300 mb-4">Do you want to minimize to the system tray or quit the application?</div>
+      <div class="text-sm text-gray-800 dark:text-gray-300 mb-4">Do you want to minimize to the system tray or quit the application?</div>
       
       <label class="flex items-center gap-2 cursor-pointer mb-2 w-fit group">
         <div class="relative flex items-center justify-center w-4 h-4 rounded border transition-colors duration-200"
-             :class="rememberCloseChoice ? 'bg-[var(--accent-color)] border-[var(--accent-color)]' : 'border-gray-500 group-hover:border-gray-400'">
+             :class="rememberCloseChoice ? 'bg-[var(--accent-color)] border-[var(--accent-color)]' : 'border-gray-400 dark:border-gray-500 group-hover:border-gray-500 dark:group-hover:border-gray-400'">
           <i class="fas fa-check text-[10px] text-white opacity-0 transition-opacity duration-200"
              :class="{'opacity-100': rememberCloseChoice}"></i>
         </div>
-        <span class="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">Remember my choice and don't ask again</span>
+        <span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-300 transition-colors">Remember my choice and don't ask again</span>
         <input type="checkbox" v-model="rememberCloseChoice" class="hidden" />
       </label>
 
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="handleMinimizeChoice">MINIMIZE</WButton>
-          <WButton variant="danger" class="flex-1" @click="handleQuitChoice">QUIT</WButton>
+          <WButton variant="secondary" class="flex-1" @click="handleMinimizeChoice">Minimize</WButton>
+          <WButton variant="danger" class="flex-1" @click="handleQuitChoice">Quit</WButton>
         </div>
       </template>
     </WModal>
@@ -225,22 +224,22 @@ const handleRestartCore = async () => {
     <WModal
       :model-value="showChangelogModal"
       @update:model-value="showChangelogModal = false"
-      :title="'WHAT\'S NEW IN ' + programState.programRemoteVer.value"
+      :title="`What's new in ${programState.programRemoteVer.value}`"
       width="md"
     >
       <div 
-        class="text-sm text-gray-300 pr-2 markdown-body" 
+        class="text-sm text-gray-800 dark:text-gray-300 pr-2 markdown-body" 
         v-html="renderedChangelog"
       ></div>
       <template #footer>
         <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">LATER</WButton>
+          <WButton variant="secondary" class="flex-1" @click="showChangelogModal = false">Later</WButton>
           <WButton 
             variant="primary" 
             class="flex-1" 
             @click="() => { showChangelogModal = false; showSettings = true; programState.performProgramUpdate(); }"
           >
-            UPDATE NOW
+            Update now
           </WButton>
         </div>
       </template>

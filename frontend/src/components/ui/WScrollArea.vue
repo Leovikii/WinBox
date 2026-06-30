@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { computed, ref } from 'vue'
+import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
 
 const props = withDefaults(defineProps<{
   height?: string
@@ -16,10 +17,7 @@ const props = withDefaults(defineProps<{
 })
 
 const computedStyle = computed(() => {
-  const style: Record<string, any> = {
-    overflowY: 'auto',
-    overflowX: props.horizontal ? 'auto' : 'hidden'
-  }
+  const style: Record<string, any> = {}
   if (props.height && props.height !== 'auto') style.height = props.height
   if (props.maxHeight && props.maxHeight !== 'none') style.maxHeight = props.maxHeight
   if (props.width && props.width !== 'auto') style.width = props.width
@@ -27,119 +25,109 @@ const computedStyle = computed(() => {
   return style
 })
 
-const scrollContainer = ref<HTMLElement | null>(null)
-const thumbHeight = ref(0)
-const thumbTop = ref(0)
-const isScrolling = ref(false)
-let hideTimeout: number | null = null
+import { useTheme } from '@/composables/useTheme'
+const themeState = useTheme()
 
-const calculateThumb = () => {
-  if (!scrollContainer.value) return
-  const el = scrollContainer.value
-  const { scrollTop, scrollHeight, clientHeight } = el
-  if (scrollHeight <= clientHeight) {
-    thumbHeight.value = 0
-    return
-  }
-  
-  // Height ratio
-  const heightRatio = clientHeight / scrollHeight
-  thumbHeight.value = Math.max(heightRatio * clientHeight, 20)
-  
-  // Scroll ratio
-  const scrollRatio = scrollTop / (scrollHeight - clientHeight)
-  const visualTop = scrollRatio * (clientHeight - thumbHeight.value)
-  
-  // Prevent floating point rounding from extending the scrollHeight, causing infinite loops
-  thumbTop.value = Math.min(scrollTop + visualTop, scrollHeight - thumbHeight.value - 1)
-}
-
-const onScroll = () => {
-  calculateThumb()
-  isScrolling.value = true
-  if (hideTimeout) clearTimeout(hideTimeout)
-  hideTimeout = window.setTimeout(() => {
-    isScrolling.value = false
-  }, 800)
-}
+const scrollContainer = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
 
 const scrollToBottom = () => {
-  if (scrollContainer.value) {
-    scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
-  }
+  requestAnimationFrame(() => {
+    if (scrollContainer.value) {
+      const osInstance = scrollContainer.value.osInstance()
+      if (osInstance) {
+        const { viewport } = osInstance.elements()
+        if (viewport) {
+          viewport.scrollTop = viewport.scrollHeight
+        }
+      }
+    }
+  })
 }
 
-let resizeObserver: ResizeObserver | null = null
-let mutationObserver: MutationObserver | null = null
-
-onMounted(() => {
+const isAtBottom = () => {
   if (scrollContainer.value) {
-    // Initial calc
-    nextTick(() => {
-      calculateThumb()
-    })
-    
-    resizeObserver = new ResizeObserver(() => {
-      calculateThumb()
-    })
-    resizeObserver.observe(scrollContainer.value)
-    
-    mutationObserver = new MutationObserver(() => {
-      calculateThumb()
-    })
-    mutationObserver.observe(scrollContainer.value, { childList: true, subtree: true, characterData: true })
+    const osInstance = scrollContainer.value.osInstance()
+    if (osInstance) {
+      const { viewport } = osInstance.elements()
+      if (viewport) {
+        return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 50
+      }
+    }
   }
-})
-
-onBeforeUnmount(() => {
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-  }
-  if (mutationObserver) {
-    mutationObserver.disconnect()
-  }
-  if (hideTimeout) {
-    clearTimeout(hideTimeout)
-  }
-})
+  return true
+}
 
 defineExpose({
   $el: scrollContainer,
-  scrollToBottom
+  scrollToBottom,
+  isAtBottom
 })
 </script>
 
 <template>
-  <div class="w-scroll-area relative" :style="computedStyle" ref="scrollContainer" @scroll="onScroll">
-    <Transition name="fade">
-      <div 
-        v-show="thumbHeight > 0 && isScrolling && !horizontal"
-        class="absolute right-1 w-1 rounded-full bg-white/20 pointer-events-none z-[99]"
-        :style="{ height: `${thumbHeight}px`, top: `${thumbTop}px` }"
-      ></div>
-    </Transition>
-    
+  <OverlayScrollbarsComponent
+    ref="scrollContainer"
+    class="w-scroll-area relative"
+    :style="computedStyle"
+    :options="{
+      scrollbars: { 
+        autoHide: 'scroll', 
+        autoHideDelay: 800, 
+        theme: themeState.isDark.value ? 'os-theme-dark' : 'os-theme-light' 
+      },
+      overflow: { x: props.horizontal ? 'scroll' : 'hidden', y: 'scroll' }
+    }"
+    defer
+  >
     <slot />
-  </div>
+  </OverlayScrollbarsComponent>
 </template>
 
 <style scoped>
-/* Hide native scrollbar */
-.w-scroll-area {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+/* Custom WinUI 3 Theme Overrides */
+:deep(.os-theme-dark) {
+  --os-handle-bg: rgba(255, 255, 255, 0.3);
+  --os-handle-bg-hover: rgba(255, 255, 255, 0.4);
+  --os-handle-bg-active: rgba(255, 255, 255, 0.5);
 }
-.w-scroll-area::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+:deep(.os-theme-light) {
+  --os-handle-bg: rgba(0, 0, 0, 0.3);
+  --os-handle-bg-hover: rgba(0, 0, 0, 0.4);
+  --os-handle-bg-active: rgba(0, 0, 0, 0.5);
 }
 
-/* Transition for fade */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.4s ease;
+:deep(.os-scrollbar) {
+  --os-size: 14px;
+  --os-padding-perpendicular: 3px;
+  --os-padding-axis: 3px;
+  --os-track-bg: transparent;
+  --os-track-bg-hover: transparent;
+  --os-track-bg-active: transparent;
+  --os-handle-border-radius: 10px;
+  transition: opacity 0.3s ease, visibility 0.3s ease !important;
 }
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+
+/* WinUI 3 Default State: Extremely thin (3px) floating line */
+:deep(.os-scrollbar-vertical .os-scrollbar-handle) {
+  width: 3px !important;
+  min-width: 3px;
+  margin-left: auto;
+  transition: width 0.15s cubic-bezier(0, 0, 0, 1), background-color 0.2s ease !important;
+}
+:deep(.os-scrollbar-horizontal .os-scrollbar-handle) {
+  height: 3px !important;
+  min-height: 3px;
+  margin-top: auto;
+  transition: height 0.15s cubic-bezier(0, 0, 0, 1), background-color 0.2s ease !important;
+}
+
+/* WinUI 3 Hover State: Expands to full width (8px) */
+:deep(.os-scrollbar-vertical:hover .os-scrollbar-handle),
+:deep(.os-scrollbar-vertical.os-scrollbar-interacting .os-scrollbar-handle) {
+  width: 8px !important;
+}
+:deep(.os-scrollbar-horizontal:hover .os-scrollbar-handle),
+:deep(.os-scrollbar-horizontal.os-scrollbar-interacting .os-scrollbar-handle) {
+  height: 8px !important;
 }
 </style>

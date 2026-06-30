@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, watch, onMounted, onUnmounted, ref } from 'vue'
 import WScrollArea from './WScrollArea.vue'
 import type { ModalWidth, ModalHeight } from './types'
 
@@ -36,8 +36,8 @@ const handleClose = () => {
 
 const modalClasses = computed(() => {
   const classes = [
-    'mica-card border border-[#333] rounded-lg',
-    'shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden w-modal-container'
+    'bg-[#fdfdfd] dark:bg-[#1c1c1c] border border-black/10 dark:border-white/5 rounded-lg',
+    'shadow-[0_16px_64px_rgba(0,0,0,0.1)] dark:shadow-[0_16px_64px_rgba(0,0,0,0.5)] overflow-hidden w-modal-container'
   ]
 
   if (props.width === 'sm') classes.push('w-[70%]')
@@ -51,28 +51,45 @@ const modalClasses = computed(() => {
 
   return classes.join(' ')
 })
+
+const scrollAreaRef = ref<InstanceType<typeof WScrollArea> | null>(null)
+
+const scrollToBottom = () => {
+  if (scrollAreaRef.value) {
+    scrollAreaRef.value.scrollToBottom()
+  }
+}
+
+defineExpose({
+  scrollToBottom
+})
 </script>
+
 
 <template>
   <Transition name="w-modal">
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-white/20 dark:bg-black/50 backdrop-blur-sm"
       @click="handleBackdropClick"
     >
-      <div :class="modalClasses" @click.stop class="flex flex-col max-h-[90vh]">
-      <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
+      <div :class="modalClasses" @click.stop class="flex flex-col max-h-[80vh]">
+      <div class="h-14 shrink-0 flex justify-between items-center px-5 mt-2">
         <slot name="header">
-          <h2 v-if="title" class="text-xs font-bold text-[#888] uppercase tracking-widest">{{ title }}</h2>
+          <div class="flex-1 flex justify-start items-center">
+            <h2 v-if="title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ title }}</h2>
+          </div>
         </slot>
-        <button @click="handleClose" class="text-[#888] hover:text-white transition-colors shrink-0 ml-4">
+        <button @click="handleClose" class="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors shrink-0 ml-4 rounded-md hover:bg-black/5 dark:hover:bg-white/5">
           <i class="fas fa-times"></i>
         </button>
       </div>
-      <WScrollArea class="flex-1 min-h-0 p-5 space-y-4">
-        <slot />
+      <WScrollArea class="flex-1 min-h-0" ref="scrollAreaRef">
+        <div class="p-5 space-y-4">
+          <slot />
+        </div>
       </WScrollArea>
-      <div v-if="$slots.footer" class="shrink-0 p-4 border-t border-[#2a2a2a]">
+      <div v-if="$slots.footer" class="shrink-0 px-5 py-4 bg-[#f3f3f3] dark:bg-black/20 border-t border-black/[0.05] dark:border-white/[0.05]">
         <slot name="footer" />
       </div>
     </div>

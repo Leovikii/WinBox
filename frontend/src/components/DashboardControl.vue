@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
+import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
 
 import { useAppState } from '../composables/useAppState'
@@ -50,21 +51,21 @@ const showSpeedInfo = computed(() => {
 })
 
 const modeOptions = [
-  { label: 'PROXY', value: 'proxy', color: '#10b981' }, // emerald
-  { label: 'TUN', value: 'tun', color: '#3b82f6' }, // blue
-  { label: 'FULL', value: 'full', color: '#d946ef' } // fuchsia
+  { label: 'Proxy', value: 'proxy', color: '#10b981' }, // emerald
+  { label: 'Tun', value: 'tun', color: '#3b82f6' }, // blue
+  { label: 'Mixed', value: 'mixed', color: '#d946ef' } // fuchsia
 ]
 
 const currentMode = computed({
   get() {
-    if (tunMode.value && sysProxy.value) return 'full'
+    if (tunMode.value && sysProxy.value) return 'mixed'
     if (tunMode.value) return 'tun'
     return 'proxy'
   },
   set(val: string) {
     let tun = false
     let sys = false
-    if (val === 'full') { tun = true; sys = true }
+    if (val === 'mixed') { tun = true; sys = true }
     else if (val === 'tun') { tun = true }
     else if (val === 'proxy') { sys = true }
     emit('switch-mode', { tunMode: tun, sysProxy: sys })
@@ -102,7 +103,7 @@ const handleEdit = (e: any) => {
 
 const formattedUpdatedTime = computed(() => {
   const updatedStr = profilesState.activeProfile.value?.updated
-  if (!updatedStr) return 'NEVER'
+  if (!updatedStr) return 'Never'
   
   const updatedDate = new Date(updatedStr)
   if (isNaN(updatedDate.getTime())) return updatedStr
@@ -113,10 +114,10 @@ const formattedUpdatedTime = computed(() => {
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffSecs < 60) return 'JUST NOW'
-  if (diffMins < 60) return `${diffMins} MIN${diffMins > 1 ? 'S' : ''} AGO`
-  if (diffHours < 24) return `${diffHours} HR${diffHours > 1 ? 'S' : ''} AGO`
-  if (diffDays < 7) return `${diffDays} DAY${diffDays > 1 ? 'S' : ''} AGO`
+  if (diffSecs < 60) return 'Just now'
+  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`
+  if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
   
   return updatedStr.split(' ')[0]
 })
@@ -131,12 +132,17 @@ const appLogContent = ref("")
 const showLogModal = ref(false)
 const inlineLogContainer = ref<any>(null)
 const fullLogContainer = ref<any>(null)
-const copyState = ref("COPY")
-let logInterval: any = null
+const logScrollbox = ref<any>(null)
+const copyState = ref("Copy")
 
 const isAtBottom = (container: any) => {
-  if (!container || !container.$el) return true
-  const el = container.$el
+  if (!container) return true
+  
+  if (typeof container.isAtBottom === 'function') {
+    return container.isAtBottom()
+  }
+  
+  const el = container.$el || container
   // Within 50px is considered bottom
   return el.scrollHeight - el.scrollTop - el.clientHeight <= 50
 }
@@ -144,7 +150,9 @@ const isAtBottom = (container: any) => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-    if (fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
+    if (logScrollbox.value && showLogModal.value) {
+      logScrollbox.value.scrollToBottom()
+    }
   })
 }
 
@@ -156,20 +164,33 @@ const openFullLog = () => {
 const loadAppLog = async () => {
   try {
     const content = await Backend.GetAppLog()
-    if (content !== appLogContent.value) {
-      const inlineAtBottom = isAtBottom(inlineLogContainer.value)
-      const fullAtBottom = isAtBottom(fullLogContainer.value)
-      
-      appLogContent.value = content
-      
-      nextTick(() => {
-        if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-        if (fullAtBottom && fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
-      })
-    }
+    appLogContent.value = content
+    scrollToBottom()
   } catch (error) {
     appLogContent.value = "> Failed to load app log"
   }
+}
+
+const handleNewLog = (newLogLine: string) => {
+  const inlineAtBottom = isAtBottom(inlineLogContainer.value)
+  const fullAtBottom = isAtBottom(logScrollbox.value)
+  
+  appLogContent.value += newLogLine
+  
+  // Prevent unbounded memory growth
+  if (appLogContent.value.length > 600000) {
+    const lines = appLogContent.value.split('\n')
+    if (lines.length > 5000) {
+      appLogContent.value = lines.slice(lines.length - 5000).join('\n')
+    }
+  }
+  
+  nextTick(() => {
+    if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
+    if (fullAtBottom && logScrollbox.value && showLogModal.value) {
+      logScrollbox.value.scrollToBottom()
+    }
+  })
 }
 
 const clearAppLog = async () => {
@@ -184,9 +205,9 @@ const copyAppLog = async () => {
   if (!appLogContent.value) return
   try {
     await navigator.clipboard.writeText(appLogContent.value)
-    copyState.value = "COPIED!"
+    copyState.value = "Copied!"
     setTimeout(() => {
-      copyState.value = "COPY"
+      copyState.value = "Copy"
     }, 2000)
   } catch (err) {
     console.error('Failed to copy text: ', err)
@@ -195,14 +216,11 @@ const copyAppLog = async () => {
 
 onMounted(() => {
   loadAppLog()
-  scrollToBottom()
-  logInterval = setInterval(loadAppLog, 1500)
+  EventsOn("onAppLog", handleNewLog)
 })
 
 onUnmounted(() => {
-  if (logInterval) {
-    clearInterval(logInterval)
-  }
+  EventsOff("onAppLog")
 })
 
 onActivated(() => {
@@ -214,48 +232,45 @@ onActivated(() => {
   <div class="w-full h-full grid grid-rows-4 gap-6 relative px-6 py-6 justify-items-center items-stretch overflow-hidden">
     
     <!-- ==================== TOP AREA: INFO ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
         
         <!-- Header: Status & Speed -->
-        <div class="shrink-0 flex justify-between items-center bg-transparent" :class="running ? 'pb-2' : ''">
+        <div class="shrink-0 flex justify-between items-start bg-transparent" :class="running ? 'pb-2' : ''">
           <!-- Left: Icon + Status -->
-          <div class="flex items-center gap-3" :style="getStatusStyle">
+          <div class="flex items-center gap-3 mt-1" :style="getStatusStyle">
             <!-- Icon with Hardware LED Bloom -->
             <div class="relative flex items-center justify-center w-4">
               <!-- Ambient background bloom -->
               <div 
                 class="absolute inset-0 scale-[3] blur-[6px] transition-opacity duration-1000 pointer-events-none"
-                :class="{'opacity-40': running || ['STARTING...', 'STOPPING...'].includes(getStatusText), 'opacity-0': !running && !['STARTING...', 'STOPPING...'].includes(getStatusText)}"
+                :class="{'opacity-40': running || ['Starting...', 'Stopping...'].includes(getStatusText), 'opacity-0': !running && !['Starting...', 'Stopping...'].includes(getStatusText)}"
                 style="background-color: currentColor;"
               ></div>
               <!-- Core Icon -->
               <i class="fas text-[11px] relative z-10 transition-all duration-500" 
                  :class="{
-                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['STARTING...', 'STOPPING...'].includes(getStatusText),
-                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['STARTING...', 'STOPPING...'].includes(getStatusText),
-                   'fa-exclamation-triangle': getStatusText === 'WARNING',
-                   'fa-power-off opacity-60': !running && !['STARTING...', 'STOPPING...'].includes(getStatusText) && getStatusText !== 'WARNING'
+                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['Starting...', 'Stopping...'].includes(getStatusText),
+                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['Starting...', 'Stopping...'].includes(getStatusText),
+                   'fa-exclamation-triangle': getStatusText === 'Warning',
+                   'fa-power-off opacity-60': !running && !['Starting...', 'Stopping...'].includes(getStatusText) && getStatusText !== 'Warning'
                  }">
               </i>
             </div>
-            <span class="text-sm font-bold tracking-wider uppercase relative z-10">{{ getStatusText }}</span>
+            <span class="text-sm font-semibold relative z-10 capitalize">{{ getStatusText.toLowerCase() }}</span>
           </div>
 
           <!-- Right: Speed -->
-          <div class="flex items-center gap-4">
-            <div v-if="showSpeedInfo" class="flex items-center gap-3">
-              <div class="flex items-center gap-1.5 opacity-90">
-                <i class="fas fa-arrow-up text-[10px] speed-upload"></i>
-                <span class="text-[11px] font-mono font-medium tracking-wider speed-upload">{{ formatSpeed(uploadSpeed) }}</span>
-              </div>
-              <div class="flex items-center gap-1.5 opacity-90">
-                <i class="fas fa-arrow-down text-[10px] speed-download"></i>
-                <span class="text-[11px] font-mono font-medium tracking-wider speed-download">{{ formatSpeed(downloadSpeed) }}</span>
-              </div>
+          <div v-if="showSpeedInfo" class="flex items-center justify-center w-24 h-9 shrink-0 text-gray-900 dark:text-gray-200 group hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-default">
+            <div class="grid grid-cols-[12px_1fr] gap-x-1 gap-y-[2px] w-full px-2 items-center">
+              <i class="fas fa-arrow-up text-[9px] speed-upload opacity-50 justify-self-center"></i>
+              <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-upload text-right">{{ formatSpeed(uploadSpeed) }}</span>
+              
+              <i class="fas fa-arrow-down text-[9px] speed-download opacity-50 justify-self-center"></i>
+              <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-download text-right">{{ formatSpeed(downloadSpeed) }}</span>
             </div>
-            <div v-else class="text-[10px] font-mono font-medium text-gray-600 tracking-widest uppercase">
-              IDLE
-            </div>
+          </div>
+          <div v-else class="flex items-center justify-center w-7 h-7 rounded shrink-0 text-gray-400 dark:text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-default" title="Idle">
+            <i class="fas fa-link-slash text-[10px]"></i>
           </div>
         </div>
         
@@ -270,13 +285,13 @@ onActivated(() => {
     </div>
 
     <!-- ==================== MIDDLE AREA: LOGS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 overflow-hidden">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 overflow-hidden">
         
         <!-- Header: Logs & Expand -->
         <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
           <div class="flex items-center gap-3">
             <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-sm font-bold text-gray-400 tracking-wider">LOGS</span>
+            <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Logs</span>
           </div>
           <!-- Maximize Button -->
           <WButton 
@@ -293,31 +308,33 @@ onActivated(() => {
         <div class="w-full flex-1 min-h-0 relative bg-transparent">
           <!-- Log Content -->
           <div class="absolute inset-0">
-            <WScrollArea height="100%" class="w-full px-6 pb-6 pt-0 text-[10px] font-mono leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text relative z-0" ref="inlineLogContainer">
-              {{ appLogContent || 'No logs available.' }}
+            <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
+              <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
+                {{ appLogContent || 'No logs available.' }}
+              </div>
             </WScrollArea>
           </div>
         </div>
     </div>
 
     <!-- ==================== AREA 3: PROFILE ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
       <template v-if="profilesState.profiles.value.length > 0">
         <!-- Row 1: Profile Title & Global Actions -->
         <div class="flex items-center justify-between shrink-0 w-full gap-2">
             <div class="flex items-center gap-2 justify-start">
               <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-sm font-bold text-gray-400 tracking-wider">PROFILE</span>
+              <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Profile</span>
             </div>
             <!-- Global Action: ADD -->
             <WButton 
-              variant="ghost" 
+              variant="secondary" 
               size="sm" 
-              class="w-7 !px-0 bg-white/5 hover:bg-white/10 rounded"
-              icon="fas fa-plus text-[10px]" 
+              class="w-7 !px-0"
+              icon="fas fa-plus" 
               @click="profilesState.showAddProfileModal.value = true"
               :disabled="isProcessing"
-              title="ADD PROFILE"
+              title="Add profile"
             />
         </div>
 
@@ -344,7 +361,7 @@ onActivated(() => {
             @click="profilesState.updateActive"
             :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
             :loading="profilesState.isUpdatingProfile.value"
-            title="UPDATE"
+            title="Update"
           >
             {{ formattedUpdatedTime }}
           </WButton>
@@ -357,7 +374,7 @@ onActivated(() => {
             icon="fas fa-pen" 
             @click="handleEdit"
             :disabled="isProcessing || !profilesState.activeProfile.value"
-            title="EDIT"
+            title="Edit"
           />
 
           <!-- Delete -->
@@ -368,7 +385,7 @@ onActivated(() => {
             icon="fas fa-trash" 
             @click="handleDelete"
             :disabled="isProcessing || !profilesState.activeProfile.value"
-            title="DELETE"
+            title="Delete"
           />
         </div>
       </div>
@@ -377,27 +394,27 @@ onActivated(() => {
       <!-- Empty Profile State -->
       <div v-else class="flex-1 flex flex-col items-center justify-center text-center select-none" :class="!coreExists ? 'opacity-30' : 'opacity-100'">
         <i class="fa-solid fa-server text-2xl mb-3 text-gray-400"></i>
-        <p class="text-xs font-bold tracking-widest text-gray-400 uppercase" :class="coreExists ? 'mb-4' : ''">No Profile Found</p>
+        <p class="text-sm font-semibold text-gray-400" :class="coreExists ? 'mb-4' : ''">No profile found</p>
         <WButton 
           v-if="coreExists"
           variant="secondary" 
           size="sm" 
           @click="profilesState.showAddProfileModal.value = true"
         >
-          ADD PROFILE
+          Add profile
         </WButton>
       </div>
     </div>
 
     <!-- ==================== AREA 4: CORE CONTROLS ==================== -->
-    <div class="glass-card pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
       <template v-if="profilesState.profiles.value.length > 0">
 
           <!-- Row 3: Mode -->
           <div class="flex gap-2 w-full items-center">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-xs font-bold text-gray-400 tracking-wider">MODE</span>
+              <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Mode</span>
             </div>
             <div class="w-2/3">
               <WSegmentedControl 
@@ -424,7 +441,7 @@ onActivated(() => {
               @click="emit('open-dashboard')"
               :disabled="isProcessing"
             >
-              WEBUI
+              Web UI
             </WButton>
 
             <WButton 
@@ -440,9 +457,9 @@ onActivated(() => {
                 borderColor: running ? '#ef4444' : activeColor,
                 boxShadow: `0 4px 12px ${running ? '#dc262666' : activeColor + '66'}`
               }"
-              :icon="(getStatusText === 'STARTING...' || getStatusText === 'STOPPING...') ? 'fas fa-spinner fa-spin' : (running ? 'fas fa-square' : 'fas fa-power-off')"
+              :icon="(getStatusText === 'Starting...' || getStatusText === 'Stopping...') ? 'fas fa-spinner fa-spin' : (running ? 'fas fa-square' : 'fas fa-power-off')"
             >
-              {{ running ? (getStatusText === 'STOPPING...' ? 'STOPPING' : 'STOP') : (getStatusText === 'STARTING...' ? 'STARTING' : 'START') }}
+              {{ running ? (getStatusText === 'Stopping...' ? 'Stopping' : 'Stop') : (getStatusText === 'Starting...' ? 'Starting' : 'Start') }}
             </WButton>
 
             <WButton 
@@ -450,11 +467,11 @@ onActivated(() => {
               key="restart"
               class="w-[calc((100%_-_1rem)_/_3)] shrink-0 px-0 whitespace-nowrap"
               variant="secondary" 
-              :icon="getStatusText === 'RESTARTING...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
+              :icon="getStatusText === 'Restarting...' ? 'fas fa-spinner fa-spin' : 'fas fa-rotate-right'" 
               @click="emit('restart-core')"
               :disabled="isProcessing"
             >
-              RESTART
+              Restart
             </WButton>
           </TransitionGroup>
       </template>
@@ -463,12 +480,12 @@ onActivated(() => {
       <div v-else class="flex-1 flex flex-col items-center justify-center text-center select-none" :class="!coreExists ? 'opacity-100' : 'opacity-30'">
         <template v-if="!coreExists">
           <i class="fa-solid fa-download text-2xl mb-3 text-gray-400"></i>
-          <p class="text-xs font-bold tracking-widest text-gray-400 uppercase mb-4">Kernel Missing</p>
-          <WButton variant="secondary" size="sm" @click="emit('open-settings')">INSTALL KERNEL</WButton>
+          <p class="text-sm font-semibold text-gray-400 mb-4">Kernel missing</p>
+          <WButton variant="secondary" size="sm" @click="emit('open-settings')">Install kernel</WButton>
         </template>
         <template v-else>
           <i class="fa-solid fa-lock text-2xl mb-3 text-gray-400"></i>
-          <p class="text-xs font-bold tracking-widest text-gray-400 uppercase">Profile Required</p>
+          <p class="text-sm font-semibold text-gray-400">Profile required</p>
         </template>
       </div>
       
@@ -478,11 +495,11 @@ onActivated(() => {
     <WModal
       :model-value="profilesState.showAddProfileModal.value"
       @update:model-value="profilesState.showAddProfileModal.value = false"
-      title="ADD PROFILE"
+      title="Add profile"
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">NAME</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Name</label>
           <WInput
             v-model="profilesState.newName.value"
             placeholder="e.g. My Provider"
@@ -490,7 +507,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">SUBSCRIPTION URL</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.newUrl.value"
             placeholder="https://..."
@@ -499,9 +516,9 @@ onActivated(() => {
         </div>
       </div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">CANCEL</WButton>
-          <WButton variant="primary" class="flex-1" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">ADD</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">Cancel</WButton>
+          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">Add</WButton>
         </div>
       </template>
     </WModal>
@@ -509,11 +526,11 @@ onActivated(() => {
     <WModal
       :model-value="profilesState.showEditProfileModal.value"
       @update:model-value="profilesState.showEditProfileModal.value = false"
-      title="EDIT PROFILE"
+      title="Edit Profile"
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">NAME</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Name</label>
           <WInput
             v-model="profilesState.editName.value"
             placeholder="e.g. My Provider"
@@ -521,7 +538,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-400 tracking-wider mb-2">SUBSCRIPTION URL</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.editUrl.value"
             placeholder="https://..."
@@ -530,9 +547,9 @@ onActivated(() => {
         </div>
       </div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">CANCEL</WButton>
-          <WButton variant="primary" class="flex-1" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">SAVE</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">Cancel</WButton>
+          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">Save</WButton>
         </div>
       </template>
     </WModal>
@@ -540,49 +557,45 @@ onActivated(() => {
     <WModal
       :model-value="profilesState.showDeleteConfirm.value"
       @update:model-value="profilesState.showDeleteConfirm.value = false"
-      title="DELETE PROFILE"
+      title="Delete Profile"
     >
-      <div class="text-sm text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
+      <div class="text-sm text-gray-600 dark:text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
       <template #footer>
-        <div class="flex gap-3 w-full">
-          <WButton variant="secondary" class="flex-1" @click="profilesState.showDeleteConfirm.value = false">CANCEL</WButton>
-          <WButton variant="danger" class="flex-1" @click="profilesState.confirmDelete">DELETE</WButton>
+        <div class="flex items-center justify-end gap-3 w-full">
+          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showDeleteConfirm.value = false">Cancel</WButton>
+          <WButton variant="danger" class="min-w-[80px]" @click="profilesState.confirmDelete">Delete</WButton>
         </div>
       </template>
     </WModal>
 
-    <!-- App Log Fullscreen Modal -->
-    <Transition name="w-modal">
-      <div v-if="showLogModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
-        <div class="w-full h-full max-w-4xl mica-card border border-[#333] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col relative overflow-hidden w-modal-container">
-          <!-- Header -->
-          <div class="h-10 shrink-0 flex justify-between items-center px-4 border-b border-[#2a2a2a] bg-linear-to-b from-[#1a1a1a]/40 to-transparent">
-            <div class="flex items-center gap-2">
-              <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
-              <h2 class="text-xs font-bold text-[#888] uppercase tracking-widest">APP LOGS</h2>
-            </div>
-            <button @click="showLogModal = false" class="text-[#888] hover:text-white transition-colors shrink-0 ml-4">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          
-          <!-- Content -->
-          <WScrollArea height="100%" class="flex-1 w-full p-5 font-mono text-[11px] leading-relaxed text-gray-300 whitespace-pre-wrap break-all" ref="fullLogContainer">
-            {{ appLogContent || 'No logs available.' }}
-          </WScrollArea>
+    <!-- App Log Modal -->
+      <WModal
+        :model-value="showLogModal"
+        @update:model-value="showLogModal = $event"
+        title="App logs"
+        ref="fullLogContainer"
+      >
 
-          <!-- Fixed Bottom Right Controls -->
-          <div class="absolute bottom-5 right-5 flex items-center gap-3">
-            <WButton variant="secondary" size="sm" icon="fas fa-trash" @click="clearAppLog">
-              CLEAR
+        
+        <div class="w-full h-[400px] bg-white dark:bg-[#050505] border border-black/10 dark:border-white/5 rounded-md relative overflow-hidden">
+          <WScrollArea height="100%" class="w-full h-full" ref="logScrollbox">
+            <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-900 dark:text-gray-300 whitespace-pre-wrap break-all p-4 select-text">
+              {{ appLogContent || 'No logs available.' }}
+            </div>
+          </WScrollArea>
+        </div>
+        
+        <template #footer>
+          <div class="flex items-center justify-end gap-3 w-full">
+            <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-trash" @click="clearAppLog">
+              Clear
             </WButton>
-            <WButton variant="primary" size="sm" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog" class="min-w-[90px]">
+            <WButton variant="primary" class="min-w-[80px]" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog">
               {{ copyState }}
             </WButton>
           </div>
-        </div>
-      </div>
-    </Transition>
+        </template>
+      </WModal>
 
   </div>
 </template>
@@ -606,11 +619,7 @@ onActivated(() => {
   transform: scale(0.95) translateY(10px);
 }
 
-.glass-card {
-  border-radius: 1rem;
-  background: #1c1c1c; /* Solid WinUI 3 card */
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
+
 
 .expandable-content {
   overflow: hidden;

@@ -20,9 +20,9 @@ const cardClasses = computed(() => {
   const classes = ['rounded-lg border transition-colors duration-300']
 
   if (props.variant === 'default') {
-    classes.push('bg-[#111] border-[#222]')
+    classes.push('bg-gray-100 dark:bg-[#111] border-gray-200 dark:border-[#222]')
   } else if (props.variant === 'ghost') {
-    classes.push('bg-white/[0.02] border-white/[0.05]')
+    classes.push('bg-black/[0.02] dark:bg-white/[0.02] border-black/[0.05] dark:border-white/[0.05]')
   } else if (props.variant === 'mica') {
     classes.push('mica-card border-[#2a2a2a] shadow-[0_4px_16px_rgba(0,0,0,0.2)]')
   } else if (props.variant === 'list-item') {

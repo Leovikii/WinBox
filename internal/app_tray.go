@@ -41,12 +41,12 @@ func (a *App) StartTray() {
 			systray.AddSeparator()
 
 			a.trayMenu = &TrayMenu{}
-			a.trayMenu.ModeFull = systray.AddMenuItemCheckbox("Full Mode", "Enable both TUN and System Proxy", false)
-			a.trayMenu.ModeTun = systray.AddMenuItemCheckbox("TUN Mode Only", "Enable only TUN mode", false)
-			a.trayMenu.ModeProxy = systray.AddMenuItemCheckbox("Proxy Mode Only", "Enable only System Proxy", false)
+			a.trayMenu.ModeMixed = systray.AddMenuItemCheckbox("Mixed", "Mixed", false)
+			a.trayMenu.ModeTun = systray.AddMenuItemCheckbox("Tun", "Tun", false)
+			a.trayMenu.ModeProxy = systray.AddMenuItemCheckbox("Proxy", "Proxy", false)
 			a.trayMenu.Stop = systray.AddMenuItemCheckbox("Stop Service", "Stop the core service", false)
 
-			a.trayMenu.ModeFull.Click(func() {
+			a.trayMenu.ModeMixed.Click(func() {
 				go a.handleTrayModeSwitch(true, true)
 			})
 			a.trayMenu.ModeTun.Click(func() {
@@ -136,14 +136,14 @@ func (a *App) UpdateTrayIcon() {
 	}
 
 	if meta.TunMode && meta.SysProxy {
-		systray.SetIcon(a.trayIcons.Full)
-		systray.SetTooltip("WinBox - Full Mode (TUN + Proxy)")
+		systray.SetIcon(a.trayIcons.Mixed)
+		systray.SetTooltip("WinBox - Mixed")
 	} else if meta.TunMode {
 		systray.SetIcon(a.trayIcons.Tun)
-		systray.SetTooltip("WinBox - TUN Mode")
+		systray.SetTooltip("WinBox - Tun")
 	} else if meta.SysProxy {
 		systray.SetIcon(a.trayIcons.Proxy)
-		systray.SetTooltip("WinBox - Proxy Mode")
+		systray.SetTooltip("WinBox - Proxy")
 	} else {
 		systray.SetIcon(a.trayIcons.Default)
 		systray.SetTooltip("WinBox - Stopped")
@@ -177,7 +177,7 @@ func (a *App) UpdateTrayMenu() {
 	isRunning := a.coreManager.IsRunning()
 
 	// Reset all checks
-	a.trayMenu.ModeFull.Uncheck()
+	a.trayMenu.ModeMixed.Uncheck()
 	a.trayMenu.ModeTun.Uncheck()
 	a.trayMenu.ModeProxy.Uncheck()
 	a.trayMenu.Stop.Uncheck()
@@ -188,7 +188,7 @@ func (a *App) UpdateTrayMenu() {
 	}
 
 	if meta.TunMode && meta.SysProxy {
-		a.trayMenu.ModeFull.Check()
+		a.trayMenu.ModeMixed.Check()
 	} else if meta.TunMode {
 		a.trayMenu.ModeTun.Check()
 	} else if meta.SysProxy {

@@ -25,12 +25,12 @@ type TrayIcons struct {
 	Default []byte
 	Tun     []byte
 	Proxy   []byte
-	Full    []byte
+	Mixed   []byte
 }
 
 // TrayMenu holds references to the tray menu items
 type TrayMenu struct {
-	ModeFull  *systray.MenuItem
+	ModeMixed  *systray.MenuItem
 	ModeTun   *systray.MenuItem
 	ModeProxy *systray.MenuItem
 	Stop      *systray.MenuItem
@@ -57,14 +57,14 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(icon []byte, trayDefault, trayTun, trayProxy, trayFull []byte, startMinimized bool) *App {
+func NewApp(icon []byte, trayDefault, trayTun, trayProxy, trayMixed []byte, startMinimized bool) *App {
 	return &App{
 		iconData: icon,
 		trayIcons: &TrayIcons{
 			Default: trayDefault,
 			Tun:     trayTun,
 			Proxy:   trayProxy,
-			Full:    trayFull,
+			Mixed:   trayMixed,
 		},
 		startMinimized: startMinimized,
 	}
@@ -95,6 +95,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.settingsManager = NewSettingsManager(a.storage)
 	a.uwpLoopbackManager = NewUWPLoopbackManager()
 	a.appLogger = NewAppLogger(appDir)
+	a.appLogger.SetContext(ctx)
 
 	// Clear previous session's logs
 	a.appLogger.Clear()
