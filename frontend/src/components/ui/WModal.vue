@@ -80,7 +80,7 @@ defineExpose({
             <h2 v-if="title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ title }}</h2>
           </div>
         </slot>
-        <button @click="handleClose" class="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white transition-colors shrink-0 ml-4 rounded-md hover:bg-black/5 dark:hover:bg-white/5">
+        <button @click="handleClose" class="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors shrink-0 ml-4 rounded-md hover:bg-black/5 dark:hover:bg-white/5">
           <i class="fas fa-times"></i>
         </button>
       </div>

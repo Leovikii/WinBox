@@ -242,7 +242,7 @@ onActivated(() => {
           </div>
 
           <!-- Right: Speed -->
-          <div v-if="showSpeedInfo" class="flex items-center justify-center w-24 h-9 shrink-0 text-gray-600 dark:text-gray-400 group hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-default">
+          <div v-if="showSpeedInfo" class="flex items-center justify-center w-24 h-9 shrink-0 text-gray-900 dark:text-gray-200 group hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-default">
             <div class="grid grid-cols-[12px_1fr] gap-x-1 gap-y-[2px] w-full px-2 items-center">
               <i class="fas fa-arrow-up text-[9px] speed-upload opacity-50 justify-self-center"></i>
               <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-upload text-right">{{ formatSpeed(uploadSpeed) }}</span>
@@ -273,7 +273,7 @@ onActivated(() => {
         <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
           <div class="flex items-center gap-3">
             <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Logs</span>
+            <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Logs</span>
           </div>
           <!-- Maximize Button -->
           <WButton 
@@ -306,7 +306,7 @@ onActivated(() => {
         <div class="flex items-center justify-between shrink-0 w-full gap-2">
             <div class="flex items-center gap-2 justify-start">
               <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Profile</span>
+              <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Profile</span>
             </div>
             <!-- Global Action: ADD -->
             <WButton 
@@ -396,7 +396,7 @@ onActivated(() => {
           <div class="flex gap-2 w-full items-center">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
-              <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Mode</span>
+              <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Mode</span>
             </div>
             <div class="w-2/3">
               <WSegmentedControl 
@@ -481,7 +481,7 @@ onActivated(() => {
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Name</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Name</label>
           <WInput
             v-model="profilesState.newName.value"
             placeholder="e.g. My Provider"
@@ -489,7 +489,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Subscription URL</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.newUrl.value"
             placeholder="https://..."
@@ -512,7 +512,7 @@ onActivated(() => {
     >
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Name</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Name</label>
           <WInput
             v-model="profilesState.editName.value"
             placeholder="e.g. My Provider"
@@ -520,7 +520,7 @@ onActivated(() => {
           />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Subscription URL</label>
+          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Subscription URL</label>
           <WInput
             v-model="profilesState.editUrl.value"
             placeholder="https://..."

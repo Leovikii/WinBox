@@ -44,7 +44,7 @@ watch(() => props.modelValue, (newVal) => {
     <div class="flex flex-col gap-4">
       <!-- Header with stats and actions -->
       <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
-        <div class="text-sm text-gray-600 dark:text-gray-400">
+        <div class="text-sm text-gray-900 dark:text-gray-200">
           Selected: <span class="text-gray-900 dark:text-white font-medium">{{ selectedCount }}</span> / {{ totalCount }}
         </div>
         <div class="flex gap-2">
@@ -69,7 +69,7 @@ watch(() => props.modelValue, (newVal) => {
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="flex flex-col items-center gap-3">
           <div class="w-8 h-8 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin"></div>
-          <div class="text-sm text-gray-600 dark:text-gray-400">Loading UWP applications...</div>
+          <div class="text-sm text-gray-900 dark:text-gray-200">Loading UWP applications...</div>
         </div>
       </div>
 

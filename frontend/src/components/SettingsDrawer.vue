@@ -110,15 +110,27 @@ const openGitHub = () => {
 
       <!-- About Section -->
       <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4 justify-start">
-          <i class="fa-solid fa-info-circle text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">About</h3>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-info-circle text-[var(--accent-color)] w-4 text-center"></i>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-200">About</h3>
+          </div>
+          <WButton
+            variant="secondary"
+            size="sm"
+            icon="fa-brands fa-github"
+            @click="openGitHub"
+            class="w-7 h-7 !p-0 flex items-center justify-center rounded-md"
+            title="GitHub Repository"
+          />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">App Version</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <div class="flex flex-col justify-center gap-1">
+            <span class="text-xs font-bold text-gray-900 dark:text-gray-200 leading-none">App Version</span>
+            <span class="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{{ programLocalVer }}</span>
+          </div>
           <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-600 dark:text-gray-500 font-mono">{{ programLocalVer }}</span>
             <WButton
               v-if="programUpdateState === 'checking'"
               variant="secondary"
@@ -178,10 +190,12 @@ const openGitHub = () => {
           </div>
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Kernel Version</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <div class="flex flex-col justify-center gap-1">
+            <span class="text-xs font-bold text-gray-900 dark:text-gray-200 leading-none">Kernel Version</span>
+            <span class="text-[11px] text-gray-500 dark:text-gray-400 leading-none">{{ localVer }}</span>
+          </div>
           <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-600 dark:text-gray-500 font-mono">{{ localVer }}</span>
             <WButton
               v-if="updateState === 'checking'"
               variant="secondary"
@@ -243,32 +257,39 @@ const openGitHub = () => {
           </div>
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Pre-release Updates</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Pre-release Updates</span>
           <WSwitch :model-value="preRelease" @update:model-value="handlePreReleaseToggleWrapper()" />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">GitHub Repository</span>
-          <WButton
-            variant="secondary"
-            size="sm"
-            icon="fa-brands fa-github"
-            @click="openGitHub"
-            class="min-w-[5rem]"
-          >Open</WButton>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Download Proxy</span>
+          <div class="flex items-center gap-3">
+            <WButton 
+              v-if="mirrorEnabled" 
+              variant="secondary" 
+              size="sm" 
+              icon="fas fa-pen" 
+              class="w-7 h-7 !p-0 flex items-center justify-center rounded-md"
+              @click="openEditor('mirror')"
+              title="Edit Proxy URL"
+            />
+            <WSwitch :model-value="mirrorEnabled" @update:model-value="handleMirrorToggle()" />
+          </div>
         </div>
+
+
       </WCard>
 
       <!-- General Section -->
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-cog text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">General</h3>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-200">General</h3>
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Close Window Behavior</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Close Window Behavior</span>
           <WSelect
             :model-value="closeBehavior"
             @update:model-value="updateCloseBehavior($event as string)"
@@ -281,13 +302,13 @@ const openGitHub = () => {
           />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Start With Windows</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Start With Windows</span>
           <WSwitch :model-value="startOnBoot" @update:model-value="handleStartOnBootToggle()" />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Auto Connect</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Auto Connect</span>
           <WSelect
             :model-value="autoConnectState"
             @update:model-value="handleAutoConnectChange($event)"
@@ -300,8 +321,8 @@ const openGitHub = () => {
           />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Theme</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Theme</span>
           <div class="flex items-center gap-2">
             <WButton variant="secondary" size="sm" @click="handleOpenThemeModal" class="w-8 h-8 !p-0 flex items-center justify-center rounded-full">
               <div class="w-4 h-4 rounded-full shadow-inner border border-white/20" :style="{ backgroundColor: accentColor }"></div>
@@ -315,26 +336,31 @@ const openGitHub = () => {
       <WCard variant="mica" padding="lg">
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-file-code text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">Config Override</h3>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-200">Config Override</h3>
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Inbound Config</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">UWP Loopback</span>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-uwp-modal')" class="min-w-[5rem]">Edit</WButton>
+        </div>
+
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Inbound Config</span>
           <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">Edit</WButton>
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">IPv6 Support</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">IPv6 Support</span>
           <WSwitch :model-value="ipv6Enabled" @update:model-value="handleIPv6Toggle()" />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Log To File</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Log To File</span>
           <WSwitch :model-value="logToFile" @update:model-value="handleLogConfigChange(logLevel, $event)" />
         </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">Log Level</span>
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Log Level</span>
           <WSelect
             :model-value="logLevel"
             @update:model-value="handleLogConfigChange(String($event), logToFile)"
@@ -349,30 +375,7 @@ const openGitHub = () => {
         </div>
       </WCard>
 
-      <!-- Network Section -->
-      <WCard variant="mica" padding="lg">
-        <div class="flex items-center gap-2 mb-4 justify-start">
-          <i class="fa-solid fa-network-wired text-[var(--accent-color)] w-4 text-center"></i>
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-400">Network</h3>
-        </div>
 
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">GitHub Mirror</span>
-          <WSwitch :model-value="mirrorEnabled" @update:model-value="handleMirrorToggle()" />
-        </div>
-
-        <WExpandable :expanded="mirrorEnabled">
-          <div class="flex justify-between items-center py-2 pl-4 border-l-2 border-[#2a2a2a]">
-            <span class="text-xs font-bold text-gray-600 dark:text-gray-500">Mirror Config</span>
-            <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('mirror')" class="min-w-[5rem]">Edit</WButton>
-          </div>
-        </WExpandable>
-
-        <div class="flex justify-between items-center py-2 min-h-10">
-          <span class="text-xs font-bold text-gray-600 dark:text-gray-400">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-gear" @click="emit('open-uwp-modal')" class="min-w-[5rem]">Manage</WButton>
-        </div>
-      </WCard>
         </div>
       </WScrollArea>
     </div>
@@ -472,7 +475,7 @@ const openGitHub = () => {
   >
     <div class="space-y-4">
       <div>
-        <h4 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3">Preset Colors</h4>
+        <h4 class="text-xs font-bold text-gray-900 dark:text-gray-200 mb-3">Preset Colors</h4>
         <WColorPicker
           :model-value="customColor"
           @update:model-value="handleSelectPresetColor"
@@ -490,7 +493,7 @@ const openGitHub = () => {
       </div>
 
       <div>
-        <h4 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3">Custom Color</h4>
+        <h4 class="text-xs font-bold text-gray-900 dark:text-gray-200 mb-3">Custom Color</h4>
         <div class="flex items-center gap-3">
           <label class="relative cursor-pointer">
             <input
@@ -504,7 +507,7 @@ const openGitHub = () => {
             </div>
           </label>
           <div class="min-w-[80px]">
-            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">Click the circle to pick a custom color</div>
+            <div class="text-xs text-gray-900 dark:text-gray-200 mb-1">Click the circle to pick a custom color</div>
             <div class="text-xs text-gray-700 dark:text-gray-500 font-mono">{{ customColor }}</div>
           </div>
         </div>
