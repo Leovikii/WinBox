@@ -557,12 +557,7 @@ onActivated(() => {
         title="App logs"
         ref="fullLogContainer"
       >
-        <template #header>
-          <div class="flex items-center gap-2">
-            <i class="fas fa-file-lines text-[var(--accent-color)] text-xs"></i>
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-300">App logs</h2>
-          </div>
-        </template>
+
         
         <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
           {{ appLogContent || 'No logs available.' }}

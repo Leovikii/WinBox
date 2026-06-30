@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea, WScrollArea } from '@/components/ui'
+import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea, WScrollArea, WSegmentedControl } from '@/components/ui'
 import WColorPicker from '@/components/ui/WColorPicker.vue'
 import UWPLoopbackModal from '@/components/UWPLoopbackModal.vue'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
@@ -399,35 +399,38 @@ const openGitHub = () => {
   >
     <template #header>
       <div class="flex items-center gap-4">
-        <h2 class="text-xs font-bold text-gray-800 dark:text-[#888] tracking-widest whitespace-nowrap">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">
           Edit {{ editingType === 'mirror' ? 'Mirror' : 'Inbound' }}
         </h2>
-        <div v-if="editingType !== 'mirror'" class="flex gap-2">
-          <WButton
-            :variant="editingType === 'tun' ? 'primary' : 'secondary'"
-            size="sm"
-            icon="fas fa-diagram-project"
-            @click="switchEditorTab('tun')"
-          >Tun</WButton>
-          <WButton
-            :variant="editingType === 'mixed' ? 'primary' : 'secondary'"
-            size="sm"
-            icon="fas fa-shuffle"
-            @click="switchEditorTab('mixed')"
-          >Mixed</WButton>
-        </div>
       </div>
     </template>
-    <div class="h-full flex flex-col">
+    
+    <div class="h-full flex flex-col gap-3">
+      <!-- Inbound View Switcher -->
+      <div v-if="editingType !== 'mirror'" class="w-full flex justify-center pb-1">
+        <WSegmentedControl
+          :model-value="editingType"
+          @update:model-value="val => switchEditorTab(val as 'tun' | 'mixed')"
+          :options="[
+            { label: 'Tun', value: 'tun' },
+            { label: 'Mixed', value: 'mixed' }
+          ]"
+          class="w-48"
+        />
+      </div>
+
+      <!-- Editor -->
+      <div class="flex-1 w-full min-h-0">
         <WTextarea
           :model-value="editorContent"
           @update:model-value="editorContent = $event"
           mono
           :resize="false"
-          class="flex-1 w-full bg-white dark:bg-[#050505] text-gray-900 dark:text-gray-100 p-4 border border-black/10 dark:border-white/5 rounded-md"
-          :rows="20"
+          class="h-full w-full bg-white dark:bg-[#050505] text-gray-900 dark:text-gray-100 p-4 border border-black/10 dark:border-white/5 rounded-md"
+          :rows="12"
         />
       </div>
+    </div>
       <template #footer>
         <div class="flex items-center justify-end gap-3 w-full">
           <WButton variant="warning" class="min-w-[80px]" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>

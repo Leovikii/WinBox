@@ -74,13 +74,13 @@ defineExpose({
       @click="handleBackdropClick"
     >
       <div :class="modalClasses" @click.stop class="flex flex-col max-h-[80vh]">
-      <div class="h-12 shrink-0 flex justify-between items-center px-5 mt-2">
+      <div class="h-14 shrink-0 flex justify-between items-center px-5 mt-2">
         <slot name="header">
-          <div class="flex-1 flex justify-center">
-            <h2 v-if="title" class="text-sm font-semibold text-gray-800 dark:text-gray-300">{{ title }}</h2>
+          <div class="flex-1 flex justify-start items-center">
+            <h2 v-if="title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ title }}</h2>
           </div>
         </slot>
-        <button @click="handleClose" class="text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white transition-colors shrink-0 ml-4">
+        <button @click="handleClose" class="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white transition-colors shrink-0 ml-4 rounded-md hover:bg-black/5 dark:hover:bg-white/5">
           <i class="fas fa-times"></i>
         </button>
       </div>
