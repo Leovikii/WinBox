@@ -19,35 +19,41 @@
 
 
     
-    <!-- Clean, natural drop shadow for the badge -->
-    <filter id="badge-shadow">
-      <feDropShadow dx="1.5" dy="2" stdDeviation="1.5" flood-color="#000" flood-opacity="0.35"/>
-    </filter>
-
-    <filter id="text-shadow">
-      <feDropShadow dx="0.5" dy="1" stdDeviation="0.8" flood-color="#000" flood-opacity="0.4"/>
-    </filter>
+    <clipPath id="badge-cutout-clip">
+      <path d="M 0 0 L 100 0 L 100 100 L 0 100 Z
+               M 31.5 41.5
+               A 10.5 10.5 0 0 0 21 52
+               L 21 71
+               A 10.5 10.5 0 0 0 31.5 81.5
+               L 50.5 81.5
+               A 10.5 10.5 0 0 0 61 71
+               L 61 52
+               A 10.5 10.5 0 0 0 50.5 41.5
+               L 31.5 41.5 Z" clip-rule="evenodd" />
+    </clipPath>
     
     <clipPath id="square-clip">
       <rect x="25" y="15" width="65" height="65" rx="14" />
     </clipPath>
   </defs>
   
-  <rect x="25" y="15" width="65" height="65" rx="14" fill="url(#base)" />
-  <g clip-path="url(#square-clip)">
-    <rect x="20" y="10" width="75" height="20" fill="url(#lid)" />
-    <!-- Sharp edge highlight to simulate the box fold catching light -->
-    <line x1="25" y1="30" x2="90" y2="30" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5" />
+  <g clip-path="url(#badge-cutout-clip)">
+    <rect x="25" y="15" width="65" height="65" rx="14" fill="url(#base)" />
+    <g clip-path="url(#square-clip)">
+      <rect x="20" y="10" width="75" height="20" fill="url(#lid)" />
+      <!-- Sharp edge highlight to simulate the box fold catching light -->
+      <line x1="25" y1="30" x2="90" y2="30" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5" />
+    </g>
+    <g>
+      <!-- Left half of the tape -->
+      <path d="M 50.5 15 L 57.5 15 L 57.5 55 L 49.5 55 A 2 2 0 0 1 47.5 53 L 47.5 30 Z" fill="#F8FCFF" fill-opacity="0.5" />
+      <!-- Right half of the tape -->
+      <path d="M 57.5 15 L 64.5 15 L 67.5 30 L 67.5 53 A 2 2 0 0 1 65.5 55 L 57.5 55 Z" fill="#F8FCFF" fill-opacity="0.3" />
+    </g>
   </g>
   <g>
-    <!-- Left half of the tape -->
-    <path d="M 50.5 15 L 57.5 15 L 57.5 55 L 49.5 55 A 2 2 0 0 1 47.5 53 L 47.5 30 Z" fill="#F8FCFF" fill-opacity="0.5" />
-    <!-- Right half of the tape -->
-    <path d="M 57.5 15 L 64.5 15 L 67.5 30 L 67.5 53 A 2 2 0 0 1 65.5 55 L 57.5 55 Z" fill="#F8FCFF" fill-opacity="0.3" />
-  </g>
-  <g>
-    <!-- Clean badge base with soft gradient and drop shadow. No fake inner bevels. -->
-    <rect x="23.5" y="44" width="35" height="35" rx="8" fill="url(#badge)" filter="url(#badge-shadow)" />
-    <text x="41" y="72.5" font-family="Segoe UI, sans-serif" font-weight="bold" font-size="33" fill="#FFFFFF" text-anchor="middle" filter="url(#text-shadow)">P</text>
+    <!-- Clean badge base with cutout. No drop shadows. -->
+    <rect x="23.5" y="44" width="35" height="35" rx="8" fill="url(#badge)" />
+    <text x="41" y="72.5" font-family="Segoe UI, sans-serif" font-weight="bold" font-size="33" fill="#FFFFFF" text-anchor="middle">P</text>
   </g>
 </svg>
