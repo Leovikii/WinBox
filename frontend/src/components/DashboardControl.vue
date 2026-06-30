@@ -570,11 +570,11 @@ onActivated(() => {
         </div>
         
         <template #footer>
-          <div class="flex items-center justify-end gap-3 w-full">
-            <WButton variant="secondary" size="sm" icon="fas fa-trash" @click="clearAppLog">
+          <div class="flex gap-3 w-full">
+            <WButton variant="secondary" class="flex-1" icon="fas fa-trash" @click="clearAppLog">
               Clear
             </WButton>
-            <WButton variant="primary" size="sm" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog" class="min-w-[90px]">
+            <WButton variant="primary" class="flex-1" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog">
               {{ copyState }}
             </WButton>
           </div>

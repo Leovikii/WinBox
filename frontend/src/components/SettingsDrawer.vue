@@ -410,29 +410,31 @@ const openGitHub = () => {
         </div>
       </div>
     </template>
-    <div class="relative h-full flex flex-col">
-      <WTextarea
-        :model-value="editorContent"
-        @update:model-value="editorContent = $event"
-        mono
-        :resize="false"
-        class="flex-1 w-full bg-[#050505] p-4"
-        :rows="20"
-      />
-      <div class="absolute bottom-4 right-4 flex gap-2">
-        <WButton variant="warning" size="sm" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>
-        <WButton variant="secondary" size="sm" icon="fas fa-times" @click="showEditor = false">Cancel</WButton>
-        <WButton
-          :variant="saveBtnText === 'Saved' ? 'success' : 'primary'"
-          size="sm"
-          :icon="saveBtnText === 'Saved' ? 'fas fa-check' : 'fas fa-save'"
-          @click="saveEditor()"
-        >
-          {{ saveBtnText }}
-        </WButton>
+    <div class="h-full flex flex-col">
+        <WTextarea
+          :model-value="editorContent"
+          @update:model-value="editorContent = $event"
+          mono
+          :resize="false"
+          class="flex-1 w-full bg-[#050505] p-4"
+          :rows="20"
+        />
       </div>
-    </div>
-  </WModal>
+      <template #footer>
+        <div class="flex gap-3 w-full">
+          <WButton variant="warning" class="flex-1" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>
+          <WButton variant="secondary" class="flex-1" icon="fas fa-times" @click="showEditor = false">Cancel</WButton>
+          <WButton
+            :variant="saveBtnText === 'Saved' ? 'success' : 'primary'"
+            class="flex-1"
+            :icon="saveBtnText === 'Saved' ? 'fas fa-check' : 'fas fa-save'"
+            @click="saveEditor()"
+          >
+            {{ saveBtnText }}
+          </WButton>
+        </div>
+      </template>
+    </WModal>
 
   <!-- Reset Confirmation Modal -->
   <WModal
