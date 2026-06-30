@@ -31,20 +31,36 @@ const themeState = useTheme()
 const scrollContainer = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
 
 const scrollToBottom = () => {
+  requestAnimationFrame(() => {
+    if (scrollContainer.value) {
+      const osInstance = scrollContainer.value.osInstance()
+      if (osInstance) {
+        const { viewport } = osInstance.elements()
+        if (viewport) {
+          viewport.scrollTop = viewport.scrollHeight
+        }
+      }
+    }
+  })
+}
+
+const isAtBottom = () => {
   if (scrollContainer.value) {
     const osInstance = scrollContainer.value.osInstance()
     if (osInstance) {
       const { viewport } = osInstance.elements()
       if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight
+        return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 50
       }
     }
   }
+  return true
 }
 
 defineExpose({
   $el: scrollContainer,
-  scrollToBottom
+  scrollToBottom,
+  isAtBottom
 })
 </script>
 

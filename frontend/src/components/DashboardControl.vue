@@ -131,12 +131,18 @@ const appLogContent = ref("")
 const showLogModal = ref(false)
 const inlineLogContainer = ref<any>(null)
 const fullLogContainer = ref<any>(null)
+const logScrollbox = ref<any>(null)
 const copyState = ref("Copy")
 let logInterval: any = null
 
 const isAtBottom = (container: any) => {
-  if (!container || !container.$el) return true
-  const el = container.$el
+  if (!container) return true
+  
+  if (typeof container.isAtBottom === 'function') {
+    return container.isAtBottom()
+  }
+  
+  const el = container.$el || container
   // Within 50px is considered bottom
   return el.scrollHeight - el.scrollTop - el.clientHeight <= 50
 }
@@ -144,7 +150,9 @@ const isAtBottom = (container: any) => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-    if (fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
+    if (logScrollbox.value && showLogModal.value) {
+      logScrollbox.value.scrollToBottom()
+    }
   })
 }
 
@@ -158,13 +166,15 @@ const loadAppLog = async () => {
     const content = await Backend.GetAppLog()
     if (content !== appLogContent.value) {
       const inlineAtBottom = isAtBottom(inlineLogContainer.value)
-      const fullAtBottom = isAtBottom(fullLogContainer.value)
+      const fullAtBottom = isAtBottom(logScrollbox.value)
       
       appLogContent.value = content
       
       nextTick(() => {
         if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-        if (fullAtBottom && fullLogContainer.value && showLogModal.value) fullLogContainer.value.scrollToBottom()
+        if (fullAtBottom && logScrollbox.value && showLogModal.value) {
+          logScrollbox.value.scrollToBottom()
+        }
       })
     }
   } catch (error) {
@@ -559,8 +569,12 @@ onActivated(() => {
       >
 
         
-        <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-600 dark:text-gray-300 whitespace-pre-wrap break-all min-h-[300px]">
-          {{ appLogContent || 'No logs available.' }}
+        <div class="w-full h-[400px] bg-white dark:bg-[#050505] border border-black/10 dark:border-white/5 rounded-md relative overflow-hidden">
+          <WScrollArea height="100%" class="w-full h-full" ref="logScrollbox">
+            <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-900 dark:text-gray-300 whitespace-pre-wrap break-all p-4 select-text">
+              {{ appLogContent || 'No logs available.' }}
+            </div>
+          </WScrollArea>
         </div>
         
         <template #footer>

@@ -5,6 +5,7 @@ interface Props {
   modelValue: string
   placeholder?: string
   disabled?: boolean
+  readonly?: boolean
   rows?: number
   mono?: boolean
   resize?: boolean
@@ -12,6 +13,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
+  readonly: false,
   rows: 4,
   mono: false,
   resize: true
@@ -50,6 +52,7 @@ const textareaClasses = computed(() => {
     @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
     :placeholder="placeholder"
     :disabled="disabled"
+    :readonly="readonly"
     :rows="rows"
     :class="textareaClasses"
     spellcheck="false"
