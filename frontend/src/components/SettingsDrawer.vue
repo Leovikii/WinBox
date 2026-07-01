@@ -25,7 +25,7 @@ const {
 } = appState
 
 const {
-  localVer, remoteVer, updateState, downloadProgress, showEditor, editingType, editorContent, editorDefaultContent, saveBtnText,
+  localVer, remoteVer, updateState, downloadProgress, showEditor, editingType, editorContent, editorDefaultContent, isEditorChanged, saveBtnText,
   showResetConfirm, checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
 } = kernelState
 
@@ -449,6 +449,7 @@ const openGitHub = () => {
             :variant="saveBtnText === 'Saved' ? 'success' : 'primary'"
             class="min-w-[80px]"
             @click="saveEditor()"
+            :disabled="!isEditorChanged"
           >
             {{ saveBtnText === 'Saved' ? 'Saved!' : 'Save' }}
           </WButton>
@@ -519,7 +520,7 @@ const openGitHub = () => {
     <template #footer>
       <div class="flex items-center justify-end gap-3 w-full">
         <WButton variant="secondary" class="min-w-[80px]" @click="handleCloseThemeModal">Cancel</WButton>
-        <WButton variant="primary" class="min-w-[80px]" @click="applyCustomColor">Apply</WButton>
+        <WButton variant="primary" class="min-w-[80px]" @click="applyCustomColor" :disabled="customColor === accentColor">Apply</WButton>
       </div>
     </template>
   </WModal>

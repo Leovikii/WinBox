@@ -136,9 +136,13 @@ export function useProfiles() {
     }
   }
 
+  const isManageProfilesChanged = computed(() => {
+    return JSON.stringify(profiles.value) !== JSON.stringify(manageProfilesList.value)
+  })
+
   return {
     profiles, activeProfile, isUpdatingProfile,
-    showManageProfilesModal, manageProfilesList, isSavingProfiles,
+    showManageProfilesModal, manageProfilesList, isSavingProfiles, isManageProfilesChanged,
     openManageProfiles, removeProfileFromManageList, addNewDraftProfile, saveManageProfiles,
     switchProfile, updateActive
   }

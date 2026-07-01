@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
 import ManageProfilesModal from './ManageProfilesModal.vue'
+import AppLogsModal from './AppLogsModal.vue'
 
 import { useAppState } from '../composables/useAppState'
 import { useProfiles } from '../composables/useProfiles'
+import { useAppLogs } from '@/composables/useAppLogs'
 import { useTheme } from '../composables/useTheme'
 
 interface Profile {
@@ -17,6 +19,7 @@ interface Profile {
 
 const appState = useAppState()
 const profilesState = useProfiles()
+const logState = useAppLogs()
 const themeState = useTheme()
 
 const {
@@ -122,103 +125,41 @@ const formattedUpdatedTime = computed(() => {
 
 
 // Log Viewer Logic
-const appLogContent = ref("")
-const showLogModal = ref(false)
 const inlineLogContainer = ref<any>(null)
-const fullLogContainer = ref<any>(null)
-const logScrollbox = ref<any>(null)
-const copyState = ref("Copy")
-
-const isAtBottom = (container: any) => {
-  if (!container) return true
-  
-  if (typeof container.isAtBottom === 'function') {
-    return container.isAtBottom()
-  }
-  
-  const el = container.$el || container
-  // Within 50px is considered bottom
-  return el.scrollHeight - el.scrollTop - el.clientHeight <= 50
-}
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-    if (logScrollbox.value && showLogModal.value) {
-      logScrollbox.value.scrollToBottom()
-    }
-  })
-}
 
 const openFullLog = () => {
-  showLogModal.value = true
-  scrollToBottom()
-}
-
-const loadAppLog = async () => {
-  try {
-    const content = await Backend.GetAppLog()
-    appLogContent.value = content
-    scrollToBottom()
-  } catch (error) {
-    appLogContent.value = "> Failed to load app log"
-  }
-}
-
-const handleNewLog = (newLogLine: string) => {
-  const inlineAtBottom = isAtBottom(inlineLogContainer.value)
-  const fullAtBottom = isAtBottom(logScrollbox.value)
-  
-  appLogContent.value += newLogLine
-  
-  // Prevent unbounded memory growth
-  if (appLogContent.value.length > 600000) {
-    const lines = appLogContent.value.split('\n')
-    if (lines.length > 5000) {
-      appLogContent.value = lines.slice(lines.length - 5000).join('\n')
-    }
-  }
-  
-  nextTick(() => {
-    if (inlineAtBottom && inlineLogContainer.value) inlineLogContainer.value.scrollToBottom()
-    if (fullAtBottom && logScrollbox.value && showLogModal.value) {
-      logScrollbox.value.scrollToBottom()
-    }
-  })
-}
-
-const clearAppLog = async () => {
-  const res = await Backend.ClearAppLog()
-  if (res === "Success") {
-    appLogContent.value = ""
-    await loadAppLog()
-  }
-}
-
-const copyAppLog = async () => {
-  if (!appLogContent.value) return
-  try {
-    await navigator.clipboard.writeText(appLogContent.value)
-    copyState.value = "Copied!"
-    setTimeout(() => {
-      copyState.value = "Copy"
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy text: ', err)
-  }
+  logState.showLogModal.value = true
 }
 
 onMounted(() => {
-  loadAppLog()
-  EventsOn("onAppLog", handleNewLog)
+  logState.initLogs()
+})
+
+// Only scroll inline log on activation or log updates
+watch(() => logState.appLogContent.value, () => {
+  nextTick(() => {
+    if (inlineLogContainer.value) {
+      const el = inlineLogContainer.value.$el || inlineLogContainer.value
+      const scrollEl = el.querySelector('.simplebar-content-wrapper') || el
+      if (scrollEl) {
+        const isAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 50
+        if (isAtBottom) {
+          inlineLogContainer.value.scrollToBottom()
+        }
+      }
+    }
+  })
 })
 
 onUnmounted(() => {
-  EventsOff("onAppLog")
 })
 
 onActivated(() => {
-  scrollToBottom()
+  nextTick(() => {
+    if (inlineLogContainer.value) {
+      inlineLogContainer.value.scrollToBottom()
+    }
+  })
 })
 </script>
 
@@ -478,7 +419,7 @@ onActivated(() => {
           <div class="absolute inset-0">
             <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
               <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
-                {{ appLogContent || 'No logs available.' }}
+                {{ logState.appLogContent.value || 'No logs available.' }}
               </div>
             </WScrollArea>
           </div>
@@ -491,33 +432,8 @@ onActivated(() => {
     <ManageProfilesModal />
 
     <!-- App Log Modal -->
-      <WModal
-        :model-value="showLogModal"
-        @update:model-value="showLogModal = $event"
-        title="App logs"
-        ref="fullLogContainer"
-      >
-
-        
-        <div class="w-full h-[400px] bg-white dark:bg-[#050505] border border-black/10 dark:border-white/5 rounded-md relative overflow-hidden">
-          <WScrollArea height="100%" class="w-full h-full" ref="logScrollbox">
-            <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-900 dark:text-gray-300 whitespace-pre-wrap break-all p-4 select-text">
-              {{ appLogContent || 'No logs available.' }}
-            </div>
-          </WScrollArea>
-        </div>
-        
-        <template #footer>
-          <div class="flex items-center justify-end gap-3 w-full">
-            <WButton variant="secondary" class="min-w-[80px]" @click="clearAppLog">
-              Clear Logs
-            </WButton>
-            <WButton variant="primary" class="min-w-[80px]" @click="copyAppLog">
-              {{ copyState === 'COPIED!' ? 'Copied!' : 'Copy Logs' }}
-            </WButton>
-          </div>
-        </template>
-      </WModal>
+    <!-- App Log Modal -->
+    <AppLogsModal />
 </template>
 
 <style scoped>

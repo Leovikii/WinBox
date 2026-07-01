@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { useAppState } from './useAppState'
@@ -13,6 +13,7 @@ const downloadProgress = ref(0)
 const showEditor = ref(false)
 const editingType = ref<"tun" | "mixed" | "mirror">("tun")
 const editorContent = ref("")
+const editorOriginalContent = ref("")
 const editorDefaultContent = ref("")
 const saveBtnText = ref("Save")
 
@@ -72,6 +73,7 @@ export function useKernelUpdate() {
     saveBtnText.value = "Save"
     if (type === 'mirror') {
       editorContent.value = appState.mirrorUrl.value
+      editorOriginalContent.value = appState.mirrorUrl.value
       editorDefaultContent.value = "https://gh-proxy.com/"
     } else {
       const content = await Backend.GetOverride(type)
@@ -82,6 +84,7 @@ export function useKernelUpdate() {
       } catch {
         editorContent.value = content
       }
+      editorOriginalContent.value = editorContent.value
       try {
         const defaultObj = JSON.parse(defaultContentRaw)
         editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
@@ -98,6 +101,7 @@ export function useKernelUpdate() {
       res = await Backend.SaveSettings(editorContent.value, appState.mirrorEnabled.value)
       if (res === "Success") {
         appState.mirrorUrl.value = editorContent.value
+        editorOriginalContent.value = editorContent.value
       }
     } else {
       try {
@@ -109,6 +113,9 @@ export function useKernelUpdate() {
         return
       }
       res = await Backend.SaveOverride(editingType.value as string, editorContent.value)
+      if (res === "Success") {
+        editorOriginalContent.value = editorContent.value
+      }
     }
     if (res === "Success") {
       saveBtnText.value = "Saved"
@@ -154,6 +161,7 @@ export function useKernelUpdate() {
     } catch {
       editorContent.value = content
     }
+    editorOriginalContent.value = editorContent.value
     try {
       const defaultObj = JSON.parse(defaultContentRaw)
       editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
@@ -179,9 +187,13 @@ export function useKernelUpdate() {
     // if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
   })
 
+  const isEditorChanged = computed(() => {
+    return editorContent.value !== editorOriginalContent.value
+  })
+
   return {
     localVer, remoteVer, updateState, downloadProgress,
-    showEditor, editingType, editorContent, editorDefaultContent, saveBtnText,
+    showEditor, editingType, editorContent, editorOriginalContent, editorDefaultContent, isEditorChanged, saveBtnText,
     showResetConfirm, showErrorAlert, errorAlertMessage,
     checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
   }

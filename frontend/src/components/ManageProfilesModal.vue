@@ -5,14 +5,14 @@
     title="Manage Profiles"
   >
     <WScrollArea maxHeight="40vh" class="pr-2" ref="profilesScrollbox">
-      <TransitionGroup name="list" tag="div" class="flex flex-col gap-3 relative">
+      <TransitionGroup name="list" tag="div" class="relative pb-3">
         <template v-if="profilesState.manageProfilesList.value.length === 0">
           <div class="text-center text-sm text-gray-500 py-4">No profiles found</div>
         </template>
         <div 
           v-for="profile in profilesState.manageProfilesList.value" 
           :key="profile.id"
-          class="bg-gray-50 dark:bg-[#1f1f1f] border border-black/10 dark:border-white/5 rounded-lg p-4 flex gap-3 items-center group relative list-item-transition"
+          class="bg-gray-50 dark:bg-[#1f1f1f] border border-black/10 dark:border-white/5 rounded-lg p-4 mb-3 flex gap-3 items-center group relative list-item-transition"
         >
         <div class="flex-1 space-y-3 min-w-0">
           <div>
@@ -50,7 +50,7 @@
         <WButton variant="ghost" class="whitespace-nowrap" icon="fas fa-plus" @click="handleAddProfile">Add Profile</WButton>
         <div class="flex items-center justify-end gap-3">
           <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showManageProfilesModal.value = false" :disabled="profilesState.isSavingProfiles.value">Cancel</WButton>
-          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.saveManageProfiles" :loading="profilesState.isSavingProfiles.value">Save</WButton>
+          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.saveManageProfiles" :loading="profilesState.isSavingProfiles.value" :disabled="!profilesState.isManageProfilesChanged.value">Save</WButton>
         </div>
       </div>
     </template>
