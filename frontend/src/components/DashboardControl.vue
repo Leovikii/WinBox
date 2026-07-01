@@ -169,7 +169,7 @@ onActivated(() => {
     <!-- ==================== AREA 1: INFO ==================== -->
     <div 
       class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative z-10 transition-all duration-500 overflow-hidden shrink-0"
-      :class="running ? 'h-[calc((100%-4.5rem)/4)] p-6 pb-2 opacity-100' : 'h-[58px] px-6 py-4 opacity-70'"
+      :class="running ? 'h-[calc((100%-4.5rem)/4)] p-6 pb-2 opacity-100' : 'h-[58px] px-6 py-4 opacity-100'"
     >
         <!-- Header: Status & Speed -->
         <div class="shrink-0 flex justify-between bg-transparent" :class="running ? 'pb-2 items-start' : 'items-center'">
@@ -226,7 +226,7 @@ onActivated(() => {
     <!-- ==================== AREA 2: PROFILE ==================== -->
     <div 
       class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative z-20 justify-between transition-all duration-500 overflow-hidden shrink-0"
-      :class="!running ? 'h-[calc((100%-4.5rem)/4)] p-6 opacity-100' : 'h-[58px] px-6 py-4 opacity-70'"
+      :class="!running ? 'h-[calc((100%-4.5rem)/4)] p-6 opacity-100' : 'h-[58px] px-6 py-4 opacity-100'"
     >
       <template v-if="profilesState.profiles.value.length > 0">
         <!-- Row 1: Profile Title & Global Actions (Dynamic based on running) -->
