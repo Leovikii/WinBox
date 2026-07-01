@@ -51,7 +51,7 @@ type MetaData struct {
 	ThemeMode       string    `json:"theme_mode"`        // "light" or "dark"
 	AccentColor     string    `json:"accent_color"`      // hex color code
 	IPv6Enabled     bool      `json:"ipv6_enabled"`      // IPv6 support toggle
-	LogLevel        string    `json:"log_level"`         // Log level: debug, info, warning, error
+	LogLevel        string    `json:"log_level"`         // Log level: debug, info, warn, error
 	LogToFile       bool      `json:"log_to_file"`       // Save logs to file
 	PreRelease      bool      `json:"pre_release"`       // Receive pre-release updates
 	Profiles        []Profile `json:"profiles"`

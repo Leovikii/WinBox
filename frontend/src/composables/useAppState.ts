@@ -22,7 +22,7 @@ const mirrorEnabled = ref(false)
 
 const ipv6Enabled = ref(true)
 const preRelease = ref(false)
-const logLevel = ref("warning")
+const logLevel = ref("")
 const logToFile = ref(true)
 const closeBehavior = ref("ask")
 
@@ -131,7 +131,7 @@ export function useAppState() {
     mirrorEnabled.value = data.mirrorEnabled
     ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
     preRelease.value = data.pre_release
-    logLevel.value = data.log_level || "warning"
+    logLevel.value = data.log_level !== undefined ? data.log_level : ""
     logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
     closeBehavior.value = data.close_behavior || "ask"
     return data

@@ -371,9 +371,10 @@ const openGitHub = () => {
             :model-value="logLevel"
             @update:model-value="handleLogConfigChange(String($event), logToFile)"
             :options="[
+              { value: '', label: 'Don\'t Modify' },
               { value: 'debug', label: 'Debug' },
               { value: 'info', label: 'Info' },
-              { value: 'warning', label: 'Warning' },
+              { value: 'warn', label: 'Warn' },
               { value: 'error', label: 'Error' }
             ]"
             class="w-28"
