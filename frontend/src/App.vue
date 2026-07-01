@@ -21,10 +21,9 @@ const showUWPModal = ref(false);
 const showChangelogModal = ref(false);
 const rememberCloseChoice = ref(false);
 
-const transitionName = ref('slide-forward');
+const transitionName = ref('page-fade');
 
 const toggleSettings = (open: boolean) => {
-  transitionName.value = open ? 'slide-forward' : 'slide-back';
   showSettings.value = open;
 };
 

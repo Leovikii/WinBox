@@ -6,27 +6,17 @@
   --accent-color: #2563eb;
   --accent-color-rgb: 37, 99, 235;
 
-  /* Status Colors (Light Mode) */
   --status-error: #e11d48;
-  /* rose-600 */
   --status-warning: #d97706;
-  /* amber-600 */
   --status-standby: #7e22ce;
-  /* purple-700 */
   --status-offline: #4b5563;
-  /* gray-600 */
   --status-mixed: #c026d3;
-  /* fuchsia-600 */
   --status-tun: #2563eb;
-  /* blue-600 */
   --status-proxy: #059669;
-  /* emerald-600 */
   --status-default: #374151;
-  /* gray-700 */
 }
 
 .dark {
-  /* Status Colors (Dark Mode - Original Pastel Colors) */
   --status-error: #F4A7B0;
   --status-warning: #FCD575;
   --status-standby: #B4A2CC;
@@ -44,10 +34,7 @@ body {
   user-select: none;
 }
 
-
-
-
-/* Windows 11 Mica Material Effect - Solid backgrounds for HDR optimization */
+/* Mica Material */
 @supports (backdrop-filter: blur(40px)) {
   .mica-card {
     background: #fdfdfd;
@@ -78,10 +65,7 @@ body {
   overflow: hidden;
 }
 
-
-
-/* Unified Modal Transition (WinUI 3 Spec) */
-/* Entrance - Slower, Decelerate */
+/* Modal Transition */
 .w-modal-enter-active {
   transition: opacity 0.25s cubic-bezier(0, 0, 0, 1);
 }
@@ -90,7 +74,6 @@ body {
   transition: transform 0.25s cubic-bezier(0, 0, 0, 1);
 }
 
-/* Exit - Faster, Accelerate */
 .w-modal-leave-active {
   transition: opacity 0.1s cubic-bezier(1, 0, 1, 1);
 }
@@ -109,60 +92,26 @@ body {
   transform: scale(0.95);
 }
 
-/* Page Crossfade Transition */
+/* Page Navigation Transition (WinUI 3 EntranceNavigationTransitionInfo) */
 .page-fade-enter-active {
-  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+  transition: opacity 0.3s cubic-bezier(0, 0, 0, 1), transform 0.3s cubic-bezier(0, 0, 0, 1);
   position: absolute;
   width: 100%;
+  height: 100%;
 }
 
 .page-fade-leave-active {
-  transition: opacity 0.01s;
-  /* Almost instant hide to prevent ghosting */
+  transition: none;
   position: absolute;
   width: 100%;
+  height: 100%;
 }
 
 .page-fade-enter-from {
   opacity: 0;
-  transform: translateY(15px) scale(0.98);
+  transform: translateY(20px);
 }
 
 .page-fade-leave-to {
   opacity: 0;
-}
-
-/* Slide Forward Transition (Navigating deeper) */
-/* Slide Forward Transition (Navigating deeper) */
-.slide-forward-enter-active,
-.slide-forward-leave-active {
-  transition: transform 0.6s cubic-bezier(0.25, 1.1, 0.35, 1);
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-
-.slide-forward-enter-from {
-  transform: translateX(100%);
-}
-
-.slide-forward-leave-to {
-  transform: translateX(-100%);
-}
-
-/* Slide Back Transition (Navigating out) */
-.slide-back-enter-active,
-.slide-back-leave-active {
-  transition: transform 0.6s cubic-bezier(0.25, 1.1, 0.35, 1);
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-
-.slide-back-enter-from {
-  transform: translateX(-100%);
-}
-
-.slide-back-leave-to {
-  transform: translateX(100%);
 }
