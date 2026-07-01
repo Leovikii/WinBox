@@ -1,13 +1,12 @@
 # <img src="build/appicon.png" width="32" style="vertical-align: -5px;"> WinBox
 
+![Platform](https://img.shields.io/badge/platform-Windows-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Wails](https://wails.io) and Vue 3.
 
 <div align="center">
   <img src="frontend/src/assets/demo/demo.png" alt="WinBox Dashboard" width="350" style="border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.1);">
 </div>
-<br>
-
-![Platform](https://img.shields.io/badge/platform-Windows-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## Overview
 
