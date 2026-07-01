@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vu
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
+import ManageProfilesModal from './ManageProfilesModal.vue'
 
 import { useAppState } from '../composables/useAppState'
 import { useProfiles } from '../composables/useProfiles'
@@ -96,10 +97,6 @@ const handleProfileChange = (val: string | number) => {
   }
 }
 
-const handleEdit = (e: any) => {
-  const p = profilesState.activeProfile.value
-  if (p) profilesState.editProfile(p.id, e)
-}
 
 const formattedUpdatedTime = computed(() => {
   const updatedStr = profilesState.activeProfile.value?.updated
@@ -122,10 +119,7 @@ const formattedUpdatedTime = computed(() => {
   return updatedStr.split(' ')[0]
 })
 
-const handleDelete = (e: any) => {
-  const p = profilesState.activeProfile.value
-  if (p) profilesState.deleteProfile(p.id, e)
-}
+
 
 // Log Viewer Logic
 const appLogContent = ref("")
@@ -312,16 +306,16 @@ onActivated(() => {
                   class="w-full !min-h-[26px] text-xs"
                 />
               </div>
-              <!-- When expanded (!running): show ADD button -->
+              <!-- When expanded (!running): show MANAGE button -->
               <div v-else>
                 <WButton 
                   variant="secondary" 
                   size="sm" 
                   class="w-7 !px-0"
-                  icon="fas fa-plus" 
-                  @click="profilesState.showAddProfileModal.value = true"
+                  icon="fas fa-sliders" 
+                  @click="profilesState.openManageProfiles"
                   :disabled="isProcessing"
-                  title="Add profile"
+                  title="Manage Profiles"
                 />
               </div>
             </Transition>
@@ -354,28 +348,6 @@ onActivated(() => {
             >
               {{ formattedUpdatedTime }}
             </WButton>
-
-            <!-- Edit -->
-            <WButton 
-              class="w-7 !px-0"
-              variant="secondary" 
-              size="sm"
-              icon="fas fa-pen" 
-              @click="handleEdit"
-              :disabled="isProcessing || !profilesState.activeProfile.value"
-              title="Edit"
-            />
-
-            <!-- Delete -->
-            <WButton 
-              class="w-7 !px-0"
-              variant="danger" 
-              size="sm" 
-              icon="fas fa-trash" 
-              @click="handleDelete"
-              :disabled="isProcessing || !profilesState.activeProfile.value"
-              title="Delete"
-            />
           </div>
         </div>
       </template>
@@ -388,9 +360,9 @@ onActivated(() => {
           v-if="coreExists"
           variant="secondary" 
           size="sm" 
-          @click="profilesState.showAddProfileModal.value = true"
+          @click="profilesState.openManageProfiles"
         >
-          Add profile
+          Add Profile
         </WButton>
       </div>
     </div>
@@ -516,81 +488,7 @@ onActivated(() => {
   </div>
 
     <!-- Modals -->
-    <WModal
-      :model-value="profilesState.showAddProfileModal.value"
-      @update:model-value="profilesState.showAddProfileModal.value = false"
-      title="Add profile"
-    >
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Name</label>
-          <WInput
-            v-model="profilesState.newName.value"
-            placeholder="e.g. My Provider"
-            @keyup.enter="profilesState.addProfile"
-          />
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Subscription URL</label>
-          <WInput
-            v-model="profilesState.newUrl.value"
-            placeholder="https://..."
-            @keyup.enter="profilesState.addProfile"
-          />
-        </div>
-      </div>
-      <template #footer>
-        <div class="flex items-center justify-end gap-3 w-full">
-          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showAddProfileModal.value = false" :disabled="profilesState.isAddingProfile.value">Cancel</WButton>
-          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.addProfile" :loading="profilesState.isAddingProfile.value">Add</WButton>
-        </div>
-      </template>
-    </WModal>
-
-    <WModal
-      :model-value="profilesState.showEditProfileModal.value"
-      @update:model-value="profilesState.showEditProfileModal.value = false"
-      title="Edit Profile"
-    >
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Name</label>
-          <WInput
-            v-model="profilesState.editName.value"
-            placeholder="e.g. My Provider"
-            @keyup.enter="profilesState.saveEditProfile"
-          />
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2">Subscription URL</label>
-          <WInput
-            v-model="profilesState.editUrl.value"
-            placeholder="https://..."
-            @keyup.enter="profilesState.saveEditProfile"
-          />
-        </div>
-      </div>
-      <template #footer>
-        <div class="flex items-center justify-end gap-3 w-full">
-          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showEditProfileModal.value = false" :disabled="profilesState.isEditingProfile.value">Cancel</WButton>
-          <WButton variant="primary" class="min-w-[80px]" @click="profilesState.saveEditProfile" :loading="profilesState.isEditingProfile.value">Save</WButton>
-        </div>
-      </template>
-    </WModal>
-
-    <WModal
-      :model-value="profilesState.showDeleteConfirm.value"
-      @update:model-value="profilesState.showDeleteConfirm.value = false"
-      title="Delete Profile"
-    >
-      <div class="text-sm text-gray-600 dark:text-gray-300">Are you sure you want to delete this profile? This cannot be undone.</div>
-      <template #footer>
-        <div class="flex items-center justify-end gap-3 w-full">
-          <WButton variant="secondary" class="min-w-[80px]" @click="profilesState.showDeleteConfirm.value = false">Cancel</WButton>
-          <WButton variant="danger" class="min-w-[80px]" @click="profilesState.confirmDelete">Delete</WButton>
-        </div>
-      </template>
-    </WModal>
+    <ManageProfilesModal />
 
     <!-- App Log Modal -->
       <WModal
@@ -611,11 +509,11 @@ onActivated(() => {
         
         <template #footer>
           <div class="flex items-center justify-end gap-3 w-full">
-            <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-trash" @click="clearAppLog">
-              Clear
+            <WButton variant="secondary" class="min-w-[80px]" @click="clearAppLog">
+              Clear Logs
             </WButton>
-            <WButton variant="primary" class="min-w-[80px]" :icon="copyState === 'COPIED!' ? 'fas fa-check' : 'fas fa-copy'" @click="copyAppLog">
-              {{ copyState }}
+            <WButton variant="primary" class="min-w-[80px]" @click="copyAppLog">
+              {{ copyState === 'COPIED!' ? 'Copied!' : 'Copy Logs' }}
             </WButton>
           </div>
         </template>

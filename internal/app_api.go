@@ -62,6 +62,17 @@ func (a *App) GetOverride(name string) string {
 	return result
 }
 
+func (a *App) GetDefaultOverride(name string) string {
+	switch name {
+	case "tun":
+		return DefaultTunConfig
+	case "mixed":
+		return DefaultMixedConfig
+	default:
+		return ""
+	}
+}
+
 func (a *App) SaveOverride(name, content string) string {
 	if err := a.settingsManager.SaveOverride(name, content); err != nil {
 		return "Error: " + err.Error()

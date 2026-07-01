@@ -13,6 +13,7 @@ const downloadProgress = ref(0)
 const showEditor = ref(false)
 const editingType = ref<"tun" | "mixed" | "mirror">("tun")
 const editorContent = ref("")
+const editorDefaultContent = ref("")
 const saveBtnText = ref("Save")
 
 const showResetConfirm = ref(false)
@@ -71,13 +72,21 @@ export function useKernelUpdate() {
     saveBtnText.value = "Save"
     if (type === 'mirror') {
       editorContent.value = appState.mirrorUrl.value
+      editorDefaultContent.value = "https://gh-proxy.com/"
     } else {
       const content = await Backend.GetOverride(type)
+      const defaultContentRaw = await Backend.GetDefaultOverride(type)
       try {
         const obj = JSON.parse(content)
         editorContent.value = JSON.stringify(obj, null, 2)
       } catch {
         editorContent.value = content
+      }
+      try {
+        const defaultObj = JSON.parse(defaultContentRaw)
+        editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
+      } catch {
+        editorDefaultContent.value = defaultContentRaw
       }
     }
     showEditor.value = true
@@ -138,11 +147,18 @@ export function useKernelUpdate() {
     editingType.value = type
     saveBtnText.value = "Save"
     const content = await Backend.GetOverride(type)
+    const defaultContentRaw = await Backend.GetDefaultOverride(type)
     try {
       const obj = JSON.parse(content)
       editorContent.value = JSON.stringify(obj, null, 2)
     } catch {
       editorContent.value = content
+    }
+    try {
+      const defaultObj = JSON.parse(defaultContentRaw)
+      editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
+    } catch {
+      editorDefaultContent.value = defaultContentRaw
     }
   }
 
@@ -165,7 +181,7 @@ export function useKernelUpdate() {
 
   return {
     localVer, remoteVer, updateState, downloadProgress,
-    showEditor, editingType, editorContent, saveBtnText,
+    showEditor, editingType, editorContent, editorDefaultContent, saveBtnText,
     showResetConfirm, showErrorAlert, errorAlertMessage,
     checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
   }

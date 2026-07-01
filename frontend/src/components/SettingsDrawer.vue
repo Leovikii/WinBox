@@ -25,7 +25,7 @@ const {
 } = appState
 
 const {
-  localVer, remoteVer, updateState, downloadProgress, showEditor, editingType, editorContent, saveBtnText,
+  localVer, remoteVer, updateState, downloadProgress, showEditor, editingType, editorContent, editorDefaultContent, saveBtnText,
   showResetConfirm, checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
 } = kernelState
 
@@ -436,15 +436,21 @@ const openGitHub = () => {
     </div>
       <template #footer>
         <div class="flex items-center justify-end gap-3 w-full">
-          <WButton variant="warning" class="min-w-[80px]" icon="fas fa-undo" @click="resetEditor()">Reset</WButton>
-          <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="showEditor = false">Cancel</WButton>
+          <WButton
+            v-if="editorContent !== editorDefaultContent"
+            variant="warning"
+            class="min-w-[80px]"
+            @click="resetEditor()"
+          >
+            Reset
+          </WButton>
+          <WButton variant="secondary" class="min-w-[80px]" @click="showEditor = false">Cancel</WButton>
           <WButton
             :variant="saveBtnText === 'Saved' ? 'success' : 'primary'"
             class="min-w-[80px]"
-            :icon="saveBtnText === 'Saved' ? 'fas fa-check' : 'fas fa-save'"
             @click="saveEditor()"
           >
-            {{ saveBtnText }}
+            {{ saveBtnText === 'Saved' ? 'Saved!' : 'Save' }}
           </WButton>
         </div>
       </template>
@@ -460,8 +466,8 @@ const openGitHub = () => {
     <div class="text-sm text-gray-800 dark:text-gray-300">Reset to default configuration?</div>
     <template #footer>
       <div class="flex items-center justify-end gap-3 w-full">
-        <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="showResetConfirm = false">Cancel</WButton>
-        <WButton variant="warning" class="min-w-[80px]" icon="fas fa-undo" @click="confirmReset()">Reset</WButton>
+        <WButton variant="secondary" class="min-w-[80px]" @click="showResetConfirm = false">Cancel</WButton>
+        <WButton variant="warning" class="min-w-[80px]" @click="confirmReset()">Reset</WButton>
       </div>
     </template>
   </WModal>
@@ -512,8 +518,8 @@ const openGitHub = () => {
     </div>
     <template #footer>
       <div class="flex items-center justify-end gap-3 w-full">
-        <WButton variant="secondary" class="min-w-[80px]" icon="fas fa-times" @click="handleCloseThemeModal">Cancel</WButton>
-        <WButton variant="primary" class="min-w-[80px]" icon="fas fa-check" @click="applyCustomColor">Apply</WButton>
+        <WButton variant="secondary" class="min-w-[80px]" @click="handleCloseThemeModal">Cancel</WButton>
+        <WButton variant="primary" class="min-w-[80px]" @click="applyCustomColor">Apply</WButton>
       </div>
     </template>
   </WModal>
@@ -527,7 +533,9 @@ const openGitHub = () => {
   >
     <div class="text-sm text-red-500 dark:text-red-400 font-mono">{{ errorAlertMessage }}</div>
     <template #footer>
-      <WButton variant="primary" full-width icon="fas fa-check" @click="showErrorAlert = false; appState.showErrorAlert.value = false">OK</WButton>
+      <div class="flex items-center justify-end w-full">
+        <WButton variant="primary" class="min-w-[80px]" @click="showErrorAlert = false; appState.showErrorAlert.value = false">OK</WButton>
+      </div>
     </template>
   </WModal>
   </div>
