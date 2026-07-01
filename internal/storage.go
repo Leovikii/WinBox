@@ -137,7 +137,7 @@ func (s *Storage) LoadMeta() (*MetaData, error) {
 		meta.AutoConnectState = "smart"
 	}
 	if meta.ThemeMode == "" {
-		meta.ThemeMode = "dark"
+		meta.ThemeMode = "system"
 	}
 	if meta.AccentColor == "" {
 		meta.AccentColor = "#2563eb"
@@ -271,7 +271,7 @@ func (s *Storage) getDefaultMeta() *MetaData {
 		MixedConfig:      DefaultMixedConfig,
 		AutoConnectState: "smart",
 		StartOnBoot:      false,
-		ThemeMode:        "dark",
+		ThemeMode:        "system",
 		AccentColor:      "#2563eb",
 		IPv6Enabled:      true,
 		LogLevel:         "warning",
