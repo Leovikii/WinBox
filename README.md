@@ -3,7 +3,7 @@
 A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Wails](https://wails.io) and Vue 3.
 
 <div align="center">
-  <img src="frontend/src/assets/demo/demo.png" alt="WinBox Dashboard" width="800" style="border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.1);">
+  <img src="frontend/src/assets/demo/demo.png" alt="WinBox Dashboard" width="350" style="border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.1);">
 </div>
 <br>
 
