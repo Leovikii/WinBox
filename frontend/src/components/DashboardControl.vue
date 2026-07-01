@@ -135,20 +135,18 @@ onMounted(() => {
   logState.initLogs()
 })
 
-// Only scroll inline log on activation or log updates
 watch(() => logState.appLogContent.value, () => {
-  nextTick(() => {
-    if (inlineLogContainer.value) {
-      const el = inlineLogContainer.value.$el || inlineLogContainer.value
-      const scrollEl = el.querySelector('.simplebar-content-wrapper') || el
-      if (scrollEl) {
-        const isAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 50
-        if (isAtBottom) {
+  if (inlineLogContainer.value && inlineLogContainer.value.isAtBottom) {
+    const wasAtBottom = inlineLogContainer.value.isAtBottom()
+    if (wasAtBottom) {
+      // Use a short timeout to let the DOM mutation and OverlayScrollbars update their internal sizes
+      setTimeout(() => {
+        if (inlineLogContainer.value) {
           inlineLogContainer.value.scrollToBottom()
         }
-      }
+      }, 50)
     }
-  })
+  }
 })
 
 onUnmounted(() => {
@@ -418,8 +416,7 @@ onActivated(() => {
           <!-- Log Content -->
           <div class="absolute inset-0">
             <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
-              <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
-                {{ logState.appLogContent.value || 'No logs available.' }}
+              <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text" v-text="logState.appLogContent.value || 'No logs available.'">
               </div>
             </WScrollArea>
           </div>

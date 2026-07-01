@@ -44,9 +44,9 @@ export function useAppLogs() {
     
     // Prevent unbounded memory growth
     if (appLogContent.value.length > 600000) {
-      const lines = appLogContent.value.split('\n')
-      if (lines.length > 5000) {
-        appLogContent.value = lines.slice(lines.length - 5000).join('\n')
+      const sliceIndex = appLogContent.value.indexOf('\n', 100000)
+      if (sliceIndex !== -1) {
+        appLogContent.value = appLogContent.value.substring(sliceIndex + 1)
       }
     }
   }

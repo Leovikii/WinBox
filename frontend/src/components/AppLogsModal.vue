@@ -7,8 +7,7 @@
   >
     <div class="w-full h-[400px] bg-white dark:bg-[#050505] border border-black/10 dark:border-white/5 rounded-md relative overflow-hidden">
       <WScrollArea height="100%" class="w-full h-full" ref="logScrollbox">
-        <div class="w-full font-mono antialiased text-[11px] leading-relaxed text-gray-900 dark:text-gray-300 whitespace-pre-wrap break-all p-4 select-text">
-          {{ logState.appLogContent.value || 'No logs available.' }}
+        <div class="p-6 text-[11px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text min-h-full" v-text="logState.appLogContent.value || 'No logs available.'">
         </div>
       </WScrollArea>
     </div>
@@ -34,22 +33,17 @@ import { useAppLogs } from '@/composables/useAppLogs'
 const logState = useAppLogs()
 const logScrollbox = ref<any>(null)
 
-// Auto scroll to bottom when new logs arrive and modal is open
 watch(() => logState.appLogContent.value, () => {
-  if (logState.showLogModal.value) {
-    nextTick(() => {
-      if (logScrollbox.value) {
-        // Only scroll if already near bottom to not interrupt user reading
-        const el = logScrollbox.value.$el || logScrollbox.value
-        const scrollEl = el.querySelector('.simplebar-content-wrapper') || el
-        if (scrollEl) {
-          const isAtBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < 50
-          if (isAtBottom) {
-            logScrollbox.value.scrollToBottom()
-          }
+  if (logState.showLogModal.value && logScrollbox.value && logScrollbox.value.isAtBottom) {
+    const wasAtBottom = logScrollbox.value.isAtBottom()
+    if (wasAtBottom) {
+      // Use a short timeout to let the DOM mutation and OverlayScrollbars update their internal sizes
+      setTimeout(() => {
+        if (logScrollbox.value) {
+          logScrollbox.value.scrollToBottom()
         }
-      }
-    })
+      }, 50)
+    }
   }
 })
 
