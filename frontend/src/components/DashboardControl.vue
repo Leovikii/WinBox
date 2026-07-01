@@ -229,15 +229,17 @@ onActivated(() => {
 </script>
 
 <template>
-  <div class="w-full h-full grid grid-rows-4 gap-6 relative px-6 py-6 justify-items-center items-stretch overflow-hidden">
+  <div class="w-full h-full flex flex-col gap-6 relative px-6 py-6 items-center overflow-hidden">
     
-    <!-- ==================== TOP AREA: INFO ==================== -->
-    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 transition-all duration-500 overflow-hidden" :class="running ? 'p-6 pb-2' : 'p-6'">
-        
+    <!-- ==================== AREA 1: INFO ==================== -->
+    <div 
+      class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative z-10 transition-all duration-500 overflow-hidden shrink-0"
+      :class="running ? 'h-[calc((100%-4.5rem)/4)] p-6 pb-2 opacity-100' : 'h-[58px] px-6 py-4 opacity-70'"
+    >
         <!-- Header: Status & Speed -->
-        <div class="shrink-0 flex justify-between items-start bg-transparent" :class="running ? 'pb-2' : ''">
+        <div class="shrink-0 flex justify-between bg-transparent" :class="running ? 'pb-2 items-start' : 'items-center'">
           <!-- Left: Icon + Status -->
-          <div class="flex items-center gap-3 mt-1" :style="getStatusStyle">
+          <div class="flex items-center gap-3" :class="running ? 'mt-1' : ''" :style="getStatusStyle">
             <!-- Icon with Hardware LED Bloom -->
             <div class="relative flex items-center justify-center w-4">
               <!-- Ambient background bloom -->
@@ -259,23 +261,25 @@ onActivated(() => {
             <span class="text-sm font-semibold relative z-10 capitalize">{{ getStatusText.toLowerCase() }}</span>
           </div>
 
-          <!-- Right: Speed -->
-          <div v-if="showSpeedInfo" class="flex items-center justify-center w-24 h-9 shrink-0 text-gray-900 dark:text-gray-200 group hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-default">
-            <div class="grid grid-cols-[12px_1fr] gap-x-1 gap-y-[2px] w-full px-2 items-center">
-              <i class="fas fa-arrow-up text-[9px] speed-upload opacity-50 justify-self-center"></i>
-              <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-upload text-right">{{ formatSpeed(uploadSpeed) }}</span>
-              
-              <i class="fas fa-arrow-down text-[9px] speed-download opacity-50 justify-self-center"></i>
-              <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-download text-right">{{ formatSpeed(downloadSpeed) }}</span>
+          <!-- Right: Speed or Idle -->
+          <Transition name="fade" mode="out-in">
+            <div v-if="running && showSpeedInfo" class="flex items-center justify-center w-24 h-9 shrink-0 text-gray-900 dark:text-gray-200 group hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-default -mt-2">
+              <div class="grid grid-cols-[12px_1fr] gap-x-1 gap-y-[2px] w-full px-2 items-center">
+                <i class="fas fa-arrow-up text-[9px] speed-upload opacity-50 justify-self-center"></i>
+                <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-upload text-right">{{ formatSpeed(uploadSpeed) }}</span>
+                
+                <i class="fas fa-arrow-down text-[9px] speed-download opacity-50 justify-self-center"></i>
+                <span class="text-[10px] font-mono antialiased font-semibold tracking-wide speed-download text-right">{{ formatSpeed(downloadSpeed) }}</span>
+              </div>
             </div>
-          </div>
-          <div v-else class="flex items-center justify-center w-7 h-7 rounded shrink-0 text-gray-400 dark:text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-default" title="Idle">
-            <i class="fas fa-link-slash text-[10px]"></i>
-          </div>
+            <div v-else-if="!running" class="flex items-center justify-center w-7 h-7 rounded shrink-0 text-gray-400 dark:text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-default" title="Idle">
+              <i class="fas fa-link-slash text-[10px]"></i>
+            </div>
+          </Transition>
         </div>
         
         <!-- Placeholder for Speed Chart -->
-        <div class="w-full flex-1 min-h-0 relative bg-transparent pointer-events-none">
+        <div class="w-full flex-1 min-h-0 relative bg-transparent pointer-events-none transition-opacity duration-300" :class="running ? 'opacity-100' : 'opacity-0'">
           <WSpeedChart 
             v-if="running"
             :upload-speed="uploadSpeed"
@@ -284,111 +288,96 @@ onActivated(() => {
         </div>
     </div>
 
-    <!-- ==================== MIDDLE AREA: LOGS ==================== -->
-    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative h-full z-10 overflow-hidden">
-        
-        <!-- Header: Logs & Expand -->
-        <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
-          <div class="flex items-center gap-3">
-            <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
-            <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Logs</span>
-          </div>
-          <!-- Maximize Button -->
-          <WButton 
-            variant="secondary"
-            size="sm"
-            class="w-7 !px-0"
-            icon="fas fa-expand text-[10px]"
-            @click="openFullLog"
-            title="Expand Logs"
-          />
-        </div>
-
-        <!-- Inline Log Area (Seamless) -->
-        <div class="w-full flex-1 min-h-0 relative bg-transparent">
-          <!-- Log Content -->
-          <div class="absolute inset-0">
-            <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
-              <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
-                {{ appLogContent || 'No logs available.' }}
-              </div>
-            </WScrollArea>
-          </div>
-        </div>
-    </div>
-
-    <!-- ==================== AREA 3: PROFILE ==================== -->
-    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
+    <!-- ==================== AREA 2: PROFILE ==================== -->
+    <div 
+      class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative z-20 justify-between transition-all duration-500 overflow-hidden shrink-0"
+      :class="!running ? 'h-[calc((100%-4.5rem)/4)] p-6 opacity-100' : 'h-[58px] px-6 py-4 opacity-70'"
+    >
       <template v-if="profilesState.profiles.value.length > 0">
-        <!-- Row 1: Profile Title & Global Actions -->
+        <!-- Row 1: Profile Title & Global Actions (Dynamic based on running) -->
         <div class="flex items-center justify-between shrink-0 w-full gap-2">
-            <div class="flex items-center gap-2 justify-start">
+            <div class="flex items-center gap-2 justify-start shrink-0">
               <i class="fas fa-server text-[var(--accent-color)] w-4 text-center"></i>
               <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Profile</span>
             </div>
-            <!-- Global Action: ADD -->
+            
+            <!-- When collapsed (running): show mini dropdown -->
+            <Transition name="fade" mode="out-in">
+              <div v-if="running" class="flex-1 max-w-[150px]">
+                <WSelect
+                  :modelValue="activeProfileName"
+                  @update:modelValue="handleProfileChange"
+                  :options="profileOptions"
+                  :disabled="isProcessing"
+                  class="w-full !min-h-[26px] text-xs"
+                />
+              </div>
+              <!-- When expanded (!running): show ADD button -->
+              <div v-else>
+                <WButton 
+                  variant="secondary" 
+                  size="sm" 
+                  class="w-7 !px-0"
+                  icon="fas fa-plus" 
+                  @click="profilesState.showAddProfileModal.value = true"
+                  :disabled="isProcessing"
+                  title="Add profile"
+                />
+              </div>
+            </Transition>
+        </div>
+
+        <!-- Row 2: Profile Selection & Actions (Visible only when NOT running) -->
+        <div class="flex gap-2 w-full mt-3 transition-opacity duration-300" :class="!running ? 'opacity-100' : 'opacity-0 pointer-events-none'">
+          <!-- Left: Dropdown -->
+          <div class="flex-1 min-w-0">
+            <WSelect
+              :modelValue="activeProfileName"
+              @update:modelValue="handleProfileChange"
+              :options="profileOptions"
+              :disabled="isProcessing"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Right: Action Buttons -->
+          <div class="flex gap-2 shrink-0">
+            <!-- Update Button (with Date) -->
             <WButton 
               variant="secondary" 
               size="sm" 
+              icon="fas fa-rotate" 
+              @click="profilesState.updateActive"
+              :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
+              :loading="profilesState.isUpdatingProfile.value"
+              title="Update"
+            >
+              {{ formattedUpdatedTime }}
+            </WButton>
+
+            <!-- Edit -->
+            <WButton 
               class="w-7 !px-0"
-              icon="fas fa-plus" 
-              @click="profilesState.showAddProfileModal.value = true"
-              :disabled="isProcessing"
-              title="Add profile"
+              variant="secondary" 
+              size="sm"
+              icon="fas fa-pen" 
+              @click="handleEdit"
+              :disabled="isProcessing || !profilesState.activeProfile.value"
+              title="Edit"
             />
+
+            <!-- Delete -->
+            <WButton 
+              class="w-7 !px-0"
+              variant="danger" 
+              size="sm" 
+              icon="fas fa-trash" 
+              @click="handleDelete"
+              :disabled="isProcessing || !profilesState.activeProfile.value"
+              title="Delete"
+            />
+          </div>
         </div>
-
-        <!-- Row 2: Profile Selection & Actions -->
-        <div class="flex gap-2 w-full mt-3">
-        <!-- Left: Dropdown -->
-        <div class="flex-1 min-w-0">
-          <WSelect
-            :modelValue="activeProfileName"
-            @update:modelValue="handleProfileChange"
-            :options="profileOptions"
-            :disabled="isProcessing"
-            class="w-full"
-          />
-        </div>
-
-        <!-- Right: Action Buttons -->
-        <div class="flex gap-2 shrink-0">
-          <!-- Update Button (with Date) -->
-          <WButton 
-            variant="secondary" 
-            size="sm" 
-            icon="fas fa-rotate" 
-            @click="profilesState.updateActive"
-            :disabled="isProcessing || !profilesState.activeProfile.value || profilesState.isUpdatingProfile.value"
-            :loading="profilesState.isUpdatingProfile.value"
-            title="Update"
-          >
-            {{ formattedUpdatedTime }}
-          </WButton>
-
-          <!-- Edit -->
-          <WButton 
-            class="w-7 !px-0"
-            variant="secondary" 
-            size="sm"
-            icon="fas fa-pen" 
-            @click="handleEdit"
-            :disabled="isProcessing || !profilesState.activeProfile.value"
-            title="Edit"
-          />
-
-          <!-- Delete -->
-          <WButton 
-            class="w-7 !px-0"
-            variant="danger" 
-            size="sm" 
-            icon="fas fa-trash" 
-            @click="handleDelete"
-            :disabled="isProcessing || !profilesState.activeProfile.value"
-            title="Delete"
-          />
-        </div>
-      </div>
       </template>
 
       <!-- Empty Profile State -->
@@ -406,12 +395,12 @@ onActivated(() => {
       </div>
     </div>
 
-    <!-- ==================== AREA 4: CORE CONTROLS ==================== -->
-    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative h-full z-20 justify-between">
+    <!-- ==================== AREA 3: CORE CONTROLS ==================== -->
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] p-6 relative z-20 justify-between shrink-0 h-[calc((100%-4.5rem)/4)]">
       <template v-if="profilesState.profiles.value.length > 0">
 
           <!-- Row 3: Mode -->
-          <div class="flex gap-2 w-full items-center">
+          <div class="flex gap-2 w-full items-center mb-6">
             <div class="w-1/3 flex items-center gap-3">
               <i class="fas fa-rocket text-[var(--accent-color)] w-4 text-center"></i>
               <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Mode</span>
@@ -490,6 +479,41 @@ onActivated(() => {
       </div>
       
     </div>
+
+    <!-- ==================== AREA 4: LOGS ==================== -->
+    <div class="bg-[#fdfdfd] dark:bg-[#2a2a2a] border border-black/10 dark:border-white/5 shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] rounded-lg pointer-events-auto flex flex-col w-full max-w-[26rem] relative z-10 overflow-hidden flex-1 min-h-0">
+        
+        <!-- Header: Logs & Expand -->
+        <div class="shrink-0 flex justify-between items-center p-6 pb-3 bg-transparent">
+          <div class="flex items-center gap-3">
+            <i class="fas fa-file-lines text-[var(--accent-color)] w-4 text-center"></i>
+            <span class="text-sm font-semibold text-gray-900 dark:text-gray-200">Logs</span>
+          </div>
+          <!-- Maximize Button -->
+          <WButton 
+            variant="secondary"
+            size="sm"
+            class="w-7 !px-0"
+            icon="fas fa-expand text-[10px]"
+            @click="openFullLog"
+            title="Expand Logs"
+          />
+        </div>
+
+        <!-- Inline Log Area (Seamless) -->
+        <div class="w-full flex-1 min-h-0 relative bg-transparent">
+          <!-- Log Content -->
+          <div class="absolute inset-0">
+            <WScrollArea height="100%" class="w-full relative z-0" ref="inlineLogContainer">
+              <div class="px-6 pb-6 pt-0 text-[10px] font-mono antialiased leading-relaxed text-[#8b949e] break-all whitespace-pre-wrap select-text">
+                {{ appLogContent || 'No logs available.' }}
+              </div>
+            </WScrollArea>
+          </div>
+        </div>
+    </div>
+
+  </div>
 
     <!-- Modals -->
     <WModal
@@ -596,8 +620,6 @@ onActivated(() => {
           </div>
         </template>
       </WModal>
-
-  </div>
 </template>
 
 <style scoped>

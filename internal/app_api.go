@@ -21,9 +21,8 @@ func (a *App) DeleteProfile(id string) {
 }
 
 func (a *App) SelectProfile(id string) string {
-	if a.coreManager.IsRunning() {
-		return "Stop service first"
-	}
+	wasRunning := a.coreManager.IsRunning()
+	
 	if err := a.profileManager.Select(id); err != nil {
 		return "Error: " + err.Error()
 	}
@@ -35,6 +34,10 @@ func (a *App) SelectProfile(id string) string {
 				break
 			}
 		}
+	}
+
+	if wasRunning {
+		return a.RestartCore()
 	}
 
 	return "Success"
