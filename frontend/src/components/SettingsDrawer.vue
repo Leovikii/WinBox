@@ -71,7 +71,7 @@ const updateCloseBehavior = (val: string) => {
 }
 
 const showThemeModal = ref(false)
-const customColor = ref('#2563eb')
+const customColor = ref('#0090FF')
 
 const handleOpenThemeModal = () => {
   customColor.value = accentColor.value
@@ -289,21 +289,12 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Close Window Behavior</span>
-          <WSelect
-            :model-value="closeBehavior"
-            @update:model-value="updateCloseBehavior($event as string)"
-            :options="[
-              { value: 'ask', label: 'Ask' },
-              { value: 'tray', label: 'Minimize' },
-              { value: 'quit', label: 'Quit' }
-            ]"
-            class="w-28"
-          />
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">UWP Loopback</span>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-uwp-modal')" class="min-w-[5rem]">Edit</WButton>
         </div>
 
         <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Start With Windows</span>
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Run at Startup</span>
           <WSwitch :model-value="startOnBoot" @update:model-value="handleStartOnBootToggle()" />
         </div>
 
@@ -316,6 +307,20 @@ const openGitHub = () => {
               { value: 'smart', label: 'Smart' },
               { value: 'on', label: 'On' },
               { value: 'off', label: 'Off' }
+            ]"
+            class="w-28"
+          />
+        </div>
+
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">On Close Action</span>
+          <WSelect
+            :model-value="closeBehavior"
+            @update:model-value="updateCloseBehavior($event as string)"
+            :options="[
+              { value: 'ask', label: 'Ask' },
+              { value: 'tray', label: 'Minimize' },
+              { value: 'quit', label: 'Quit' }
             ]"
             class="w-28"
           />
@@ -337,11 +342,6 @@ const openGitHub = () => {
         <div class="flex items-center gap-2 mb-4 justify-start">
           <i class="fa-solid fa-file-code text-[var(--accent-color)] w-4 text-center"></i>
           <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-200">Config Override</h3>
-        </div>
-
-        <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">UWP Loopback</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="emit('open-uwp-modal')" class="min-w-[5rem]">Edit</WButton>
         </div>
 
         <div class="flex justify-between items-center py-1 min-h-10">
@@ -480,14 +480,11 @@ const openGitHub = () => {
           :model-value="customColor"
           @update:model-value="handleSelectPresetColor"
           :colors="[
-            { name: 'Blue', value: '#2563eb' },
-            { name: 'Purple', value: '#a855f7' },
-            { name: 'Pink', value: '#ec4899' },
-            { name: 'Red', value: '#ef4444' },
-            { name: 'Orange', value: '#f97316' },
-            { name: 'Green', value: '#10b981' },
-            { name: 'Teal', value: '#14b8a6' },
-            { name: 'Cyan', value: '#06b6d4' }
+            { name: 'Blue', value: '#0090FF' },
+            { name: 'Green', value: '#30A46C' },
+            { name: 'Pink', value: '#D6409F' },
+            { name: 'Purple', value: '#8E4EC6' },
+            { name: 'Red', value: '#E54D2E' }
           ]"
         />
       </div>

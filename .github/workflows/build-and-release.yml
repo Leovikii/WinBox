@@ -50,7 +50,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
       - name: Build WinBox
-        run: wails build -clean
+        run: wails build -clean -ldflags "-s -w" -trimpath
 
       - name: Get Version
         if: github.event_name == 'push'
