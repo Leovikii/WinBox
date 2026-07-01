@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { useAppState } from './useAppState'
@@ -13,7 +13,8 @@ const downloadProgress = ref(0)
 const showEditor = ref(false)
 const editingType = ref<"tun" | "mixed" | "mirror">("tun")
 const editorContent = ref("")
-const saveBtnText = ref("Save")
+const editorOriginalContent = ref("")
+const editorDefaultContent = ref("")
 
 const showResetConfirm = ref(false)
 const showErrorAlert = ref(false)
@@ -28,6 +29,7 @@ let unsubscribeDownloadProgress: (() => void) | null = null
 
 export function useKernelUpdate() {
   const appState = useAppState()
+  const saveBtnText = ref("Save")
 
   const checkUpdate = async () => {
     updateState.value = "checking"
@@ -71,24 +73,44 @@ export function useKernelUpdate() {
     saveBtnText.value = "Save"
     if (type === 'mirror') {
       editorContent.value = appState.mirrorUrl.value
+      editorOriginalContent.value = appState.mirrorUrl.value
+      editorDefaultContent.value = "https://gh-proxy.com/"
     } else {
       const content = await Backend.GetOverride(type)
+      const defaultContentRaw = await Backend.GetDefaultOverride(type)
       try {
         const obj = JSON.parse(content)
         editorContent.value = JSON.stringify(obj, null, 2)
       } catch {
         editorContent.value = content
       }
+      editorOriginalContent.value = editorContent.value
+      try {
+        const defaultObj = JSON.parse(defaultContentRaw)
+        editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
+      } catch {
+        editorDefaultContent.value = defaultContentRaw
+      }
     }
+    showErrorAlert.value = false
+    errorAlertMessage.value = ""
     showEditor.value = true
   }
 
   const saveEditor = async () => {
     let res = ""
     if (editingType.value === 'mirror') {
+      try {
+        new URL(editorContent.value)
+      } catch {
+        errorAlertMessage.value = "Invalid Mirror URL format"
+        showErrorAlert.value = true
+        return
+      }
       res = await Backend.SaveSettings(editorContent.value, appState.mirrorEnabled.value)
       if (res === "Success") {
         appState.mirrorUrl.value = editorContent.value
+        editorOriginalContent.value = editorContent.value
       }
     } else {
       try {
@@ -100,6 +122,9 @@ export function useKernelUpdate() {
         return
       }
       res = await Backend.SaveOverride(editingType.value as string, editorContent.value)
+      if (res === "Success") {
+        editorOriginalContent.value = editorContent.value
+      }
     }
     if (res === "Success") {
       saveBtnText.value = "Saved"
@@ -138,11 +163,19 @@ export function useKernelUpdate() {
     editingType.value = type
     saveBtnText.value = "Save"
     const content = await Backend.GetOverride(type)
+    const defaultContentRaw = await Backend.GetDefaultOverride(type)
     try {
       const obj = JSON.parse(content)
       editorContent.value = JSON.stringify(obj, null, 2)
     } catch {
       editorContent.value = content
+    }
+    editorOriginalContent.value = editorContent.value
+    try {
+      const defaultObj = JSON.parse(defaultContentRaw)
+      editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
+    } catch {
+      editorDefaultContent.value = defaultContentRaw
     }
   }
 
@@ -163,9 +196,13 @@ export function useKernelUpdate() {
     // if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
   })
 
+  const isEditorChanged = computed(() => {
+    return editorContent.value !== editorOriginalContent.value
+  })
+
   return {
     localVer, remoteVer, updateState, downloadProgress,
-    showEditor, editingType, editorContent, saveBtnText,
+    showEditor, editingType, editorContent, editorOriginalContent, editorDefaultContent, isEditorChanged, saveBtnText,
     showResetConfirm, showErrorAlert, errorAlertMessage,
     checkUpdate, performUpdate, openEditor, saveEditor, resetEditor, confirmReset, switchEditorTab
   }

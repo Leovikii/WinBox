@@ -21,9 +21,8 @@ func (a *App) DeleteProfile(id string) {
 }
 
 func (a *App) SelectProfile(id string) string {
-	if a.coreManager.IsRunning() {
-		return "Stop service first"
-	}
+	wasRunning := a.coreManager.IsRunning()
+	
 	if err := a.profileManager.Select(id); err != nil {
 		return "Error: " + err.Error()
 	}
@@ -35,6 +34,10 @@ func (a *App) SelectProfile(id string) string {
 				break
 			}
 		}
+	}
+
+	if wasRunning {
+		return a.RestartCore()
 	}
 
 	return "Success"
@@ -57,6 +60,17 @@ func (a *App) EditProfile(id, name, url string) string {
 func (a *App) GetOverride(name string) string {
 	result, _ := a.settingsManager.GetOverride(name)
 	return result
+}
+
+func (a *App) GetDefaultOverride(name string) string {
+	switch name {
+	case "tun":
+		return DefaultTunConfig
+	case "mixed":
+		return DefaultMixedConfig
+	default:
+		return ""
+	}
 }
 
 func (a *App) SaveOverride(name, content string) string {

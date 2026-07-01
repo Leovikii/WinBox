@@ -11,7 +11,7 @@ import { useProgramUpdate } from './composables/useProgramUpdate';
 import { useTheme } from './composables/useTheme';
 import { useUWPLoopback } from './composables/useUWPLoopback';
 import DashboardControl from './components/DashboardControl.vue';
-import SettingsDrawer from './components/SettingsDrawer.vue';
+import SettingsPage from './components/SettingsPage.vue';
 import { WModal, WButton, WScrollArea } from './components/ui';
 import TrayIconUrl from '@/assets/icon-builder/src/tray.svg';
 
@@ -20,6 +20,12 @@ const showQuitConfirm = ref(false);
 const showUWPModal = ref(false);
 const showChangelogModal = ref(false);
 const rememberCloseChoice = ref(false);
+
+const transitionName = ref('page-fade');
+
+const toggleSettings = (open: boolean) => {
+  showSettings.value = open;
+};
 
 // Traffic speed state
 const uploadSpeed = ref(0);
@@ -99,14 +105,14 @@ onUnmounted(() => {
 const handleToggle = async (target: 'tun' | 'proxy') => {
   const result = await appState.handleToggle(target);
   if (result && result.error === 'kernel-missing') {
-    showSettings.value = true;
+    toggleSettings(true);
   }
 };
 
 const handleSwitchMode = async (target: { tunMode: boolean, sysProxy: boolean }) => {
   const result = await appState.handleSwitchMode(target);
   if (result && result.error === 'kernel-missing') {
-    showSettings.value = true;
+    toggleSettings(true);
   }
 };
 
@@ -148,7 +154,7 @@ const handleRestartCore = async () => {
       </div>
       <div class="flex" style="--wails-draggable: no-drag">
         <button 
-          @click="showSettings = !showSettings" 
+          @click="toggleSettings(!showSettings)" 
           class="text-gray-500 dark:text-[#888] w-12 h-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-800 dark:hover:text-white transition-all duration-200 relative"
           :title="showSettings ? 'Back to Home' : 'Settings'"
         >
@@ -168,7 +174,7 @@ const handleRestartCore = async () => {
     </div>
 
     <div class="flex-1 relative overflow-hidden w-full">
-      <Transition name="page-fade">
+      <Transition :name="transitionName">
         <KeepAlive>
           <WScrollArea key="dashboard" v-if="!showSettings" class="absolute inset-0 w-full h-full">
             <DashboardControl
@@ -178,14 +184,14 @@ const handleRestartCore = async () => {
               @switch-mode="handleSwitchMode"
               @open-dashboard="Backend.OpenDashboard"
               @restart-core="handleRestartCore"
-              @open-settings="showSettings = true"
+              @open-settings="toggleSettings(true)"
             />
           </WScrollArea>
 
-          <SettingsDrawer key="settings" v-else class="absolute inset-0 w-full h-full"
+          <SettingsPage key="settings" v-else class="absolute inset-0 w-full h-full"
             :isOpen="true"
             :showUWPModal="showUWPModal"
-            @close="showSettings = false"
+            @close="toggleSettings(false)"
             @open-program-changelog="showChangelogModal = true"
             @open-uwp-modal="handleOpenUWPModal"
             @close-uwp-modal="handleCloseUWPModal"

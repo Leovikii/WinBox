@@ -1,4 +1,5 @@
 import WButton from './WButton.vue'
+import WInfoBar from './WInfoBar.vue'
 import WInput from './WInput.vue'
 import WSelect from './WSelect.vue'
 import WSwitch from './WSwitch.vue'
@@ -12,6 +13,7 @@ import WSpeedChart from './WSpeedChart.vue'
 
 export {
   WButton,
+  WInfoBar,
   WSpeedChart,
   WScrollArea,
   WInput,
