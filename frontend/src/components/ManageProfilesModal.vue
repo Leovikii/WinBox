@@ -39,9 +39,9 @@
         </div>
         <div class="shrink-0 flex items-center justify-center">
           <WButton 
-            variant="danger" 
+            variant="ghost" 
             size="sm" 
-            class="w-8 h-8 !px-0 opacity-40 group-hover:opacity-100 hover:!text-red-500 transition-opacity duration-200"
+            class="w-8 h-8 !px-0 opacity-40 group-hover:opacity-100 hover:!bg-red-500/10 hover:!text-red-500 transition-all duration-200"
             icon="fas fa-trash" 
             @click="profilesState.removeProfileFromManageList(profile.id)"
             title="Delete"

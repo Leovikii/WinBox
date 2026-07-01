@@ -2,16 +2,17 @@
   <Transition name="infobar">
     <div v-if="show" class="infobar-wrapper w-full shrink-0">
       <div class="infobar-inner">
-        <div class="flex items-start gap-3 p-3 mb-3 rounded-md border text-sm shadow-sm relative overflow-hidden" :class="variantClasses">
-          <div class="shrink-0 mt-0.5">
-            <i :class="iconClass"></i>
+        <div class="flex gap-3 p-3 mb-3 rounded-md border shadow-sm relative overflow-hidden" 
+             :class="[variantClasses, title ? 'items-start' : 'items-center']">
+          <div class="shrink-0 flex items-center justify-center" :class="{ 'mt-0.5': title }">
+            <i :class="iconClass" class="text-[15px]"></i>
           </div>
-          <div class="flex-1 min-w-0 pr-6 text-xs leading-relaxed break-all">
+          <div class="flex-1 min-w-0 text-xs leading-relaxed break-all">
             <span class="font-semibold block mb-0.5" v-if="title">{{ title }}</span>
             <span>{{ message }}</span>
           </div>
-          <button @click="close" class="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-md opacity-60 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-            <i class="fas fa-times text-[10px]"></i>
+          <button @click="close" class="shrink-0 w-6 h-6 flex items-center justify-center rounded-md opacity-60 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition-colors" :class="{ '-mt-1 -mr-1': title }">
+            <i class="fas fa-times text-[12px]"></i>
           </button>
         </div>
       </div>
