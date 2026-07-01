@@ -15,7 +15,6 @@ const editingType = ref<"tun" | "mixed" | "mirror">("tun")
 const editorContent = ref("")
 const editorOriginalContent = ref("")
 const editorDefaultContent = ref("")
-const saveBtnText = ref("Save")
 
 const showResetConfirm = ref(false)
 const showErrorAlert = ref(false)
@@ -30,6 +29,7 @@ let unsubscribeDownloadProgress: (() => void) | null = null
 
 export function useKernelUpdate() {
   const appState = useAppState()
+  const saveBtnText = ref("Save")
 
   const checkUpdate = async () => {
     updateState.value = "checking"

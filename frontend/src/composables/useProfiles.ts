@@ -12,6 +12,7 @@ const isUpdatingProfile = ref(false)
 const showManageProfilesModal = ref(false)
 const manageProfilesList = ref<any[]>([])
 const isSavingProfiles = ref(false)
+const manageProfilesError = ref("")
 
 export function useProfiles() {
   const appState = useAppState()
@@ -40,6 +41,7 @@ export function useProfiles() {
 
   const openManageProfiles = (e?: any) => {
     if (e) e.stopPropagation()
+    manageProfilesError.value = ""
     // Create a deep copy for editing
     manageProfilesList.value = JSON.parse(JSON.stringify(profiles.value))
     
@@ -111,9 +113,10 @@ export function useProfiles() {
     
     if (hasError) {
       appState.msg.value = "Error saving some changes"
-      appState.errorLog.value = cleanLog(lastError)
+      manageProfilesError.value = cleanLog(lastError)
     } else {
       appState.msg.value = "Changes saved"
+      manageProfilesError.value = ""
       showManageProfilesModal.value = false
     }
     
@@ -142,7 +145,7 @@ export function useProfiles() {
 
   return {
     profiles, activeProfile, isUpdatingProfile,
-    showManageProfilesModal, manageProfilesList, isSavingProfiles, isManageProfilesChanged,
+    showManageProfilesModal, manageProfilesList, isSavingProfiles, isManageProfilesChanged, manageProfilesError,
     openManageProfiles, removeProfileFromManageList, addNewDraftProfile, saveManageProfiles,
     switchProfile, updateActive
   }

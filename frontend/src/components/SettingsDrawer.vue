@@ -11,6 +11,7 @@ import { useProgramUpdate } from '@/composables/useProgramUpdate'
 import { useTheme } from '@/composables/useTheme'
 import { useUWPLoopback } from '@/composables/useUWPLoopback'
 import * as Backend from '../../wailsjs/go/internal/App'
+import { WInfoBar } from '@/components/ui'
 
 const appState = useAppState()
 const kernelState = useKernelUpdate()
@@ -106,7 +107,12 @@ const openGitHub = () => {
   <div class="w-full h-full relative">
     <div class="w-full h-full flex flex-col bg-transparent">
       <WScrollArea class="flex-1">
-        <div class="px-4 pt-6 pb-28 space-y-4">
+        <div class="px-4 pt-4 pb-28 space-y-4">
+          <WInfoBar 
+            v-model:show="appState.showErrorAlert.value" 
+            severity="error" 
+            :message="appState.errorAlertMessage.value" 
+          />
 
       <!-- About Section -->
       <WCard variant="mica" padding="lg">
@@ -525,19 +531,5 @@ const openGitHub = () => {
     </template>
   </WModal>
 
-  <!-- Error Alert Modal -->
-  <WModal
-    :model-value="showErrorAlert"
-    @update:model-value="showErrorAlert = false; appState.showErrorAlert.value = false"
-    title="Error"
-    width="md"
-  >
-    <div class="text-sm text-red-500 dark:text-red-400 font-mono">{{ errorAlertMessage }}</div>
-    <template #footer>
-      <div class="flex items-center justify-end w-full">
-        <WButton variant="primary" class="min-w-[80px]" @click="showErrorAlert = false; appState.showErrorAlert.value = false">OK</WButton>
-      </div>
-    </template>
-  </WModal>
   </div>
 </template>

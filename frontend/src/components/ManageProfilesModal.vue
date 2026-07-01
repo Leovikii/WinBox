@@ -4,6 +4,11 @@
     @update:model-value="profilesState.showManageProfilesModal.value = false"
     title="Manage Profiles"
   >
+    <WInfoBar 
+      v-model:show="showError" 
+      severity="error" 
+      :message="profilesState.manageProfilesError.value" 
+    />
     <WScrollArea maxHeight="40vh" class="pr-2" ref="profilesScrollbox">
       <TransitionGroup name="list" tag="div" class="relative pb-3">
         <template v-if="profilesState.manageProfilesList.value.length === 0">
@@ -58,13 +63,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
-import { WModal, WScrollArea, WInput, WButton } from './ui'
+import { ref, nextTick, computed } from 'vue'
+import { WModal, WScrollArea, WInput, WButton, WInfoBar } from './ui'
 import { useProfiles } from '../composables/useProfiles'
 
 const profilesState = useProfiles()
 
 const profilesScrollbox = ref<any>(null)
+
+const showError = computed({
+  get: () => !!profilesState.manageProfilesError.value,
+  set: (val) => { if (!val) profilesState.manageProfilesError.value = "" }
+})
+
 const handleAddProfile = () => {
   profilesState.addNewDraftProfile()
   nextTick(() => {
