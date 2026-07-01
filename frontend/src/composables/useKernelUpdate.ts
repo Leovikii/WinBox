@@ -92,12 +92,21 @@ export function useKernelUpdate() {
         editorDefaultContent.value = defaultContentRaw
       }
     }
+    showErrorAlert.value = false
+    errorAlertMessage.value = ""
     showEditor.value = true
   }
 
   const saveEditor = async () => {
     let res = ""
     if (editingType.value === 'mirror') {
+      try {
+        new URL(editorContent.value)
+      } catch {
+        errorAlertMessage.value = "Invalid Mirror URL format"
+        showErrorAlert.value = true
+        return
+      }
       res = await Backend.SaveSettings(editorContent.value, appState.mirrorEnabled.value)
       if (res === "Success") {
         appState.mirrorUrl.value = editorContent.value

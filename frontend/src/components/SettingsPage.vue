@@ -415,6 +415,11 @@ const openGitHub = () => {
     </template>
     
     <div class="h-full flex flex-col gap-3">
+      <WInfoBar 
+        v-model:show="kernelState.showErrorAlert.value" 
+        severity="error" 
+        :message="kernelState.errorAlertMessage.value" 
+      />
       <!-- Inbound View Switcher -->
       <div v-if="editingType !== 'mirror'" class="w-full flex justify-center pb-1">
         <WSegmentedControl

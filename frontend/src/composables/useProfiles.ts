@@ -87,6 +87,13 @@ export function useProfiles() {
             lastError = "Name and URL cannot be empty"
             continue
           }
+          try {
+            new URL(draft.url)
+          } catch {
+            hasError = true
+            lastError = `Invalid URL: ${draft.name}`
+            continue
+          }
           const res = await Backend.EditProfile(draft.id, draft.name, draft.url)
           if (res !== "Success") {
             hasError = true
@@ -98,6 +105,13 @@ export function useProfiles() {
         if (!draft.name || !draft.url) {
           hasError = true
           lastError = "Name and URL cannot be empty"
+          continue
+        }
+        try {
+          new URL(draft.url)
+        } catch {
+          hasError = true
+          lastError = `Invalid URL: ${draft.name}`
           continue
         }
         appState.msg.value = "Downloading Config..."
