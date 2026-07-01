@@ -3,14 +3,11 @@ import * as Backend from '../../wailsjs/go/internal/App'
 import { WindowSetSystemDefaultTheme, WindowSetLightTheme, WindowSetDarkTheme } from '../../wailsjs/runtime/runtime'
 
 export const ACCENT_COLORS = [
-  { name: 'Blue', value: '#2563eb' },
-  { name: 'Purple', value: '#a855f7' },
-  { name: 'Pink', value: '#ec4899' },
-  { name: 'Red', value: '#ef4444' },
-  { name: 'Orange', value: '#f97316' },
-  { name: 'Green', value: '#10b981' },
-  { name: 'Teal', value: '#14b8a6' },
-  { name: 'Cyan', value: '#06b6d4' },
+  { name: 'Blue', value: '#0090FF' },
+  { name: 'Green', value: '#30A46C' },
+  { name: 'Pink', value: '#D6409F' },
+  { name: 'Purple', value: '#8E4EC6' },
+  { name: 'Red', value: '#E54D2E' }
 ]
 
 const rgbCache = new Map<string, string>()
@@ -28,7 +25,7 @@ function hexToRgb(hex: string): string {
   return rgb
 }
 
-const accentColor = ref('#2563eb')
+const accentColor = ref('#0090FF')
 const themeMode = ref('system') // 'light' | 'dark' | 'system'
 const isDark = ref(false)
 let isInitialized = false

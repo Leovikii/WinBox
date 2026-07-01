@@ -71,7 +71,7 @@ const updateCloseBehavior = (val: string) => {
 }
 
 const showThemeModal = ref(false)
-const customColor = ref('#2563eb')
+const customColor = ref('#0090FF')
 
 const handleOpenThemeModal = () => {
   customColor.value = accentColor.value
@@ -480,14 +480,11 @@ const openGitHub = () => {
           :model-value="customColor"
           @update:model-value="handleSelectPresetColor"
           :colors="[
-            { name: 'Blue', value: '#2563eb' },
-            { name: 'Purple', value: '#a855f7' },
-            { name: 'Pink', value: '#ec4899' },
-            { name: 'Red', value: '#ef4444' },
-            { name: 'Orange', value: '#f97316' },
-            { name: 'Green', value: '#10b981' },
-            { name: 'Teal', value: '#14b8a6' },
-            { name: 'Cyan', value: '#06b6d4' }
+            { name: 'Blue', value: '#0090FF' },
+            { name: 'Green', value: '#30A46C' },
+            { name: 'Pink', value: '#D6409F' },
+            { name: 'Purple', value: '#8E4EC6' },
+            { name: 'Red', value: '#E54D2E' }
           ]"
         />
       </div>
