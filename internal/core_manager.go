@@ -336,18 +336,24 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 		return "", err
 	}
 
-	// Process log configuration
-	logConfig := map[string]interface{}{
-		"level":     logLevel,
-		"timestamp": true,
+	// Process log configuration (field-level overrides, preserving original config)
+	if logLevel != "" {
+		content, err = sjson.SetBytes(content, "log.level", logLevel)
+		if err != nil {
+			return "", err
+		}
+	}
+	if logLevel != "" || logToFile {
+		content, err = sjson.SetBytes(content, "log.timestamp", true)
+		if err != nil {
+			return "", err
+		}
 	}
 	if logToFile {
-		logConfig["output"] = "box.log"
-	}
-
-	content, err = sjson.SetBytes(content, "log", logConfig)
-	if err != nil {
-		return "", err
+		content, err = sjson.SetBytes(content, "log.output", "box.log")
+		if err != nil {
+			return "", err
+		}
 	}
 
 	var prettyJSON bytes.Buffer

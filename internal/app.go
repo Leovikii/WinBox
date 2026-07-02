@@ -289,10 +289,14 @@ func (a *App) smartAutoStart(modeChanged, prevSysProxy bool) {
 	// Step 2: Check Google 204 to determine if we are already in a proxy environment
 	isProxyEnv := false
 	resp, err := client.Get("http://clients3.google.com/generate_204")
-	if err == nil && resp.StatusCode == 204 {
-		isProxyEnv = true
-		a.appLogger.Info("Smart Detect: Google 204 returned successfully. Proxy environment confirmed.")
-	} else {
+	if err == nil {
+		resp.Body.Close()
+		if resp.StatusCode == 204 {
+			isProxyEnv = true
+			a.appLogger.Info("Smart Detect: Google 204 returned successfully. Proxy environment confirmed.")
+		}
+	}
+	if !isProxyEnv {
 		a.appLogger.Info("Smart Detect: Google 204 failed. Proceeding with normal connection.")
 	}
 	

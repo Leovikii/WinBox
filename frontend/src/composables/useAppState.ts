@@ -22,7 +22,7 @@ const mirrorEnabled = ref(false)
 
 const ipv6Enabled = ref(true)
 const preRelease = ref(false)
-const logLevel = ref("warning")
+const logLevel = ref("")
 const logToFile = ref(true)
 const closeBehavior = ref("ask")
 
@@ -131,7 +131,7 @@ export function useAppState() {
     mirrorEnabled.value = data.mirrorEnabled
     ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
     preRelease.value = data.pre_release
-    logLevel.value = data.log_level || "warning"
+    logLevel.value = data.log_level !== undefined ? data.log_level : ""
     logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
     closeBehavior.value = data.close_behavior || "ask"
     return data
@@ -320,11 +320,21 @@ export function useAppState() {
     }
   }
 
-  const handleLogConfigChange = async (level: string, toFile: boolean) => {
-    const res = await Backend.SetLogConfig(level, toFile)
+  const handleLogLevelChange = async (level: string) => {
+    const res = await Backend.SetLogConfig(level, logToFile.value)
     if (res === "Success") {
       logLevel.value = level
-      logToFile.value = toFile
+    } else {
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
+    }
+  }
+
+  const handleLogToFileToggle = async () => {
+    const newState = !logToFile.value
+    const res = await Backend.SetLogConfig(logLevel.value, newState)
+    if (res === "Success") {
+      logToFile.value = newState
     } else {
       errorAlertMessage.value = res
       showErrorAlert.value = true
@@ -413,6 +423,6 @@ export function useAppState() {
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectChange,
-    handleIPv6Toggle, handlePreReleaseToggle, handleLogConfigChange
+    handleIPv6Toggle, handlePreReleaseToggle, handleLogLevelChange, handleLogToFileToggle
   }
 }

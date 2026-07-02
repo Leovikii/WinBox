@@ -23,7 +23,9 @@ const emit = defineEmits<{
 const isOpen = ref(false)
 const selectRef = ref<HTMLDivElement | null>(null)
 const buttonRef = ref<HTMLButtonElement | null>(null)
-const dropdownStyle = ref({
+const openUpward = ref(false)
+const dropdownRef = ref<HTMLDivElement | null>(null)
+const dropdownStyle = ref<Record<string, string>>({
   top: '0px',
   left: '0px',
   width: '0px'
@@ -36,10 +38,31 @@ const selectedOption = computed(() => {
 const updateDropdownPosition = () => {
   if (buttonRef.value) {
     const rect = buttonRef.value.getBoundingClientRect()
-    dropdownStyle.value = {
-      top: `${rect.bottom + 4}px`,
-      left: `${rect.left}px`,
-      width: `${rect.width}px`
+    const gap = 4
+    const maxHeight = 240
+
+    const spaceBelow = window.innerHeight - rect.bottom - gap
+    const spaceAbove = rect.top - gap
+
+    // Prefer downward; open upward only when below is insufficient and above has more space
+    openUpward.value = spaceBelow < maxHeight && spaceAbove > spaceBelow
+
+    const availableHeight = Math.min(maxHeight, openUpward.value ? spaceAbove : spaceBelow)
+
+    if (openUpward.value) {
+      dropdownStyle.value = {
+        bottom: `${window.innerHeight - rect.top + gap}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        maxHeight: `${availableHeight}px`
+      }
+    } else {
+      dropdownStyle.value = {
+        top: `${rect.bottom + gap}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        maxHeight: `${availableHeight}px`
+      }
     }
   }
 }
@@ -61,7 +84,9 @@ const selectOption = (value: string | number) => {
 }
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (selectRef.value && !selectRef.value.contains(event.target as Node)) {
+  const target = event.target as Node
+  if (selectRef.value && !selectRef.value.contains(target) &&
+      (!dropdownRef.value || !dropdownRef.value.contains(target))) {
     isOpen.value = false
   }
 }
@@ -105,15 +130,16 @@ const buttonClasses = computed(() => {
 
 const dropdownClasses = computed(() => {
   const classes = [
-    'fixed z-[9999] bg-white dark:bg-[#242424] border border-black/10 dark:border-white/10 rounded-md overflow-hidden',
+    'w-select-dropdown fixed z-[9999] bg-white dark:bg-[#242424] border border-black/10 dark:border-white/10 rounded-md overflow-x-hidden overflow-y-auto',
     'shadow-[0_8px_32px_rgba(0,0,0,0.4)]',
-    'transition-all duration-300 origin-top'
+    'transition-all duration-300',
+    openUpward.value ? 'origin-bottom' : 'origin-top'
   ]
 
   if (isOpen.value) {
     classes.push('opacity-100 scale-y-100 translate-y-0')
   } else {
-    classes.push('opacity-0 scale-y-95 -translate-y-2 pointer-events-none')
+    classes.push(`opacity-0 scale-y-95 ${openUpward.value ? 'translate-y-2' : '-translate-y-2'} pointer-events-none`)
   }
 
   return classes.join(' ')
@@ -140,6 +166,7 @@ const dropdownClasses = computed(() => {
 
     <Teleport to="body">
       <div
+        ref="dropdownRef"
         v-if="isOpen"
         :class="dropdownClasses"
         :style="dropdownStyle"
@@ -162,3 +189,21 @@ const dropdownClasses = computed(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+/* Fluent Design adaptive thin scrollbar */
+.w-select-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+.w-select-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+.w-select-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.3);
+  border-radius: 4px;
+}
+.w-select-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.5);
+}
+</style>
