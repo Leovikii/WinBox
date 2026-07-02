@@ -320,11 +320,21 @@ export function useAppState() {
     }
   }
 
-  const handleLogConfigChange = async (level: string, toFile: boolean) => {
-    const res = await Backend.SetLogConfig(level, toFile)
+  const handleLogLevelChange = async (level: string) => {
+    const res = await Backend.SetLogConfig(level, logToFile.value)
     if (res === "Success") {
       logLevel.value = level
-      logToFile.value = toFile
+    } else {
+      errorAlertMessage.value = res
+      showErrorAlert.value = true
+    }
+  }
+
+  const handleLogToFileToggle = async () => {
+    const newState = !logToFile.value
+    const res = await Backend.SetLogConfig(logLevel.value, newState)
+    if (res === "Success") {
+      logToFile.value = newState
     } else {
       errorAlertMessage.value = res
       showErrorAlert.value = true
@@ -413,6 +423,6 @@ export function useAppState() {
     getStatusText, getStatusStyle, getControlBg,
     handleToggle, handleSwitchMode, handleServiceToggle, refreshData, handleMirrorToggle,
     handleStartOnBootToggle, handleAutoConnectChange,
-    handleIPv6Toggle, handlePreReleaseToggle, handleLogConfigChange
+    handleIPv6Toggle, handlePreReleaseToggle, handleLogLevelChange, handleLogToFileToggle
   }
 }

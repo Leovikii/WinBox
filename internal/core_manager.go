@@ -336,11 +336,13 @@ func (cm *CoreManager) processConfig(srcPath, dstPath string, enableTun bool, en
 		return "", err
 	}
 
-	// Process log configuration (skip if "Don't Modify" is selected)
-	if logLevel != "" {
+	// Process log configuration (log level and log output are independent)
+	if logLevel != "" || logToFile {
 		logConfig := map[string]interface{}{
-			"level":     logLevel,
 			"timestamp": true,
+		}
+		if logLevel != "" {
+			logConfig["level"] = logLevel
 		}
 		if logToFile {
 			logConfig["output"] = "box.log"

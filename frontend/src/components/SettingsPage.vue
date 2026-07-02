@@ -22,7 +22,7 @@ const uwpState = useUWPLoopback()
 const {
   coreExists, preRelease, mirrorUrl, mirrorEnabled, startOnBoot, autoConnectState,
   showErrorAlert, errorAlertMessage, ipv6Enabled, logLevel, logToFile, closeBehavior,
-  handleMirrorToggle, handleStartOnBootToggle, handleAutoConnectChange, handleIPv6Toggle, handleLogConfigChange
+  handleMirrorToggle, handleStartOnBootToggle, handleAutoConnectChange, handleIPv6Toggle, handleLogLevelChange, handleLogToFileToggle
 } = appState
 
 const {
@@ -351,34 +351,37 @@ const openGitHub = () => {
         </div>
 
         <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Inbound Config</span>
-          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">Edit</WButton>
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Log Level</span>
+          <WSelect
+            :model-value="logLevel"
+            @update:model-value="handleLogLevelChange(String($event))"
+            :options="[
+              { value: '', label: 'Default' },
+              { value: 'trace', label: 'Trace' },
+              { value: 'debug', label: 'Debug' },
+              { value: 'info', label: 'Info' },
+              { value: 'warn', label: 'Warn' },
+              { value: 'error', label: 'Error' },
+              { value: 'fatal', label: 'Fatal' },
+              { value: 'panic', label: 'Panic' }
+            ]"
+            class="w-28"
+          />
         </div>
 
         <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">IPv6 Support</span>
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Log Output</span>
+          <WSwitch :model-value="logToFile" @update:model-value="handleLogToFileToggle()" />
+        </div>
+
+        <div class="flex justify-between items-center py-1 min-h-10">
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">IPv6</span>
           <WSwitch :model-value="ipv6Enabled" @update:model-value="handleIPv6Toggle()" />
         </div>
 
         <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Log To File</span>
-          <WSwitch :model-value="logToFile" @update:model-value="handleLogConfigChange(logLevel, $event)" />
-        </div>
-
-        <div class="flex justify-between items-center py-1 min-h-10">
-          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Log Level</span>
-          <WSelect
-            :model-value="logLevel"
-            @update:model-value="handleLogConfigChange(String($event), logToFile)"
-            :options="[
-              { value: '', label: 'Don\'t Modify' },
-              { value: 'debug', label: 'Debug' },
-              { value: 'info', label: 'Info' },
-              { value: 'warn', label: 'Warn' },
-              { value: 'error', label: 'Error' }
-            ]"
-            class="w-28"
-          />
+          <span class="text-xs font-bold text-gray-900 dark:text-gray-200">Inbound Config</span>
+          <WButton variant="secondary" size="sm" icon="fas fa-pen" @click="openEditor('tun')" class="min-w-[5rem]">Edit</WButton>
         </div>
       </WCard>
 
