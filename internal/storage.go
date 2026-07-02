@@ -242,12 +242,11 @@ func (s *Storage) flushToDisk() error {
 func (s *Storage) Flush() {
 	s.saveMu.Lock()
 	if s.saveTimer != nil {
-		if s.saveTimer.Stop() {
-			s.flushToDisk()
-		}
+		s.saveTimer.Stop()
 		s.saveTimer = nil
 	}
 	s.saveMu.Unlock()
+	s.flushToDisk()
 }
 
 // InvalidateCache invalidates the cache

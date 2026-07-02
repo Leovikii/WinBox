@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
@@ -149,8 +149,7 @@ watch(() => logState.appLogContent.value, () => {
   }
 })
 
-onUnmounted(() => {
-})
+
 
 onActivated(() => {
   nextTick(() => {
@@ -428,7 +427,6 @@ onActivated(() => {
     <!-- Modals -->
     <ManageProfilesModal />
 
-    <!-- App Log Modal -->
     <!-- App Log Modal -->
     <AppLogsModal />
 </template>

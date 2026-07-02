@@ -24,6 +24,7 @@ const isOpen = ref(false)
 const selectRef = ref<HTMLDivElement | null>(null)
 const buttonRef = ref<HTMLButtonElement | null>(null)
 const openUpward = ref(false)
+const dropdownRef = ref<HTMLDivElement | null>(null)
 const dropdownStyle = ref<Record<string, string>>({
   top: '0px',
   left: '0px',
@@ -83,7 +84,9 @@ const selectOption = (value: string | number) => {
 }
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (selectRef.value && !selectRef.value.contains(event.target as Node)) {
+  const target = event.target as Node
+  if (selectRef.value && !selectRef.value.contains(target) &&
+      (!dropdownRef.value || !dropdownRef.value.contains(target))) {
     isOpen.value = false
   }
 }
@@ -163,6 +166,7 @@ const dropdownClasses = computed(() => {
 
     <Teleport to="body">
       <div
+        ref="dropdownRef"
         v-if="isOpen"
         :class="dropdownClasses"
         :style="dropdownStyle"
