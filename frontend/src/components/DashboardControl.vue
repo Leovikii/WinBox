@@ -177,16 +177,16 @@ onActivated(() => {
               <!-- Ambient background bloom -->
               <div 
                 class="absolute inset-0 scale-[3] blur-[6px] transition-opacity duration-1000 pointer-events-none"
-                :class="{'opacity-40': running || ['Starting...', 'Stopping...'].includes(getStatusText), 'opacity-0': !running && !['Starting...', 'Stopping...'].includes(getStatusText)}"
+                :class="{'opacity-40': running || ['Starting...', 'Stopping...', 'Restarting...', 'Detecting'].includes(getStatusText), 'opacity-0': !running && !['Starting...', 'Stopping...', 'Restarting...', 'Detecting'].includes(getStatusText)}"
                 style="background-color: currentColor;"
               ></div>
               <!-- Core Icon -->
               <i class="fas text-[11px] relative z-10 transition-all duration-500" 
                  :class="{
-                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['Starting...', 'Stopping...'].includes(getStatusText),
-                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['Starting...', 'Stopping...'].includes(getStatusText),
+                   'fa-spinner fa-spin drop-shadow-[0_0_6px_currentColor]': ['Starting...', 'Stopping...', 'Restarting...', 'Detecting'].includes(getStatusText),
+                   'fa-bolt drop-shadow-[0_0_6px_currentColor]': running && !['Starting...', 'Stopping...', 'Restarting...', 'Detecting'].includes(getStatusText),
                    'fa-exclamation-triangle': getStatusText === 'Warning',
-                   'fa-power-off opacity-60': !running && !['Starting...', 'Stopping...'].includes(getStatusText) && getStatusText !== 'Warning'
+                   'fa-power-off opacity-60': !running && !['Starting...', 'Stopping...', 'Restarting...', 'Detecting'].includes(getStatusText) && getStatusText !== 'Warning'
                  }">
               </i>
             </div>
