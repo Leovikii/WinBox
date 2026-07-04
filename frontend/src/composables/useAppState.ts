@@ -41,6 +41,7 @@ export function useAppState() {
     if (isProcessing.value) {
       if (msg.value === "Starting...") return "Starting..."
       if (msg.value === "Stopping...") return "Stopping..."
+      if (msg.value === "Restarting...") return "Restarting..."
     }
 
     if (["Detecting", "Standby", "Net Timeout"].includes(msg.value)) {
@@ -61,7 +62,7 @@ export function useAppState() {
     if (msg.value === "Error" || msg.value === "Net Timeout")
       return { color: 'var(--status-error)', filter: 'none' }
 
-    if (msg.value === "Detecting" || (isProcessing.value && (msg.value === "Starting..." || msg.value === "Stopping...")))
+    if (msg.value === "Detecting" || (isProcessing.value && (msg.value === "Starting..." || msg.value === "Stopping..." || msg.value === "Restarting...")))
       return { color: 'var(--status-warning)', filter: 'none' }
 
     if (msg.value === "Standby")
@@ -365,14 +366,21 @@ export function useAppState() {
     })
 
     unsubscribeStatus = EventsOn("status", (isRunning: boolean) => {
+      // Ignore intermediate offline signals during start/restart
+      if (isProcessing.value && !isRunning) {
+        if (msg.value === "Starting..." || msg.value === "Restarting...") {
+          return
+        }
+      }
+
       running.value = isRunning
 
       if (!isRunning) {
         if (msg.value !== "Standby" && msg.value !== "Net Timeout") {
-          msg.value = "STOPPED"
+          msg.value = "Stopped"
         }
       } else {
-        msg.value = "RUNNING"
+        msg.value = "Running"
       }
       isProcessing.value = false
     })
@@ -408,12 +416,6 @@ export function useAppState() {
     }
   })
 
-  // We intentionally do NOT unmount event listeners if this is a singleton 
-  // because multiple components might be sharing this state.
-  // We leave them attached for the lifetime of the application.
-  onUnmounted(() => {
-    // Intentionally empty for global state singleton
-  })
 
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,
