@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { useAppState } from './useAppState'
@@ -188,13 +188,7 @@ export function useKernelUpdate() {
     }
   })
 
-  onUnmounted(() => {
-    // For global state, we don't unsubscribe from EventsOn here.
-    // Timeouts can still be cleared safely if we leave a component, but since
-    // multiple might share this, we just leave them or clear if needed.
-    // if (updateStateTimeout) clearTimeout(updateStateTimeout)
-    // if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
-  })
+
 
   const isEditorChanged = computed(() => {
     return editorContent.value !== editorOriginalContent.value

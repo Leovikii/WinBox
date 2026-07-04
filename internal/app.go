@@ -262,7 +262,7 @@ func (a *App) smartAutoStart(modeChanged, prevSysProxy bool) {
 	time.Sleep(3 * time.Second)
 	
 	a.appLogger.Info("Smart Detect: Waiting for network connection...")
-	wailsRuntime.EventsEmit(a.ctx, "log", "DETECTING")
+	wailsRuntime.EventsEmit(a.ctx, "log", "Detecting")
 	
 	maxRetries := 15 // 15 retries * 2 seconds wait = ~30 seconds max
 	networkReady := false
@@ -279,7 +279,7 @@ func (a *App) smartAutoStart(modeChanged, prevSysProxy bool) {
 
 	if !networkReady {
 		a.appLogger.Warn("Smart Detect: Network not ready after 30 seconds. Fallback: Aborting auto-start.")
-		wailsRuntime.EventsEmit(a.ctx, "log", "NET TIMEOUT")
+		wailsRuntime.EventsEmit(a.ctx, "log", "Net Timeout")
 		wailsRuntime.EventsEmit(a.ctx, "status", false)
 		return
 	}
@@ -302,11 +302,11 @@ func (a *App) smartAutoStart(modeChanged, prevSysProxy bool) {
 	
 	if isProxyEnv {
 		a.appLogger.Info("Smart Detect: Transparent proxy environment detected. Skipping auto-start.")
-		wailsRuntime.EventsEmit(a.ctx, "log", "STANDBY")
+		wailsRuntime.EventsEmit(a.ctx, "log", "Standby")
 		wailsRuntime.EventsEmit(a.ctx, "status", false)
 	} else {
 		a.appLogger.Info("Smart Detect: No proxy environment detected. Starting core...")
-		wailsRuntime.EventsEmit(a.ctx, "log", "STARTING...")
+		wailsRuntime.EventsEmit(a.ctx, "log", "Starting...")
 		a.handleAutoStart(modeChanged, prevSysProxy)
 	}
 }

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { cleanLog } from '../utils/logUtils'
@@ -35,36 +35,37 @@ let isInitialized = false
 export function useAppState() {
 
   const getStatusText = computed(() => {
-    if (!coreExists.value) return "WARNING"
-    if (msg.value === "ERROR") return "ERROR"
+    if (!coreExists.value) return "Warning"
+    if (msg.value === "Error") return "Error"
 
     if (isProcessing.value) {
-      if (msg.value === "STARTING...") return "STARTING..."
-      if (msg.value === "STOPPING...") return "STOPPING..."
+      if (msg.value === "Starting...") return "Starting..."
+      if (msg.value === "Stopping...") return "Stopping..."
+      if (msg.value === "Restarting...") return "Restarting..."
     }
 
-    if (["DETECTING", "STANDBY", "NET TIMEOUT"].includes(msg.value)) {
+    if (["Detecting", "Standby", "Net Timeout"].includes(msg.value)) {
       return msg.value
     }
 
-    if (!running.value) return "OFFLINE"
+    if (!running.value) return "Offline"
     if (tunMode.value && sysProxy.value) return "Mixed Routing"
     if (tunMode.value) return "Tun Adapter"
     if (sysProxy.value) return "System Proxy"
-    return "ONLINE"
+    return "Online"
   })
 
   const getStatusStyle = computed(() => {
     if (!coreExists.value)
       return { color: 'var(--status-warning)', filter: 'none' }
 
-    if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
+    if (msg.value === "Error" || msg.value === "Net Timeout")
       return { color: 'var(--status-error)', filter: 'none' }
 
-    if (msg.value === "DETECTING" || (isProcessing.value && (msg.value === "STARTING..." || msg.value === "STOPPING...")))
+    if (msg.value === "Detecting" || (isProcessing.value && (msg.value === "Starting..." || msg.value === "Stopping..." || msg.value === "Restarting...")))
       return { color: 'var(--status-warning)', filter: 'none' }
 
-    if (msg.value === "STANDBY")
+    if (msg.value === "Standby")
       return { color: 'var(--status-standby)', filter: 'none' }
 
     if (!running.value)
@@ -86,20 +87,20 @@ export function useAppState() {
     const color = getModeColor(
       tunMode.value,
       sysProxy.value,
-      msg.value === "ERROR" || !coreExists.value || msg.value === "NET TIMEOUT",
+      msg.value === "Error" || !coreExists.value || msg.value === "Net Timeout",
       running.value
     )
 
     if (!coreExists.value)
       return `bg-[#F8B500]/20`
 
-    if (msg.value === "ERROR" || msg.value === "NET TIMEOUT")
+    if (msg.value === "Error" || msg.value === "Net Timeout")
       return `bg-[${color.hex}]/20`
 
-    if (msg.value === "DETECTING")
+    if (msg.value === "Detecting")
       return `bg-[#F8B500]/20`
 
-    if (msg.value === "STANDBY")
+    if (msg.value === "Standby")
       return `bg-[#B4A2CC]/20`
 
     if (tunMode.value && sysProxy.value)
@@ -154,14 +155,14 @@ export function useAppState() {
 
       const res = await Backend.ApplyState(applyTun, applyProxy)
       if (res !== "Success") {
-        msg.value = "ERROR"
+        msg.value = "Error"
         errorLog.value = res
         isProcessing.value = false
       }
     } else {
       const res = await Backend.ApplyState(false, false)
       if (res !== "Success" && res !== "Stopped") {
-        msg.value = "ERROR"
+        msg.value = "Error"
         errorLog.value = res
         isProcessing.value = false
       }
@@ -189,7 +190,7 @@ export function useAppState() {
     // Optimistically update UI
     tunMode.value = newTun
     sysProxy.value = newProxy
-    msg.value = newTun || newProxy ? "STARTING..." : "STOPPING..."
+    msg.value = newTun || newProxy ? "Starting..." : "Stopping..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
@@ -198,7 +199,7 @@ export function useAppState() {
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
-      msg.value = "ERROR"
+      msg.value = "Error"
       errorLog.value = "No active configuration selected"
       // Revert optimistic update
       tunMode.value = prevTun
@@ -206,7 +207,7 @@ export function useAppState() {
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
-      msg.value = "ERROR"
+      msg.value = "Error"
       errorLog.value = res
       // Revert optimistic update
       tunMode.value = prevTun
@@ -243,7 +244,7 @@ export function useAppState() {
     // Optimistically update UI
     tunMode.value = newTun
     sysProxy.value = newProxy
-    msg.value = "RESTARTING..."
+    msg.value = "Restarting..."
 
     const res = await Backend.ApplyState(newTun, newProxy)
 
@@ -252,7 +253,7 @@ export function useAppState() {
       running.value = newTun || newProxy
       await new Promise(resolve => setTimeout(resolve, 1500))
     } else if (res === "config-missing") {
-      msg.value = "ERROR"
+      msg.value = "Error"
       errorLog.value = "No active configuration selected"
       // Revert optimistic update
       tunMode.value = prevTun
@@ -260,7 +261,7 @@ export function useAppState() {
       isProcessing.value = false
       return { error: 'config-missing' }
     } else {
-      msg.value = "ERROR"
+      msg.value = "Error"
       errorLog.value = res
       // Revert optimistic update
       tunMode.value = prevTun
@@ -342,22 +343,22 @@ export function useAppState() {
   }
 
   const setupEventListeners = () => {
-    msg.value = "OFFLINE"
+    msg.value = "Offline"
 
     // Setup state sync events
     EventsOn("core-starting", () => {
       isProcessing.value = true
-      msg.value = "STARTING..."
+      msg.value = "Starting..."
     })
 
     EventsOn("core-stopping", () => {
       isProcessing.value = true
-      msg.value = "STOPPING..."
+      msg.value = "Stopping..."
     })
 
     EventsOn("core-restarting", () => {
       isProcessing.value = true
-      msg.value = "RESTARTING..."
+      msg.value = "Restarting..."
     })
 
     EventsOn("core-lock", (isLocked: boolean) => {
@@ -365,14 +366,21 @@ export function useAppState() {
     })
 
     unsubscribeStatus = EventsOn("status", (isRunning: boolean) => {
+      // Ignore intermediate offline signals during start/restart
+      if (isProcessing.value && !isRunning) {
+        if (msg.value === "Starting..." || msg.value === "Restarting...") {
+          return
+        }
+      }
+
       running.value = isRunning
 
       if (!isRunning) {
-        if (msg.value !== "STANDBY" && msg.value !== "NET TIMEOUT") {
-          msg.value = "STOPPED"
+        if (msg.value !== "Standby" && msg.value !== "Net Timeout") {
+          msg.value = "Stopped"
         }
       } else {
-        msg.value = "RUNNING"
+        msg.value = "Running"
       }
       isProcessing.value = false
     })
@@ -392,7 +400,7 @@ export function useAppState() {
       const cleaned = cleanLog(logMsg)
 
       if (cleaned.startsWith("Error:") || cleaned.includes("failed")) {
-        msg.value = "ERROR"
+        msg.value = "Error"
         errorLog.value = cleaned
       } else {
         msg.value = cleaned
@@ -408,12 +416,6 @@ export function useAppState() {
     }
   })
 
-  // We intentionally do NOT unmount event listeners if this is a singleton 
-  // because multiple components might be sharing this state.
-  // We leave them attached for the lifetime of the application.
-  onUnmounted(() => {
-    // Intentionally empty for global state singleton
-  })
 
   return {
     running, coreExists, msg, tunMode, sysProxy, isProcessing,

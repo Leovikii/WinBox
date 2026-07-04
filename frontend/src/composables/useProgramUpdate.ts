@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import * as Backend from '../../wailsjs/go/internal/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import wailsConfig from '@wails'
@@ -69,9 +69,7 @@ export function useProgramUpdate() {
     }
   })
 
-  onUnmounted(() => {
-    // if (updateStateTimeout) clearTimeout(updateStateTimeout)
-  })
+
 
   return {
     programLocalVer, programRemoteVer, programUpdateState, programDownloadProgress, programChangelog,
