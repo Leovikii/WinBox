@@ -15,14 +15,14 @@
 
 | ID | 场景与操作 | 通过标准 | 检查方式 | 当前结果 |
 | --- | --- | --- | --- | --- |
-| V01 | 基线与目标构建 | 目标前端/Rust/helper 构建检查通过，Tauri bundle 另证 | 工具输出与产物 hash | 最新窗口修复由 `MIG-032-WINDOW-FIX-2026-09-19` 记录：Rust fmt/clippy/test（24/24）、x64 单 EXE、前端 tsc/Vite 和配置 JSON 解析通过；历史 x64 bundle 证据仍见 `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18` |
+| V01 | 基线与目标构建 | 目标前端/Rust/helper 构建检查通过，Tauri bundle 另证 | 工具输出与产物 hash | `MIG-039-LOG-TIME-2026-09-19` 补充 chrono 跨平台时间格式化后的 Rust test（29/29）、clippy、前端 tsc/Vite 和 x64 单 EXE（`Machine=0x8664`）；历史 x64 bundle 证据仍见 `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18` |
 | V02 | 视觉：浅/深/系统主题、强调色、400×720 及调整尺寸、100/125/150/200% DPI | 布局/颜色/图标/字体/动画/滚动/Mica 无回归；无裁剪、闪白或按钮拖动误触 | 截图、录屏/实机；固定环境 | 已修复应用主题到 WebView/Mica 的映射、启动居中和左侧拖动区；托盘资源/视觉结构未改；截图、多 DPI 和 Mica 实机仍未执行 |
 | V03 | 窗口：最小化、托盘隐藏/显示、关闭 ask/tray/quit、二次启动、隐藏启动、核心重启 | 操作路径保持；单实例正确聚焦；关闭走清理，核心重启不残留内核，托盘模式继续运行 | Windows 实机 | 已移除不可靠的应用级重启入口；核心重启保留并由 MIG-036 审计锁内状态检查和前端防重入；真实窗口/UAC/托盘/主题/核心进程行为仍未执行 |
 | V04 | API/事件：参数序列化、错误、初始化快照、反复挂载卸载、注册未完成即卸载 | DTO 对齐；无漏订阅/重复监听/误删其他监听；失败解除忙碌态；事件与快照不会让状态倒退 | 契约检查与交互复现 | 全量 Rust command、camelCase DTO、脱敏错误、Tauri invoke/listen 独立卸载、初始化前等待 listener 注册、全局 composable 引用计数与定时器清理已编译；真实 WebView 反复挂载和错误交互仍未执行 |
 | V05 | 数据：正常/旧字段/缺字段/损坏文件、只读/占用、导入中断再试、重复导入、中文空格路径、多源目录 | 原数据可恢复，默认值明确，重复导入安全，不静默覆盖，写入失败可见；退出 flush | 脱敏 fixture、故障注入与 Windows 文件检查 | Rust storage 的默认值、未知字段保留、原子写入、覆盖配置校验和更新 stage 回滚有 19 个单元检查；只读/占用和跨文件崩溃恢复仍未执行 |
-| V06 | 订阅增删改/选择/更新、TUN/mixed 覆盖、IPv6/日志、无效 JSON/下载失败 | 用户交互不变；仅覆盖指定字段；无关字段保留；无效候选不破坏有效配置；内核 check 成功 | fixture、sing-box check、交互 | profile/override/配置生成、HTTP 限制、`sing-box check` 和日志设置已实现；真实订阅与内核 fixture 仍未执行 |
+| V06 | 订阅增删改/选择/更新、TUN/mixed 覆盖、IPv6/日志、无效 JSON/下载失败 | 用户交互不变；仅覆盖指定字段；无关字段保留；无效候选不破坏有效配置；内核 check 成功 | fixture、sing-box check、交互 | profile/override/配置生成、Profile 更新时间兼容、HTTP 限制、`sing-box check` 和日志设置已实现；用户已在 Windows AMD64/x64 测试 EXE 上确认配置更新通过；其余订阅与内核 fixture 仍未执行 |
 | V07 | Proxy/TUN/Mixed 启停、停止后选择、运行中配置切换、核心重启、快速连续点击与托盘同时操作 | 唯一内核、状态一致、无死锁；未就绪不伪报运行；失败解锁，模式与运行区分 | 生命周期检查 + 实机 | RuntimeState 操作锁、CoreProcess、监视器锁内身份清理、三模式 apply/restart、自动启动最终核心复核、前端防重入和托盘复用路径已实现；真实 sing-box 与快速点击仍未执行 |
-| V08 | 应用/内核日志、清空、滚动跟随、文件日志开关、大量日志；流量停止/隐藏/恢复 | 日志有界、无阻塞、行为保持；速率单位正确，停止归零，恢复无重复流 | 压力样本与实机 | 有界 kernel log、app log 文件、WebSocket loopback/secret/超时/取消/重连和停止归零已实现；压力与窗口隐藏实机仍未执行 |
+| V08 | 应用/内核日志、清空、滚动跟随、文件日志开关、大量日志；流量停止/隐藏/恢复 | 日志有界、无阻塞、行为保持；速率单位正确，停止归零，恢复无重复流 | 压力样本与实机 | 应用日志可读本地时间、启动清空 app/core 当前文件、启动/退出记录、10 MiB/5 归档轮转、事件注册后读取、有限 kernel log 和 WebSocket loopback/secret/超时/取消/重连已实现；用户已在 Windows AMD64/x64 测试 EXE 上确认重启后日志与时间显示正常；日志压力、窗口隐藏和流量场景仍未执行 |
 | V09 | 正常退出、内核崩溃、应用强制结束、启动超时、退出超时、其他 sing-box/代理软件并存 | 本应用资源可回收/恢复；无误杀，无覆盖别人代理；重启恢复到可用状态 | 保存原状态后的故障注入 | 句柄级路径核对、超时强杀、启动失败未登记进程回收、代理启动前/接管后快照及条件恢复已实现；真实崩溃/超时/并存进程仍未执行 |
 | V10 | 自动连接 off/smart/其他实际值、无网络、网络延迟、已有代理环境、取消/退出 | 与已确认基线行为一致；不无限重试/挂起；Standby/超时提示正确；任务可取消 | 网络场景实机 | off/smart/always 分支、15 次网络检测、Standby/Net Timeout 和退出可取消路径已实现；网络场景仍未执行 |
 | V11 | 提权拒绝/允许、自启开关、注销登录、任务旧路径更新、带空格路径、电池状态 | 最高权限、延迟、最小化语义保持；失败不保存成功状态；无重复任务，关闭自启有效 | Windows 登录实测 | manifest、任务 XML、创建后查询/删除后查询和固定系统工具路径已实现；管理员/UAC/登录实测仍未执行 |
@@ -32,7 +32,7 @@
 | V15 | CI、干净安装/升级、WebView2 存在/缺失、x64 产物、更新元数据 | x64 构建和实机结果分别记录；产物/版本/签名对应；发布权限和密钥配置正确 | CI 日志 + x64 设备 | 最新管理员上下文 `cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis,msi --no-sign` 通过且 Tauri 输出 `Target: x64`；NSIS/MSI/helper/portable 条目、PE `Machine=0x8664` 和 MSI 提取见 `MIG-025-X64-GATE-2026-09-18`；CI、签名和干净安装实机仍未执行 |
 | V16 | 受控 IPC/URL/路径、远程 Markdown；启动/空闲/后台/日志压力性能 | 非授权命令/路径被拒绝；内容无高权限执行入口；对照 P0 指标无未解释回归 | 边界用例、同环境测量 | URL、profile ID、override、archive、SID、helper 路径和 command 错误边界已覆盖；性能/远程内容实机仍未执行 |
 | V17 | 去除旧栈、临时桥、双版本源与无用依赖 | 活动构建/代码不依赖 Go/Wails；文档历史引用可保留；新环境独立构建成功 | rg、锁文件、构建 | Go/Wails 源码、生成目录、旧配置和旧构建资源已删除；活动代码无旧栈引用；最终 x64 Tauri bundle 已成功生成 |
-| V18 | 文档/实现/台账一致性 | 命令/文件/依赖与实际一致，所有完成项有证据，阻断清零或有明确批准例外 | 文档复核 | `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18` 已补充最新 x64 产物、依赖审计、初始化事件顺序、manifest 硬门槛和 MSI/ZIP 证据；x64-only 实现、CI、契约、代理归属保护、下载清理和前端订阅释放已同步；真实 WebView/系统/签名证据仍待登记 |
+| V18 | 文档/实现/台账一致性 | 命令/文件/依赖与实际一致，所有完成项有证据，阻断清零或有明确批准例外 | 文档复核 | `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19` 已补充最新 x64 产物、依赖审计、初始化事件顺序、时间/日志契约、会话清理和用户复测证据；x64-only 实现、CI、代理归属保护、下载清理和前端订阅释放已同步；真实 WebView/系统/签名证据仍待登记 |
 
 ## 推荐命令
 
@@ -526,3 +526,40 @@ OS、架构、权限、WebView2、工具链、sing-box、数据模式：
 - 自动验证：`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、`cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`（24/24、0 doctest）、`cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`、`npm --prefix frontend run build` 均通过；未构建 ARM64。
 - x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline` 退出码 0；`src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,589,248 bytes，文件/产品版本 `3.0.0-alpha.1`，PE `Machine=0x8664`，SHA-256 `4B44D385A0CF956601A8ECE73E0255489D9CD62A448B20762CB1ED73C3F3DEB2`；未生成 updater、安装器、portable ZIP 或 ARM64 成品。
 - 结果：代码与自动检查 `pass`；仍需 Windows AMD64/x64 实机快速点击界面/托盘 `Restart Core`，确认单一 sing-box PID、代理恢复、traffic 重连和失败状态。
+
+### MIG-038-CONFIG-HTTP-FIX-2026-09-19 — 配置下载 UA 与远程错误日志修复
+
+- 范围：`BUG-005`、`MIG-008`，并覆盖内核/程序远程更新的共享 HTTP 路径；V06/V08/V13/V14。
+- 根因：迁移后的唯一共享 `reqwest::Client` 设置为 `WinBox/2.8`，与旧 Go 实现及远端配置下发服务要求的 `User-Agent: sing-box` 不一致。配置添加/更新的下载错误通过 `?` 直接返回，没有接入 `RuntimeState.append_app_log`；程序更新和版本检查也存在同类远程失败无 app log 路径，下载非 2xx 状态没有保留。
+- 修复：共享 HTTP 客户端固定 `sing-box` UA；配置添加、活动配置更新、内核/程序更新检查及程序更新失败统一写入脱敏 app log；内核更新元数据早退接入同一日志链；下载/release 非 2xx 错误保留 HTTP 状态码。`config_invalid` 日志只记录 `configuration rejected`，不记录请求 URL、响应正文、订阅凭据或配置内容。未新增依赖，未改变前端 command 名称、视觉或交互。
+- 自动检查：
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`：退出码 0。
+  - `cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`：退出码 0；25/25 库测试、0 doctest；新增本地 TCP HTTP fixture 实际检查请求头为 `User-Agent: sing-box`。
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`：退出码 0。
+  - `npm --prefix frontend run build`：退出码 0；Vite 8.3.0 转换 74 个模块。
+  - `git diff --check`：退出码 0。
+- x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline`：退出码 0；产物 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,678,336 bytes，PE `Machine=0x8664`，文件/产品版本 `3.0.0-alpha.1`，SHA-256 `84FD503F35BAB69DBB2F61BCF73250DB02D5812558726E068731A8D25B64A82B`；未生成 updater、安装器、portable ZIP 或 ARM64 成品。
+- 限制：本轮尚未使用用户真实配置下发地址启动 Windows WebView 验证远端 UA 放行、配置替换和 app.log 内容。ARM64 不构建、不发布、不验收。
+- 结果：代码与自动检查 `pass`；`BUG-005` 保持 `fixed-awaiting-retest`，等待用户使用真实配置下发地址复测添加/更新配置、内核更新、程序更新检查及失败日志。
+
+### MIG-039-LOG-TIME-2026-09-19 — 时间与日志生命周期修复
+
+- 范围：`BUG-006`、`MIG-008`；V01、V06、V08、V18；本版仅验证 Windows AMD64/x64，Linux 不构建、不验收。
+- 修改：使用锁定的跨平台 `chrono 0.4.45` 生成本地可读应用日志和 Profile 更新时间；Tauri setup 在异步自动连接前清空 `data/app.log`、`data/core/box.log` 并写入 `Application started`；统一退出写入 `Application shutdown`；恢复 10 MiB/5 归档轮转；前端兼容既有 Unix 秒/毫秒和旧日期字符串，并等待日志监听注册后读取文件。
+- 自动检查：
+  - `cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --offline`：退出码 0，并更新锁文件直接依赖。
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`：退出码 0。
+  - `cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`：退出码 0；29/29 库测试、0 doctest；新增本地时间格式、双日志清理和 5 归档轮转检查通过。
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`：退出码 0。
+  - `npm --prefix frontend run build`：退出码 0；Vite 8.3.0 转换 74 个模块。
+  - `git diff --check`：退出码 0。
+- x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline`：退出码 0；PE `Machine=0x8664`，版本 `3.0.0-alpha.1`，产物 17,747,968 bytes，SHA-256 `DC412BE0E576B9133BB29CF5BB75054A6B146665929EC584110FF4D8807BD295`；仅生成 `WinBox.exe`，未生成 updater、安装器、portable ZIP 或 ARM64 成品。
+- 限制：Windows WebView 重启/配置更新时间人工复测待执行；未构建 ARM64 或 Linux。
+- 结果：代码自动检查 `pass`；`BUG-006` 保持 `fixed-awaiting-retest`，等待用户验证真实重启日志与配置更新时间显示。
+
+### MIG-040-ISSUE-RETEST-2026-09-19 — 用户 Windows x64 复测通过
+
+- 范围：`BUG-005`、`BUG-006`；验证配置更新、远程请求契约、失败日志、时间格式和重启后的日志生命周期。
+- 环境：用户 Windows AMD64/x64 测试 EXE，版本 `3.0.0-alpha.1`；本版不构建、不发布、不验收 ARM64 或 Linux 产物。
+- 用户结果：配置更新成功；应用日志和配置更新时间显示正常；重启后旧日志已清理，当前会话日志行为符合预期。
+- 结果：`BUG-005`、`BUG-006` 标记为 `resolved`。`MIG-008` 仍保持 `review`，因为整体 V06/V08 还包含其他订阅、压力和流量场景；本次复测不改变其余阶段验收状态。

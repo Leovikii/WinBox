@@ -20,7 +20,7 @@
 | MIG-005-a | P1 前端 API 边界与临时兼容适配 | MIG-004 | done | Codex / 2026-09-17 | Tauri API 只有单一业务入口，前端构建通过 | `MIG-005-FINAL-2026-09-18`；已删除 Wails 适配和生成目录 |
 | MIG-006 | P1 窗口/托盘/主题/单实例 | MIG-005 | review | Codex / 2026-09-19 | V02、V03；桌面效果及行为对等 | `MIG-006-FINAL-2026-09-18`、`MIG-032-WINDOW-FIX-2026-09-19`；窗口 command 权限、居中、拖动区和应用主题材质已修复并通过自动检查，待 x64 实机证据 |
 | MIG-007 | P2 存储、旧数据迁移、设置 | MIG-006 | review | Codex / 2026-09-18 | V05；可恢复、幂等、写入失败可见 | `MIG-007-FINAL-2026-09-18`；Rust storage、默认值、未知字段保留和原子写入通过单元检查，文件占用/跨文件恢复待实机 |
-| MIG-008 | P2 订阅/配置转换/日志接口 | MIG-007 | review | Codex / 2026-09-18 | V06、V08；配置与日志行为通过 | `MIG-008-FINAL-2026-09-18`；profile、override、日志、sing-box check 和下载边界已实现，真实订阅/内核待复核 |
+| MIG-008 | P2 订阅/配置转换/日志接口 | MIG-007 | review | Codex / 2026-09-18 | V06、V08；配置与日志行为通过 | `MIG-008-FINAL-2026-09-18`、`MIG-038-CONFIG-HTTP-FIX-2026-09-19`、`MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；profile、override、日志、时间格式、会话清理、轮转、sing-box check 和下载边界已实现，配置更新与日志/时间场景已由用户在 Windows x64 复测通过，阶段其余验收仍保持 review |
 | MIG-009 | P3 内核生命周期、三种模式、状态 | MIG-008 | review | Codex / 2026-09-19 | V07、V09；并发/失败状态收敛 | `MIG-009-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`；删除不可靠的应用重启入口，核心重启与监视器清理共用操作锁并增加前端防重入，真实 sing-box 仍待复核 |
 | MIG-010 | P3 流量、日志流、智能连接 | MIG-009 | review | Codex / 2026-09-18 | V08、V10；可取消、断线恢复、无重复监听 | `MIG-010-FINAL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；图表问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V08/V10 外部验收仍保持 review |
 | MIG-011 | P3 系统代理、自启、权限、UWP | MIG-009, MIG-010 | review | Codex / 2026-09-18 | V09、V11、V12 实机证据 | `MIG-011-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`；平台命令、manifest、任务计划和 UWP 差异更新已实现，管理员系统状态待实机 |
@@ -49,8 +49,10 @@
 | BUG-002 / MIG-010 | 主界面网速图表 | `resolved` | 用户日志已确定连接失败的直接原因：`Missing, duplicated or incorrect header sec-websocket-key`。此前自建 WebSocket `Request` 绕过了 tungstenite 标准握手头生成，缺少 `Sec-WebSocket-Key`；现已删除手工握手构造，改用 `IntoClientRequest`，仅追加已有配置中的 Bearer secret，并保留 loopback 映射、5 秒连接超时、受控重连和有界日志。用户已确认 Windows x64 测试通过。 | `MIG-031-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-010 的整体 V08/V10 验收覆盖回归。保持 Rust WebSocket→Tauri event→Vue chart 单链路。 |
 | BUG-003 / MIG-006 | 窗口拖动、最小化、初始位置与浅色材质 | `fixed-awaiting-retest` | 前端直接调用的窗口 API 未纳入当前 capability，错误未展示；窗口未配置居中；拖动属性只覆盖标题文字；启动始终使用跟随系统的 Mica，不能表达应用浅/深主题。已改为 Rust command 统一处理窗口控制和 `Theme`/`MicaLight`/`MicaDark` 映射，增加居中配置并扩大左侧拖动区。 | `MIG-032-WINDOW-FIX-2026-09-19`；自动检查通过，等待 Windows x64 测试 EXE 复核拖动、最小化、居中、主题材质、托盘和单实例；不改变托盘动态图标/模式菜单。 |
 | BUG-004 / MIG-009 | 托盘 Restart APP 后 sing-box 残留及应用未重新拉起 | `resolved` | 已删除无可靠 relaunch 保障且无前端调用者的 `Restart APP` 托盘入口、Rust command/API；不再存在该失败路径。`Restart Core` 保留并统一经过 `RuntimeState.operation` 锁和既有 stop/start 清理链，监视器清理也在同一锁内完成。 | `MIG-035-ISSUE-DIAG-2026-09-19`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`；自动检查通过，真实 Windows x64 下仍需确认核心重启的单 PID、代理恢复和快速重复操作行为。 |
+| BUG-005 / MIG-008 | 配置下载 UA 与失败日志缺失 | `resolved` | 迁移后的共享 `reqwest` 客户端发送 `WinBox/2.8`，远端配置下发服务要求 `sing-box`，导致添加/更新配置失败；`add_profile`、`update_active_profile`、程序更新和版本检查的失败早退没有统一写入 `app.log`，非 2xx 状态也被丢弃。现已统一使用 `sing-box`，远程操作失败写入 `RuntimeState` app log，保留 HTTP 状态码并对配置校验错误脱敏。用户已在 Windows AMD64/x64 测试 EXE 上确认配置更新通过。 | `MIG-038-CONFIG-HTTP-FIX-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-008 的整体 V06 验收覆盖回归；不记录 URL、响应正文或配置内容。 |
+| BUG-006 / MIG-039 | 时间格式、启动日志清理与日志轮转遗漏 | `resolved` | 迁移后应用日志和 `Profile.updated` 写入 Unix 秒数；Tauri 启动未清空 `app.log`/`core/box.log`，缺少旧版启动/退出记录，应用日志也没有 10 MiB/5 归档轮转。Rust 现已使用跨平台本地时间格式化，启动在异步自动连接前清空当前日志并写入启动记录，正常退出写入退出记录，恢复轮转；前端兼容迁移期间已写入的 Unix 秒/毫秒值和旧日期字符串。用户已在 Windows AMD64/x64 测试 EXE 上确认重启后日志清理、日志时间和配置更新时间显示正常。 | `MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-008 的整体 V06/V08 验收覆盖回归；Linux 不在本版构建/验收范围。 |
 
-BUG-001/BUG-002 已由用户在 Windows x64 测试 EXE 上确认解决；BUG-003 等待桌面复测；BUG-004 已通过删除失效的应用重启入口关闭，核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
+BUG-001/BUG-002/BUG-005/BUG-006 已由用户在 Windows AMD64/x64 测试 EXE 上确认解决；BUG-003 等待桌面复测；BUG-004 已通过删除失效的应用重启入口关闭。核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
 
 ## 交接日志
 
@@ -310,3 +312,26 @@ BUG-001/BUG-002 已由用户在 Windows x64 测试 EXE 上确认解决；BUG-003
 - 修复：自动连接网络探测结束后重新读取快照并检查 `RuntimeState.core()`；若探测期间已有启动操作完成，则跳过自动启动，避免第二个核心。
 - 验证：Rust x64 target 测试 24/24、clippy `-D warnings`、fmt、前端 TypeScript/Vite 构建均通过；静态检查确认仍仅有 `Restart Core` 入口。最新单 EXE 为 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，PE `Machine=0x8664`，版本 `3.0.0-alpha.1`，17,589,248 bytes，SHA-256 `4B44D385A0CF956601A8ECE73E0255489D9CD62A448B20762CB1ED73C3F3DEB2`；未生成 ARM64 产物。
 - 限制：当前会话没有可绑定的原生 Tauri 窗口，无法替代 Windows AMD64/x64 实机的快速点击、PID 唯一性、代理恢复和 traffic 重连验证。
+
+### 2026-09-19 — MIG-038 配置下载 UA 与远程错误日志修复
+
+- 审计：共享 `reqwest` 客户端被配置下载、内核/程序下载和 GitHub release 检查共同使用；迁移后 UA 为 `WinBox/2.8`，与旧 Go `sing-box` 客户端契约不一致。配置添加/更新和程序更新的失败早退也没有统一写入 `app.log`，下载非 2xx 状态被压成无状态的通用错误。
+- 修复：共享客户端固定 `User-Agent: sing-box`；配置添加/更新、两个更新检查、内核更新元数据和程序更新失败统一经过 `RuntimeState` app log；HTTP 错误保留状态码。配置校验错误日志只记录 `configuration rejected`，不记录 URL、响应正文、订阅 Token 或配置内容。
+- 修改：`src-tauri/src/commands.rs` 及 `docs/tauri-migration/{contracts,decisions,tracker,validation}.md`；不新增依赖、不改变前端 command 名称或视觉/交互。
+- 验证：Rust x64 target 测试 25/25、clippy `-D warnings`、fmt、`npm --prefix frontend run build` 和本地 HTTP UA 实际请求头检查通过；x64 单 EXE `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe` 构建通过，17,678,336 bytes，PE `Machine=0x8664`，版本 `3.0.0-alpha.1`，SHA-256 `84FD503F35BAB69DBB2F61BCF73250DB02D5812558726E068731A8D25B64A82B`。
+- 限制：尚未使用用户真实配置下发地址进行 Windows WebView/远程服务复测；BUG-005 保持 `fixed-awaiting-retest`；ARM64 不构建、不发布、不验收。
+
+### 2026-09-19 — MIG-039 时间与日志生命周期修复
+
+- 根因：`RuntimeState.append_app_log` 和 `commands::current_time_string` 使用 Unix 秒数；Tauri setup 只创建 `RuntimeState`，没有执行旧 Go `Startup` 的 app/core 日志清理。旧版 10 MiB/5 归档轮转、启动/退出记录也未迁移。
+- 修复：新增已锁定的跨平台 `chrono 0.4.45`，统一生成本地 `YYYY-MM-DD HH:mm:ss`/`YYYY-MM-DD HH:mm`；setup 在异步自动连接前清空 `data/app.log` 与 `data/core/box.log`，写入 `Application started`；统一退出写入 `Application shutdown`；恢复应用日志 10 MiB 轮转和 5 个归档。前端兼容 10/13 位 Unix 时间值及旧日期字符串，并等待日志监听注册后读取文件。
+- 修改：`src-tauri/{Cargo.toml,Cargo.lock}`、`src-tauri/src/{runtime,commands,lib}.rs`、`frontend/src/{components/DashboardControl.vue,composables/useAppLogs.ts}`，以及关联 contracts/decisions/tracker/validation；未改变视觉、command 名称、手动清空入口或 x64-only 边界。
+- 自动验证：x64 target Rust 测试 29/29、0 doctest，新增时间格式、会话日志清理和轮转检查；x64 target clippy `-D warnings`、fmt、`git diff --check`、前端 TypeScript/Vite 构建均通过。
+- x64 单 EXE：`src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,747,968 bytes，PE `Machine=0x8664`，文件/产品版本 `3.0.0-alpha.1`，SHA-256 `DC412BE0E576B9133BB29CF5BB75054A6B146665929EC584110FF4D8807BD295`；未生成 updater、安装器、portable ZIP 或 ARM64 成品。
+- 限制：本会话没有可绑定的原生 Tauri 窗口，尚未执行真实重启后的日志内容、配置更新时间和旧数据兼容桌面复测；Linux 不在本版构建/验收范围，仅通过跨平台库避免重复实现。
+
+### 2026-09-19 — MIG-040 用户 Windows x64 复测通过
+
+- 范围：`BUG-005`、`BUG-006`；复测配置更新的 `sing-box` UA、远程失败日志、时间格式、重启后的日志清理和配置更新时间显示。
+- 用户验证：在 Windows AMD64/x64 测试 EXE 上确认配置更新成功；确认日志时间可读、配置更新时间显示正常，重启后日志按当前会话清理，问题修复结果符合预期。
+- 结果：`BUG-005`、`BUG-006` 状态更新为 `resolved`；`MIG-008` 仍保持 `review`，其余订阅、日志压力和真实核心生命周期验收继续按 V06/V08/V13 执行。ARM64 不构建、不发布、不验收。

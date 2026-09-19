@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as Backend from '../api/backend'
-import { EventsOn } from '../api/backend'
+import { EventsOn, waitForEventsReady } from '../api/backend'
 
 const appLogContent = ref("")
 const showLogModal = ref(false)
@@ -54,8 +54,8 @@ export function useAppLogs() {
 
   const initLogs = () => {
     if (!unsubscribeLog) {
-      void loadAppLog()
       unsubscribeLog = EventsOn("onAppLog", handleNewLog)
+      void waitForEventsReady().then(loadAppLog)
     }
   }
 

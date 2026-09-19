@@ -35,6 +35,7 @@
 | D10 | tauri-action | [官方 action](https://github.com/tauri-apps/tauri-action) | 选 `action-v1.0.0`，解析到 commit `1deb371b0cd8bd54025b384f1cd735e725c4060f`（MIT）；用于 Windows x64 构建、签名产物和受控发布。PR 只构建，签名密钥只进 CI secrets，不在仓库中生成或保存。 |
 | D11 | SHA-256 完整性校验 | [RustCrypto/hashes](https://github.com/RustCrypto/hashes) | 锁定 `sha2 0.10.9`（crates.io，MIT OR Apache-2.0，维护项目为 RustCrypto/hashes）；只用于流式 SHA-256 digest 比对，已写入 `src-tauri/Cargo.lock`。digest 证明下载字节完整，不替代发布者签名或来源真实性。 |
 | D12 | Tauri 前端 IPC/event API | [官方 `@tauri-apps/api`](https://github.com/tauri-apps/tauri/tree/dev/packages/api) | 锁定 npm `@tauri-apps/api 2.11.1`（npm registry；2026-09-12 元数据更新时间；仓库 `tauri-apps/tauri`；Apache-2.0 OR MIT），写入 `frontend/package-lock.json`。仅使用官方 `core.invoke`、`core.isTauri` 和 `event.listen`；不启用 globalTauri、不暴露通用 shell。限制：Rust command/event 仍需逐项迁移和实机验证。 |
+| D13 | 跨平台本地时间格式化 | [chrono](https://github.com/chronotope/chrono) | 锁定 `chrono 0.4.45`（crates.io，MIT OR Apache-2.0，维护项目为 chronotope/chrono）；仅启用 `clock`，用于本地日志/配置更新时间格式化。Windows 与未来 Linux 共用同一实现，不增加平台 API。 |
 
 存储暂不采用数据库；store 插件仅在能简化且不破坏旧数据/原子写入要求时选用。fs、http、dialog 等插件无实际调用需求不安装。UUID、版本比较等新增需求优先检查已有依赖和标准能力，再决定成熟 crate，不手写通用算法。
 
@@ -175,6 +176,21 @@ Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内�
 - **启动失败清理**：核心已创建但代理状态读取/持久化或输出通道获取失败时，先显式停止未登记进程，再恢复代理状态并返回错误；不依赖 `kill_on_drop` 作为唯一清理手段。
 - **自动启动竞态**：smart 网络探测结束后重新取得操作锁、读取最新快照并检查当前核心；若用户/托盘已经启动核心则跳过自动启动，避免探测期间产生第二个 sing-box。
 - **边界**：不新增依赖、线程或第二套生命周期入口；真实 Windows x64 sing-box 的快速重启、单 PID、代理和 traffic 恢复仍需人工复测。
+
+### 2026-09-19 配置下载 UA 与远程错误日志修复 — MIG-038（accepted）
+
+- **问题**：迁移后的共享 HTTP 客户端仍使用 `WinBox/2.8`，远端配置下发服务按旧客户端契约要求 `sing-box`；配置添加/更新失败、程序更新失败和部分更新元数据早退也没有统一进入 app log。
+- **选定方案**：在唯一共享 `reqwest` 客户端固定 `User-Agent: sing-box`，让配置、核心/程序资产和 release 元数据请求共同继承；远程操作失败通过 `RuntimeState` 统一写入 app log，非 2xx 错误保留状态码，配置校验错误只记录脱敏原因。
+- **未选方案**：不为配置、内核、程序分别创建 HTTP 客户端，不新增重试库或日志框架；不记录请求 URL、响应正文、订阅 Token 或配置内容。
+- **影响/证据**：不改变前端 command 名称、视觉/交互、更新资产或 Windows x64 范围；自动证据见 `MIG-038-CONFIG-HTTP-FIX-2026-09-19`，真实配置下发服务与 Windows WebView 复测仍待用户执行。
+
+### 2026-09-19 时间与日志生命周期修复 — MIG-039（accepted）
+
+- **问题**：迁移后的应用日志和 `Profile.updated` 使用 Unix 秒数；Tauri 启动没有清空上一次的 `app.log`/`core/box.log`，也遗漏了旧版启动/退出日志和应用日志轮转。
+- **选定方案**：新增直接依赖 `chrono 0.4.45`（crates.io，MIT/Apache-2.0，已存在于锁文件，`clock` feature），由 Rust 共用一个本地时间格式化函数；日志使用 `YYYY-MM-DD HH:mm:ss`，配置更新时间使用 `YYYY-MM-DD HH:mm`。用跨平台库而不是 Windows API，避免 Linux 阶段重复实现日期/时区逻辑。
+- **日志行为**：Tauri setup 在异步自动连接前清空两个当前日志文件并写入 `Application started`；正常退出写入 `Application shutdown`；应用日志达到 10 MiB 时按旧行为轮转并保留 5 个归档。前端兼容迁移期间已经落盘的 Unix 秒/毫秒值和旧日期字符串。
+- **未选方案**：不增加 Windows-only 时间 API、日志框架或新的前端日期库；不改变用户日志查看和手动清空入口。
+- **影响/证据**：跨平台格式化代码不改变本版 Windows AMD64/x64 范围；自动检查见 `MIG-039-LOG-TIME-2026-09-19`，Linux 仅登记为后续大版本的构建验证，不在本版构建或验收。
 
 ## 风险台账
 

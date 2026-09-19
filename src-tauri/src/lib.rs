@@ -93,6 +93,7 @@ pub fn run() {
             let executable = std::env::current_exe()?;
             let paths = AppPaths::portable(executable)?;
             let runtime = RuntimeState::new(paths.clone());
+            tauri::async_runtime::block_on(runtime.clear_session_logs())?;
             let storage = Storage::new(paths);
             app.manage(runtime.clone());
             app.manage(storage.clone());
@@ -222,6 +223,11 @@ pub fn run() {
                 }
             }
             let startup_app = app.handle().clone();
+            tauri::async_runtime::block_on(runtime.append_app_log(
+                &startup_app,
+                "INFO",
+                "Application started",
+            ))?;
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(Duration::from_millis(200)).await;
                 commands::startup_runtime(startup_app, runtime).await;
@@ -233,7 +239,8 @@ pub fn run() {
     app.run(|app, event| {
         if matches!(event, RunEvent::ExitRequested { .. }) {
             let runtime = app.state::<RuntimeState>().inner().clone();
-            tauri::async_runtime::block_on(commands::shutdown_runtime(&runtime));
+            let app_handle = (*app).clone();
+            tauri::async_runtime::block_on(commands::shutdown_runtime(&app_handle, &runtime));
         }
     });
 }

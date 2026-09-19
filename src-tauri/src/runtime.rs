@@ -1,6 +1,7 @@
 use crate::core::CoreProcess;
 use crate::paths::AppPaths;
 use crate::platform::windows::{read_system_proxy, restore_system_proxy, SystemProxySettings};
+use chrono::Local;
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde::Serialize;
@@ -8,9 +9,9 @@ use serde_json::Value;
 use std::collections::VecDeque;
 use std::fs;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
@@ -23,6 +24,8 @@ use tokio_tungstenite::tungstenite::{
 };
 
 const MAX_KERNEL_LOG_LINES: usize = 5_000;
+const MAX_APP_LOG_BYTES: u64 = 10 * 1024 * 1024;
+const MAX_APP_LOG_ARCHIVES: usize = 5;
 const TRAFFIC_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const TRAFFIC_RETRY_DELAY: Duration = Duration::from_secs(1);
 
@@ -158,10 +161,11 @@ impl RuntimeState {
         message: &str,
     ) -> io::Result<()> {
         let _guard = self.inner.app_log_lock.lock().await;
-        let entry = format!("[{}] [{level}] {message}\n", unix_timestamp());
         if let Some(parent) = self.inner.paths.app_log.parent() {
             fs::create_dir_all(parent)?;
         }
+        rotate_app_log(&self.inner.paths.app_log)?;
+        let entry = format!("[{}] [{level}] {message}\n", local_time_string(true));
         use std::io::Write;
         let mut file = fs::OpenOptions::new()
             .create(true)
@@ -178,6 +182,18 @@ impl RuntimeState {
             fs::create_dir_all(parent)?;
         }
         fs::write(&self.inner.paths.app_log, [])
+    }
+
+    pub async fn clear_session_logs(&self) -> io::Result<()> {
+        let _guard = self.inner.app_log_lock.lock().await;
+        for path in [&self.inner.paths.app_log, &self.inner.paths.kernel_log] {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, [])?;
+        }
+        self.inner.kernel_log.lock().await.clear();
+        Ok(())
     }
 
     pub async fn append_kernel_log(&self, line: String) {
@@ -452,20 +468,57 @@ fn traffic_payload(text: &str) -> Option<TrafficUpdate> {
     })
 }
 
-fn unix_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+fn rotate_app_log(path: &Path) -> io::Result<()> {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if metadata.len() < MAX_APP_LOG_BYTES {
+        return Ok(());
+    }
+
+    for index in (1..MAX_APP_LOG_ARCHIVES).rev() {
+        let source = app_log_archive_path(path, index);
+        let destination = app_log_archive_path(path, index + 1);
+        if destination.exists() {
+            fs::remove_file(&destination)?;
+        }
+        match fs::rename(source, destination) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+
+    let first_archive = app_log_archive_path(path, 1);
+    if first_archive.exists() {
+        fs::remove_file(&first_archive)?;
+    }
+    fs::rename(path, first_archive)
+}
+
+fn app_log_archive_path(path: &Path, index: usize) -> PathBuf {
+    let mut archive = path.as_os_str().to_os_string();
+    archive.push(format!(".{index}"));
+    archive.into()
+}
+
+pub(crate) fn local_time_string(with_seconds: bool) -> String {
+    if with_seconds {
+        Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+    } else {
+        Local::now().format("%Y-%m-%d %H:%M").to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        load_proxy_state, persist_proxy_state, traffic_payload, traffic_request, traffic_url,
-        PersistedProxyState,
+        app_log_archive_path, load_proxy_state, local_time_string, persist_proxy_state,
+        rotate_app_log, traffic_payload, traffic_request, traffic_url, AppPaths,
+        PersistedProxyState, RuntimeState, MAX_APP_LOG_BYTES,
     };
-    use crate::paths::AppPaths;
     use crate::platform::windows::SystemProxySettings;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -495,6 +548,81 @@ mod tests {
         assert_eq!(load_proxy_state(&paths), Some(state));
 
         fs::remove_dir_all(root).expect("test cleanup");
+    }
+
+    #[tokio::test]
+    async fn session_log_reset_clears_app_and_kernel_files() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("winbox-session-logs-{nonce}"));
+        let paths = AppPaths::from_data_dir(&root);
+        fs::create_dir_all(&paths.core_dir).expect("core directory");
+        fs::write(&paths.app_log, b"old app log").expect("app log");
+        fs::write(&paths.kernel_log, b"old kernel log").expect("kernel log");
+
+        RuntimeState::new(paths.clone())
+            .clear_session_logs()
+            .await
+            .expect("clear session logs");
+
+        assert_eq!(fs::read(&paths.app_log).expect("app log"), b"");
+        assert_eq!(fs::read(&paths.kernel_log).expect("kernel log"), b"");
+        fs::remove_dir_all(root).expect("test cleanup");
+    }
+
+    #[test]
+    fn app_log_rotation_keeps_five_archives() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("winbox-log-rotation-{nonce}"));
+        let paths = AppPaths::from_data_dir(&root);
+        fs::create_dir_all(&root).expect("data directory");
+        fs::write(&paths.app_log, vec![b'x'; MAX_APP_LOG_BYTES as usize]).expect("current app log");
+        for index in 1..=5 {
+            fs::write(
+                app_log_archive_path(&paths.app_log, index),
+                format!("archive-{index}"),
+            )
+            .expect("archive");
+        }
+
+        rotate_app_log(&paths.app_log).expect("rotate app log");
+
+        assert!(!paths.app_log.exists());
+        assert_eq!(
+            fs::read_to_string(app_log_archive_path(&paths.app_log, 1))
+                .expect("archive 1")
+                .len(),
+            MAX_APP_LOG_BYTES as usize
+        );
+        assert_eq!(
+            fs::read_to_string(app_log_archive_path(&paths.app_log, 2)).expect("archive 2"),
+            "archive-1"
+        );
+        assert_eq!(
+            fs::read_to_string(app_log_archive_path(&paths.app_log, 5)).expect("archive 5"),
+            "archive-4"
+        );
+        assert!(!app_log_archive_path(&paths.app_log, 6).exists());
+        fs::remove_dir_all(root).expect("test cleanup");
+    }
+
+    #[test]
+    fn local_time_uses_legacy_log_shape() {
+        let value = local_time_string(true);
+        assert_eq!(value.len(), 19);
+        for (index, byte) in value.bytes().enumerate() {
+            match index {
+                4 | 7 => assert_eq!(byte, b'-'),
+                10 => assert_eq!(byte, b' '),
+                13 | 16 => assert_eq!(byte, b':'),
+                _ => assert!(byte.is_ascii_digit()),
+            }
+        }
     }
 
     #[test]

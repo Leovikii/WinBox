@@ -34,6 +34,7 @@ use uuid::Uuid;
 const MAX_PROFILE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_UPDATE_BYTES: u64 = 512 * 1024 * 1024;
 const DEFAULT_DASHBOARD_URL: &str = "http://127.0.0.1:9090/ui";
+const HTTP_USER_AGENT: &str = "sing-box";
 
 #[derive(Debug, Serialize)]
 pub struct AppError {
@@ -108,6 +109,40 @@ async fn log_update_phase(
 ) {
     let message = message.into();
     let _ = runtime.append_app_log(app, level, &message).await;
+}
+
+fn safe_error_message(error: &AppError) -> &str {
+    if error.code == "config_invalid" {
+        "configuration rejected"
+    } else {
+        error.message.as_str()
+    }
+}
+
+async fn log_command_failure(
+    runtime: &RuntimeState,
+    app: &AppHandle,
+    operation: &str,
+    error: &AppError,
+) {
+    let message = format!(
+        "{operation} failed [{}]: {}",
+        error.code,
+        safe_error_message(error)
+    );
+    let _ = runtime.append_app_log(app, "ERROR", &message).await;
+}
+
+async fn log_failed_result<T>(
+    runtime: &RuntimeState,
+    app: &AppHandle,
+    operation: &str,
+    result: Result<T, AppError>,
+) -> Result<T, AppError> {
+    if let Err(error) = &result {
+        log_command_failure(runtime, app, operation, error).await;
+    }
+    result
 }
 
 impl From<StorageError> for AppError {
@@ -635,39 +670,46 @@ pub async fn add_profile(
     name: String,
     url: String,
     storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
-    validate_profile_fields(&name, &url)?;
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    if !storage.paths().core_dir.join("sing-box.exe").is_file() {
-        return Ok("Error: Kernel is not installed".to_owned());
+    let result = async {
+        validate_profile_fields(&name, &url)?;
+        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+        if !storage.paths().core_dir.join("sing-box.exe").is_file() {
+            let error = AppError::new("kernel_missing", "Kernel is not installed");
+            log_command_failure(runtime.inner(), &app, "Profile add", &error).await;
+            return Ok("Error: Kernel is not installed".to_owned());
+        }
+        let content = download_bytes(&url, MAX_PROFILE_BYTES, None).await?;
+        validate_profile_json(&content)?;
+        let id = Uuid::new_v4().to_string();
+        let path = storage
+            .paths()
+            .profile_file(&id)
+            .map_err(|_| AppError::invalid_input("Profile id is invalid"))?;
+        write_atomic(&path, &content).map_err(|_| AppError::operation_failed())?;
+        if let Err(error) = run_core_check(&storage.paths().core_dir, &path) {
+            let _ = fs::remove_file(&path);
+            return Err(error);
+        }
+        let mut next = snapshot;
+        next.profiles.push(Profile {
+            id: id.clone(),
+            name,
+            url,
+            path: format!("profiles/{id}.json"),
+            updated: current_time_string(),
+            ..Profile::default()
+        });
+        if next.state.active_id.is_empty() {
+            next.state.active_id = id;
+        }
+        storage.save(&next).map_err(map_storage_write_error)?;
+        let _ = app.emit("log", "Profile added");
+        Ok("Success".to_owned())
     }
-    let content = download_bytes(&url, MAX_PROFILE_BYTES, None).await?;
-    validate_profile_json(&content)?;
-    let id = Uuid::new_v4().to_string();
-    let path = storage
-        .paths()
-        .profile_file(&id)
-        .map_err(|_| AppError::invalid_input("Profile id is invalid"))?;
-    write_atomic(&path, &content).map_err(|_| AppError::operation_failed())?;
-    if let Err(error) = run_core_check(&storage.paths().core_dir, &path) {
-        let _ = fs::remove_file(&path);
-        return Err(error);
-    }
-    let mut next = snapshot;
-    next.profiles.push(Profile {
-        id: id.clone(),
-        name,
-        url,
-        path: format!("profiles/{id}.json"),
-        updated: current_time_string(),
-        ..Profile::default()
-    });
-    if next.state.active_id.is_empty() {
-        next.state.active_id = id;
-    }
-    storage.save(&next).map_err(map_storage_write_error)?;
-    let _ = app.emit("log", "Profile added");
-    Ok("Success".to_owned())
+    .await;
+    log_failed_result(runtime.inner(), &app, "Profile add", result).await
 }
 
 #[tauri::command]
@@ -767,43 +809,50 @@ pub async fn select_profile(
 pub async fn update_active_profile(
     app: AppHandle,
     storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    let Some(profile) = snapshot
-        .profiles
-        .iter()
-        .find(|profile| profile.id == snapshot.state.active_id)
-        .cloned()
-    else {
-        return Ok("Error: No active profile".to_owned());
-    };
-    validate_profile_fields(&profile.name, &profile.url)?;
-    let content = download_bytes(&profile.url, MAX_PROFILE_BYTES, None).await?;
-    validate_profile_json(&content)?;
-    let path = storage
-        .paths()
-        .profile_file(&profile.id)
-        .map_err(|_| AppError::invalid_input("Profile id is invalid"))?;
-    let temp = path.with_extension(format!("tmp-{}", Uuid::new_v4()));
-    write_atomic(&temp, &content).map_err(|_| AppError::operation_failed())?;
-    if let Err(error) = run_core_check(&storage.paths().core_dir, &temp) {
-        let _ = fs::remove_file(&temp);
-        return Err(error);
+    let result = async {
+        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+        let Some(profile) = snapshot
+            .profiles
+            .iter()
+            .find(|profile| profile.id == snapshot.state.active_id)
+            .cloned()
+        else {
+            let error = AppError::new("profile_missing", "No active profile");
+            log_command_failure(runtime.inner(), &app, "Profile update", &error).await;
+            return Ok("Error: No active profile".to_owned());
+        };
+        validate_profile_fields(&profile.name, &profile.url)?;
+        let content = download_bytes(&profile.url, MAX_PROFILE_BYTES, None).await?;
+        validate_profile_json(&content)?;
+        let path = storage
+            .paths()
+            .profile_file(&profile.id)
+            .map_err(|_| AppError::invalid_input("Profile id is invalid"))?;
+        let temp = path.with_extension(format!("tmp-{}", Uuid::new_v4()));
+        write_atomic(&temp, &content).map_err(|_| AppError::operation_failed())?;
+        if let Err(error) = run_core_check(&storage.paths().core_dir, &temp) {
+            let _ = fs::remove_file(&temp);
+            return Err(error);
+        }
+        fs::rename(&temp, &path).map_err(|_| AppError::operation_failed())?;
+        let mut next = snapshot;
+        let active_id = next.state.active_id.clone();
+        if let Some(profile) = next
+            .profiles
+            .iter_mut()
+            .find(|profile| profile.id == active_id)
+        {
+            profile.updated = current_time_string();
+            profile.path = format!("profiles/{}.json", profile.id);
+        }
+        storage.save(&next).map_err(map_storage_write_error)?;
+        let _ = app.emit("log", "Profile updated");
+        Ok("Success".to_owned())
     }
-    fs::rename(&temp, &path).map_err(|_| AppError::operation_failed())?;
-    let mut next = snapshot;
-    let active_id = next.state.active_id.clone();
-    if let Some(profile) = next
-        .profiles
-        .iter_mut()
-        .find(|profile| profile.id == active_id)
-    {
-        profile.updated = current_time_string();
-        profile.path = format!("profiles/{}.json", profile.id);
-    }
-    storage.save(&next).map_err(map_storage_write_error)?;
-    let _ = app.emit("log", "Profile updated");
-    Ok("Success".to_owned())
+    .await;
+    log_failed_result(runtime.inner(), &app, "Profile update", result).await
 }
 
 #[tauri::command]
@@ -1000,42 +1049,56 @@ pub async fn update_tray_menu(
 }
 
 #[tauri::command]
-pub async fn check_update(storage: State<'_, Storage>) -> Result<String, AppError> {
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    let release = latest_release(
-        "https://api.github.com/repos/SagerNet/sing-box",
-        snapshot.settings.pre_release,
-    )
-    .await?;
-    if release.tag_name.is_empty() {
-        return Err(AppError::new(
-            "update_check_failed",
-            "No release version found",
-        ));
+pub async fn check_update(
+    app: AppHandle,
+    storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
+) -> Result<String, AppError> {
+    let result = async {
+        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+        let release = latest_release(
+            "https://api.github.com/repos/SagerNet/sing-box",
+            snapshot.settings.pre_release,
+        )
+        .await?;
+        if release.tag_name.is_empty() {
+            return Err(AppError::new(
+                "update_check_failed",
+                "No release version found",
+            ));
+        }
+        Ok(release.tag_name)
     }
-    Ok(release.tag_name)
+    .await;
+    log_failed_result(runtime.inner(), &app, "Kernel update check", result).await
 }
 
 #[tauri::command]
 pub async fn check_program_update(
+    app: AppHandle,
     storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
 ) -> Result<ProgramUpdateDto, AppError> {
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    let release = latest_release(
-        "https://api.github.com/repos/Leovikii/WinBox",
-        snapshot.settings.pre_release,
-    )
-    .await?;
-    if release.tag_name.is_empty() {
-        return Err(AppError::new(
-            "update_check_failed",
-            "No release version found",
-        ));
+    let result = async {
+        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+        let release = latest_release(
+            "https://api.github.com/repos/Leovikii/WinBox",
+            snapshot.settings.pre_release,
+        )
+        .await?;
+        if release.tag_name.is_empty() {
+            return Err(AppError::new(
+                "update_check_failed",
+                "No release version found",
+            ));
+        }
+        Ok(ProgramUpdateDto {
+            version: release.tag_name,
+            changelog: release.body,
+        })
     }
-    Ok(ProgramUpdateDto {
-        version: release.tag_name,
-        changelog: release.body,
-    })
+    .await;
+    log_failed_result(runtime.inner(), &app, "Program update check", result).await
 }
 
 #[tauri::command]
@@ -1046,40 +1109,82 @@ pub async fn update_kernel(
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
     let _operation = runtime.operation().await;
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    let release = latest_release(
-        "https://api.github.com/repos/SagerNet/sing-box",
-        snapshot.settings.pre_release,
+    let snapshot = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update",
+        storage.load().map_err(|_| AppError::storage_load()),
+    )
+    .await?;
+    let release = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update metadata",
+        latest_release(
+            "https://api.github.com/repos/SagerNet/sing-box",
+            snapshot.settings.pre_release,
+        )
+        .await,
     )
     .await?;
     let version = release.tag_name.trim_start_matches('v');
-    let architecture = TargetArchitecture::current().map_err(|error| {
-        update_phase_error("update_metadata_failed", "selecting the x64 asset", error)
-    })?;
-    let expected = expected_sing_box_asset_name(version, architecture).map_err(|error| {
-        update_phase_error(
-            "update_metadata_failed",
-            "selecting the release asset",
-            error,
-        )
-    })?;
-    let asset = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == expected)
-        .ok_or_else(|| {
-            AppError::detailed(
-                "update_asset_missing",
-                format!("Kernel update asset {expected} was not found"),
+    let architecture = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update metadata",
+        TargetArchitecture::current().map_err(|error| {
+            update_phase_error("update_metadata_failed", "selecting the x64 asset", error)
+        }),
+    )
+    .await?;
+    let expected = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update metadata",
+        expected_sing_box_asset_name(version, architecture).map_err(|error| {
+            update_phase_error(
+                "update_metadata_failed",
+                "selecting the release asset",
+                error,
             )
-        })?;
-    let digest = asset.digest.clone().ok_or_else(|| {
-        AppError::detailed(
-            "update_digest_missing",
-            format!("Kernel update asset {} has no SHA-256 digest", asset.name),
-        )
-    })?;
-    let download_url = mirrored_url(&mirror, &asset.browser_download_url)?;
+        }),
+    )
+    .await?;
+    let asset = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update metadata",
+        release
+            .assets
+            .iter()
+            .find(|asset| asset.name == expected)
+            .ok_or_else(|| {
+                AppError::detailed(
+                    "update_asset_missing",
+                    format!("Kernel update asset {expected} was not found"),
+                )
+            }),
+    )
+    .await?;
+    let digest = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update metadata",
+        asset.digest.clone().ok_or_else(|| {
+            AppError::detailed(
+                "update_digest_missing",
+                format!("Kernel update asset {} has no SHA-256 digest", asset.name),
+            )
+        }),
+    )
+    .await?;
+    let download_url = log_failed_result(
+        runtime.inner(),
+        &app,
+        "Kernel update metadata",
+        mirrored_url(&mirror, &asset.browser_download_url),
+    )
+    .await?;
     let archive = storage
         .paths()
         .core_dir
@@ -1089,13 +1194,19 @@ pub async fn update_kernel(
         .core_dir
         .join(format!(".update-{}", Uuid::new_v4()));
     if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
-            update_phase_error(
-                "update_prepare_failed",
-                "preparing the kernel directory",
-                io_error_detail(&error),
-            )
-        })?;
+        log_failed_result(
+            runtime.inner(),
+            &app,
+            "Kernel update preparation",
+            fs::create_dir_all(parent).map_err(|error| {
+                update_phase_error(
+                    "update_prepare_failed",
+                    "preparing the kernel directory",
+                    io_error_detail(&error),
+                )
+            }),
+        )
+        .await?;
     }
     log_update_phase(
         &runtime,
@@ -1139,7 +1250,10 @@ pub async fn update_kernel(
                 &runtime,
                 &app,
                 "ERROR",
-                format!("Kernel update staged check failed: {}", error.message),
+                format!(
+                    "Kernel update staged check failed: {}",
+                    safe_error_message(&error)
+                ),
             )
             .await;
             return Err(error);
@@ -1179,7 +1293,10 @@ pub async fn update_kernel(
                         &runtime,
                         &app,
                         "ERROR",
-                        format!("New sing-box core failed to start: {}", start_error.message),
+                        format!(
+                            "New sing-box core failed to start: {}",
+                            safe_error_message(&start_error)
+                        ),
                     )
                     .await;
                     let restored = match restore_installed_file(backup, &target) {
@@ -1245,89 +1362,94 @@ pub async fn update_program(
     app: AppHandle,
     mirror: String,
     storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    let release = latest_release(
-        "https://api.github.com/repos/Leovikii/WinBox",
-        snapshot.settings.pre_release,
-    )
-    .await?;
-    let version = release.tag_name.trim_start_matches('v');
-    let architecture = TargetArchitecture::current().map_err(|_| AppError::update_failed())?;
-    let expected = expected_portable_asset_name(version, architecture)
-        .map_err(|_| AppError::update_failed())?;
-    let asset = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == expected)
-        .ok_or_else(AppError::update_failed)?;
-    let digest = asset.digest.clone().ok_or_else(AppError::update_failed)?;
-    let executable = std::env::current_exe().map_err(|_| AppError::operation_failed())?;
-    let parent = executable.parent().ok_or_else(AppError::operation_failed)?;
-    let update_dir = parent.join("data").join("updates");
-    fs::create_dir_all(&update_dir).map_err(|_| AppError::operation_failed())?;
-    let staging = update_dir.join(format!("stage-{}", Uuid::new_v4()));
-    let archive = staging.with_extension("zip");
-    let download_url = mirrored_url(&mirror, &asset.browser_download_url)?;
-    if let Err(error) = download_file(&app, &download_url, &archive).await {
-        cleanup_program_update_files(&archive, &staging);
-        return Err(error);
-    }
-    let staged = match stage_portable_archive(
-        &archive,
-        &asset.name,
-        &digest,
-        &staging,
-        version,
-        architecture,
-    )
-    .map_err(|_| AppError::update_failed())
-    {
-        Ok(staged) => staged,
-        Err(error) => {
+    let result = async {
+        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+        let release = latest_release(
+            "https://api.github.com/repos/Leovikii/WinBox",
+            snapshot.settings.pre_release,
+        )
+        .await?;
+        let version = release.tag_name.trim_start_matches('v');
+        let architecture = TargetArchitecture::current().map_err(|_| AppError::update_failed())?;
+        let expected = expected_portable_asset_name(version, architecture)
+            .map_err(|_| AppError::update_failed())?;
+        let asset = release
+            .assets
+            .iter()
+            .find(|asset| asset.name == expected)
+            .ok_or_else(AppError::update_failed)?;
+        let digest = asset.digest.clone().ok_or_else(AppError::update_failed)?;
+        let executable = std::env::current_exe().map_err(|_| AppError::operation_failed())?;
+        let parent = executable.parent().ok_or_else(AppError::operation_failed)?;
+        let update_dir = parent.join("data").join("updates");
+        fs::create_dir_all(&update_dir).map_err(|_| AppError::operation_failed())?;
+        let staging = update_dir.join(format!("stage-{}", Uuid::new_v4()));
+        let archive = staging.with_extension("zip");
+        let download_url = mirrored_url(&mirror, &asset.browser_download_url)?;
+        if let Err(error) = download_file(&app, &download_url, &archive).await {
             cleanup_program_update_files(&archive, &staging);
             return Err(error);
         }
-    };
-    let target_name = match executable.file_name() {
-        Some(name) => name,
-        None => {
+        let staged = match stage_portable_archive(
+            &archive,
+            &asset.name,
+            &digest,
+            &staging,
+            version,
+            architecture,
+        )
+        .map_err(|_| AppError::update_failed())
+        {
+            Ok(staged) => staged,
+            Err(error) => {
+                cleanup_program_update_files(&archive, &staging);
+                return Err(error);
+            }
+        };
+        let target_name = match executable.file_name() {
+            Some(name) => name,
+            None => {
+                cleanup_program_update_files(&archive, &staging);
+                return Err(AppError::operation_failed());
+            }
+        };
+        if target_name != "WinBox.exe" {
+            cleanup_program_update_files(&archive, &staging);
+            return Err(AppError::invalid_input(
+                "Portable program updates require WinBox.exe",
+            ));
+        }
+        let helper = match update_helper_path(&app, parent) {
+            Some(helper) => helper,
+            None => {
+                cleanup_program_update_files(&archive, &staging);
+                return Err(AppError::new(
+                    "update_helper_missing",
+                    "The program update helper is not installed",
+                ));
+            }
+        };
+        let _ = app.emit("log", "Update ready. Restarting...");
+        if Command::new(helper)
+            .args([
+                "--apply-update",
+                staged.to_string_lossy().as_ref(),
+                executable.to_string_lossy().as_ref(),
+            ])
+            .current_dir(parent)
+            .spawn()
+            .is_err()
+        {
             cleanup_program_update_files(&archive, &staging);
             return Err(AppError::operation_failed());
         }
-    };
-    if target_name != "WinBox.exe" {
-        cleanup_program_update_files(&archive, &staging);
-        return Err(AppError::invalid_input(
-            "Portable program updates require WinBox.exe",
-        ));
+        app.exit(0);
+        Ok("Success".to_owned())
     }
-    let helper = match update_helper_path(&app, parent) {
-        Some(helper) => helper,
-        None => {
-            cleanup_program_update_files(&archive, &staging);
-            return Err(AppError::new(
-                "update_helper_missing",
-                "The program update helper is not installed",
-            ));
-        }
-    };
-    let _ = app.emit("log", "Update ready. Restarting...");
-    if Command::new(helper)
-        .args([
-            "--apply-update",
-            staged.to_string_lossy().as_ref(),
-            executable.to_string_lossy().as_ref(),
-        ])
-        .current_dir(parent)
-        .spawn()
-        .is_err()
-    {
-        cleanup_program_update_files(&archive, &staging);
-        return Err(AppError::operation_failed());
-    }
-    app.exit(0);
-    Ok("Success".to_owned())
+    .await;
+    log_failed_result(runtime.inner(), &app, "Program update", result).await
 }
 
 fn cleanup_program_update_files(archive: &Path, staging: &Path) {
@@ -1472,9 +1594,12 @@ async fn stop_core_impl(runtime: &RuntimeState) -> String {
     result
 }
 
-pub async fn shutdown_runtime(runtime: &RuntimeState) {
+pub async fn shutdown_runtime(app: &AppHandle, runtime: &RuntimeState) {
     let _operation = runtime.operation().await;
     let _ = stop_core_impl(runtime).await;
+    let _ = runtime
+        .append_app_log(app, "INFO", "Application shutdown")
+        .await;
 }
 
 pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
@@ -1817,9 +1942,12 @@ async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, Ap
         .await
         .map_err(|_| AppError::new("network_error", "Network request failed"))?;
     if !response.status().is_success() {
-        return Err(AppError::new(
+        return Err(AppError::detailed(
             "network_error",
-            "The release service returned an error",
+            format!(
+                "The release service returned HTTP {}",
+                response.status().as_u16()
+            ),
         ));
     }
     if pre_release {
@@ -1842,7 +1970,7 @@ async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, Ap
 fn http_client() -> Result<Client, AppError> {
     Client::builder()
         .timeout(Duration::from_secs(30))
-        .user_agent("WinBox/2.8")
+        .user_agent(HTTP_USER_AGENT)
         .build()
         .map_err(|_| AppError::operation_failed())
 }
@@ -1859,7 +1987,10 @@ async fn download_bytes(
         .await
         .map_err(|_| AppError::new("network_error", "Download failed"))?;
     if !response.status().is_success() {
-        return Err(AppError::new("network_error", "Download failed"));
+        return Err(AppError::detailed(
+            "network_error",
+            format!("Download failed (HTTP {})", response.status().as_u16()),
+        ));
     }
     let mut body = Vec::new();
     let mut stream = response.bytes_stream();
@@ -1887,7 +2018,10 @@ async fn download_file(app: &AppHandle, url: &str, target: &Path) -> Result<(), 
         .await
         .map_err(|_| AppError::new("network_error", "Download failed"))?;
     if !response.status().is_success() {
-        return Err(AppError::new("network_error", "Download failed"));
+        return Err(AppError::detailed(
+            "network_error",
+            format!("Download failed (HTTP {})", response.status().as_u16()),
+        ));
     }
     if response
         .content_length()
@@ -2022,11 +2156,7 @@ fn is_hex_color(value: &str) -> bool {
 }
 
 fn current_time_string() -> String {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .to_string()
+    crate::runtime::local_time_string(false)
 }
 
 fn limit_log_lines(content: &str, max_lines: usize) -> String {
@@ -2046,8 +2176,9 @@ fn limit_log_lines(content: &str, max_lines: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_api_secret, extract_api_url, install_staged_file, is_hex_color, limit_log_lines,
-        mirrored_url, restore_installed_file, window_theme, Effect, Theme,
+        current_time_string, extract_api_secret, extract_api_url, http_client, install_staged_file,
+        is_hex_color, limit_log_lines, mirrored_url, restore_installed_file, window_theme, Effect,
+        Theme, HTTP_USER_AGENT,
     };
     use serde_json::json;
     use std::fs;
@@ -2097,6 +2228,61 @@ mod tests {
             mirrored_url("https://mirror.example/", "https://example.com/a").expect("mirror"),
             "https://mirror.example/https://example.com/a"
         );
+    }
+
+    #[test]
+    fn profile_time_uses_legacy_shape() {
+        let value = current_time_string();
+        assert_eq!(value.len(), 16);
+        for (index, byte) in value.bytes().enumerate() {
+            match index {
+                4 | 7 => assert_eq!(byte, b'-'),
+                10 => assert_eq!(byte, b' '),
+                13 => assert_eq!(byte, b':'),
+                _ => assert!(byte.is_ascii_digit()),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_requests_use_the_sing_box_user_agent() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let address = listener.local_addr().expect("listener address");
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("connection");
+            let mut request = Vec::new();
+            let mut chunk = [0_u8; 1024];
+            loop {
+                let read = socket.read(&mut chunk).await.expect("request");
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&chunk[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let request = String::from_utf8_lossy(&request);
+            assert!(request.lines().any(|line| {
+                line.eq_ignore_ascii_case(&format!("user-agent: {HTTP_USER_AGENT}"))
+            }));
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .expect("response");
+        });
+
+        let response = http_client()
+            .expect("HTTP client")
+            .get(format!("http://{address}"))
+            .send()
+            .await
+            .expect("HTTP response");
+        assert!(response.status().is_success());
+        server.await.expect("server task");
     }
 
     #[test]

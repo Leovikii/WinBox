@@ -89,7 +89,7 @@
 
 新快照允许统一 camelCase、将无活动配置改为 null，并显式表示内核运行阶段；必须同时更新前端所有读取、默认模式规则及测试。不把配置选择模式错误地映射为实际运行。
 
-`Profile` 旧字段为 `id,name,url,path,updated`（均 string）。`updated` 格式需 fixture 验证，不能只凭界面显示推断。`UWPApp` 为 `sid,displayName,packageName`（string）及 `isExempt`（boolean）。
+`Profile` 旧字段为 `id,name,url,path,updated`（均 string）。`updated` 写入格式为本地 `YYYY-MM-DD HH:mm`；前端兼容迁移期间已经写入的 Unix 秒/毫秒值和旧日期字符串。`UWPApp` 为 `sid,displayName,packageName`（string）及 `isExempt`（boolean）。
 
 ### 文件契约（相对数据根目录）
 
@@ -104,8 +104,8 @@
 | profiles/<id>.json | 下载并保存的订阅配置 |
 | core/sing-box.exe | Windows 内核 |
 | core/config.json | 生成的运行配置，不能冒充源订阅 |
-| core/box.log | 内核文件日志 |
-| app.log | 应用日志；归档规则 P0 补充 fixture |
+| core/box.log | 内核文件日志；每次应用启动清空当前文件 |
+| app.log | 应用日志；每次应用启动清空当前文件，超过 10 MiB 时轮转并保留 5 个归档 |
 
 ### Windows 平台原型契约（MIG-003）
 
@@ -157,13 +157,15 @@
 - 无效 JSON 返回 `code=invalid_override_json`；写入 I/O 失败返回 `code=storage_write_failed`；两者消息均不包含路径或原始内容。
 - `frontend/src/api/backend.ts` 暴露 `getOverride`/`getDefaultOverride`/`saveOverride`/`resetOverride`；Tauri 使用 `invoke` 对象参数 `{ name }`（保存还包含 `{ content }`），非 Tauri 才调用旧 Wails 并把旧字符串错误转换为异常。编辑器读写 command 已迁移，但真实 Tauri WebView 和完整 UI 验收仍未完成。
 
-### 当前实现契约（2026-09-18）
+### 当前实现契约（2026-09-19）
 
 - `frontend/src/api/backend.ts` 现在是纯 Tauri 边界：业务调用统一使用 `invoke` 和 `listen`；窗口最小化、隐藏、显示、聚焦及主题通过受控 Rust command 进入，拖动仅使用 Tauri `start-dragging` capability。Wails 生成目录、Go backend 和兼容回退已删除。事件订阅返回独立卸载函数，按事件名维护，不会用一次卸载误删其他事件。
 - 初始化顺序契约：`App` 与 `useAppState` 先注册各自事件，再等待 `EventsOn` 的 Tauri listener 注册完成，之后才读取 `get_init_data`；这样启动期间到达的状态/流量事件不会被初始化快照覆盖。卸载时逐个调用保存的卸载函数，重复挂载不会留下监听。
 - 已注册 command 覆盖初始化/版本、设置/模式、override、profile/订阅、启停/重启、日志、UWP、窗口/外部 URL、托盘、内核更新和程序更新。Rust 输入在 URL、路径、profile ID、override JSON、架构/资产名、UWP SID 等边界拒绝非法值；错误通过脱敏 `AppError { code, message }` 或既有 UI 结果字符串映射。
 - 运行状态唯一来源是 Rust `RuntimeState` + `Storage`：操作锁串行化启停/模式/更新，`CoreProcess` 只接受 EXE 同级 `data/core/sing-box.exe`；监视器在清理旧进程前取得同一操作锁并按 `Arc` 身份确认，避免旧监视器停止新核心的流量任务；启动失败会回收尚未登记的核心进程，自动连接探测结束后会重新检查当前核心再启动。流量 WebSocket 将 wildcard controller 映射到 loopback、按配置发送 Clash API Bearer secret、带连接超时/受控重连和可取消停止。
 - 更新契约：sing-box 下载先校验 GitHub digest、ZIP 安全边界和暂存核心 `sing-box check`；Windows 替换使用 `ReplaceFileW` 旧文件备份、锁冲突短重试和阶段化 app log，启动新核心失败时恢复旧文件并尝试恢复旧进程。程序 portable 更新使用同级 `WinBox-updater.exe`；安装 bundle 的 `winbox-updater.exe` 也由后端识别，helper 在替换后清理 stage，启动失败恢复旧 EXE。
+- 远程 HTTP 契约：配置、sing-box 核心、程序资产和 release 元数据请求统一使用 `User-Agent: sing-box`，以兼容远端配置下发服务的 UA 检查；非 2xx 下载/元数据错误保留 HTTP 状态码。配置添加/更新及更新流程的失败写入 `RuntimeState` app log，但日志不得包含 URL、响应正文、订阅凭据或配置内容；配置校验失败只记录脱敏原因。
+- 时间/日志契约：应用日志使用本地 `YYYY-MM-DD HH:mm:ss`，配置 `Profile.updated` 使用本地 `YYYY-MM-DD HH:mm`；启动阶段在异步自动连接前清空 `app.log` 与 `core/box.log`，写入 `Application started`，正常退出写入 `Application shutdown`。`onAppLog` 先完成监听注册再读取文件，避免启动事件与快照读取竞态；应用日志超过 10 MiB 时轮转并保留 5 个归档。
 - Windows 桌面契约：Tauri 窗口保持 400×720、启动居中、无边框、透明/Mica；单实例聚焦现有窗口；托盘保留 Show、Mixed/Tun/Proxy/Stop、Restart Core、Quit，动态图标和模式勾选由 Rust 状态刷新；关闭请求仍由 `ask`/`tray`/`quit` 决定。`light`/`dark`/`system` 分别映射 WebView `Theme` 与 `MicaLight`/`MicaDark`/`Mica`；标题栏左侧空白区可拖动，设置、最小化和关闭按钮不属于拖动区。`Restart Core` 与界面启停共用 RuntimeState 操作锁，停止和启动只走现有生命周期链。
 - 发行契约：Tauri package 保留 `WinBox.exe` 主入口和 `winbox-updater.exe` 第二 binary；Tauri bundle 自动收集两个 Cargo binary，不再重复声明 resource。CI 直接 bundle 后，portable ZIP 另放 `WinBox.exe` 与 `WinBox-updater.exe`。签名密钥不入库，未生成签名发行物前不得宣称 updater/发布验收通过。
 
