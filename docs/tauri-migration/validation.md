@@ -15,15 +15,15 @@
 
 | ID | 场景与操作 | 通过标准 | 检查方式 | 当前结果 |
 | --- | --- | --- | --- | --- |
-| V01 | 基线与目标构建 | 目标前端/Rust/helper 构建检查通过，Tauri bundle 另证 | 工具输出与产物 hash | Rust fmt/clippy/test（20/20）、两 binary release build、前端 tsc/Vite 通过；精确 `x86_64-pc-windows-msvc` 测试由 `MIG-023-X64-TEST-2026-09-18` 记录，最新前端安全审计和 x64 NSIS/MSI/portable/MSI 提取由 `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18` 记录 |
-| V02 | 视觉：浅/深/系统主题、强调色、400×720 及调整尺寸、100/125/150/200% DPI | 布局/颜色/图标/字体/动画/滚动/Mica 无回归；无裁剪、闪白或按钮拖动误触 | 截图、录屏/实机；固定环境 | 代码已接入透明窗口、Mica、Tauri drag region 和原托盘资源；截图/多 DPI 实机仍未执行 |
-| V03 | 窗口：最小化、托盘隐藏/显示、关闭 ask/tray/quit、二次启动、隐藏启动、重启 | 操作路径保持；单实例正确聚焦；关闭/重启走清理，托盘模式继续运行 | Windows 实机 | 单实例、托盘菜单/左键显示、关闭事件、启动参数和退出清理已实现；真实窗口/UAC/托盘行为仍未执行 |
+| V01 | 基线与目标构建 | 目标前端/Rust/helper 构建检查通过，Tauri bundle 另证 | 工具输出与产物 hash | 最新窗口修复由 `MIG-032-WINDOW-FIX-2026-09-19` 记录：Rust fmt/clippy/test（24/24）、x64 单 EXE、前端 tsc/Vite 和配置 JSON 解析通过；历史 x64 bundle 证据仍见 `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18` |
+| V02 | 视觉：浅/深/系统主题、强调色、400×720 及调整尺寸、100/125/150/200% DPI | 布局/颜色/图标/字体/动画/滚动/Mica 无回归；无裁剪、闪白或按钮拖动误触 | 截图、录屏/实机；固定环境 | 已修复应用主题到 WebView/Mica 的映射、启动居中和左侧拖动区；托盘资源/视觉结构未改；截图、多 DPI 和 Mica 实机仍未执行 |
+| V03 | 窗口：最小化、托盘隐藏/显示、关闭 ask/tray/quit、二次启动、隐藏启动、核心重启 | 操作路径保持；单实例正确聚焦；关闭走清理，核心重启不残留内核，托盘模式继续运行 | Windows 实机 | 已移除不可靠的应用级重启入口；核心重启保留并由 MIG-036 审计锁内状态检查和前端防重入；真实窗口/UAC/托盘/主题/核心进程行为仍未执行 |
 | V04 | API/事件：参数序列化、错误、初始化快照、反复挂载卸载、注册未完成即卸载 | DTO 对齐；无漏订阅/重复监听/误删其他监听；失败解除忙碌态；事件与快照不会让状态倒退 | 契约检查与交互复现 | 全量 Rust command、camelCase DTO、脱敏错误、Tauri invoke/listen 独立卸载、初始化前等待 listener 注册、全局 composable 引用计数与定时器清理已编译；真实 WebView 反复挂载和错误交互仍未执行 |
 | V05 | 数据：正常/旧字段/缺字段/损坏文件、只读/占用、导入中断再试、重复导入、中文空格路径、多源目录 | 原数据可恢复，默认值明确，重复导入安全，不静默覆盖，写入失败可见；退出 flush | 脱敏 fixture、故障注入与 Windows 文件检查 | Rust storage 的默认值、未知字段保留、原子写入、覆盖配置校验和更新 stage 回滚有 19 个单元检查；只读/占用和跨文件崩溃恢复仍未执行 |
 | V06 | 订阅增删改/选择/更新、TUN/mixed 覆盖、IPv6/日志、无效 JSON/下载失败 | 用户交互不变；仅覆盖指定字段；无关字段保留；无效候选不破坏有效配置；内核 check 成功 | fixture、sing-box check、交互 | profile/override/配置生成、HTTP 限制、`sing-box check` 和日志设置已实现；真实订阅与内核 fixture 仍未执行 |
-| V07 | Proxy/TUN/Mixed 启停、停止后选择、运行中配置切换、快速连续点击与托盘同时操作 | 唯一内核、状态一致、无死锁；未就绪不伪报运行；失败解锁，模式与运行区分 | 生命周期检查 + 实机 | RuntimeState 操作锁、CoreProcess、监视器、三模式 apply/restart 和托盘复用路径已实现；真实 sing-box 与快速点击仍未执行 |
+| V07 | Proxy/TUN/Mixed 启停、停止后选择、运行中配置切换、核心重启、快速连续点击与托盘同时操作 | 唯一内核、状态一致、无死锁；未就绪不伪报运行；失败解锁，模式与运行区分 | 生命周期检查 + 实机 | RuntimeState 操作锁、CoreProcess、监视器锁内身份清理、三模式 apply/restart、自动启动最终核心复核、前端防重入和托盘复用路径已实现；真实 sing-box 与快速点击仍未执行 |
 | V08 | 应用/内核日志、清空、滚动跟随、文件日志开关、大量日志；流量停止/隐藏/恢复 | 日志有界、无阻塞、行为保持；速率单位正确，停止归零，恢复无重复流 | 压力样本与实机 | 有界 kernel log、app log 文件、WebSocket loopback/secret/超时/取消/重连和停止归零已实现；压力与窗口隐藏实机仍未执行 |
-| V09 | 正常退出、内核崩溃、应用强制结束、启动超时、退出超时、其他 sing-box/代理软件并存 | 本应用资源可回收/恢复；无误杀，无覆盖别人代理；重启恢复到可用状态 | 保存原状态后的故障注入 | 句柄级路径核对、超时强杀、代理启动前/接管后快照及条件恢复已实现；真实崩溃/超时/并存进程仍未执行 |
+| V09 | 正常退出、内核崩溃、应用强制结束、启动超时、退出超时、其他 sing-box/代理软件并存 | 本应用资源可回收/恢复；无误杀，无覆盖别人代理；重启恢复到可用状态 | 保存原状态后的故障注入 | 句柄级路径核对、超时强杀、启动失败未登记进程回收、代理启动前/接管后快照及条件恢复已实现；真实崩溃/超时/并存进程仍未执行 |
 | V10 | 自动连接 off/smart/其他实际值、无网络、网络延迟、已有代理环境、取消/退出 | 与已确认基线行为一致；不无限重试/挂起；Standby/超时提示正确；任务可取消 | 网络场景实机 | off/smart/always 分支、15 次网络检测、Standby/Net Timeout 和退出可取消路径已实现；网络场景仍未执行 |
 | V11 | 提权拒绝/允许、自启开关、注销登录、任务旧路径更新、带空格路径、电池状态 | 最高权限、延迟、最小化语义保持；失败不保存成功状态；无重复任务，关闭自启有效 | Windows 登录实测 | manifest、任务 XML、创建后查询/删除后查询和固定系统工具路径已实现；管理员/UAC/登录实测仍未执行 |
 | V12 | UWP 列表、选择增删、已有其他豁免、读取失败、部分操作失败、非法 SID | 差异更新准确；不把失败当空列表；保留非目标条目并报告部分失败 | 系统状态前后对比 | 注册表枚举、CheckNetIsolation 差异更新和 SID 校验已实现；真实系统状态前后对比仍未执行 |
@@ -451,3 +451,78 @@ OS、架构、权限、WebView2、工具链、sing-box、数据模式：
 - 范围：BUG-001 内核升级和 BUG-002 主界面网速图表。
 - 证据：用户确认使用本轮 `3.0.0-alpha.1` Windows AMD64/x64 单 EXE 测试通过，内核升级与网速图表两个问题均已解决。
 - 结果：BUG-001、BUG-002 状态更新为 `resolved`；MIG-010/MIG-012 保持 `review`，仅剩阶段级其他验收条件，不把两个问题的关闭扩大为整阶段完成。
+
+### MIG-032-WINDOW-FIX-2026-09-19 — 窗口、主题与拖动修复自动检查
+
+- 日期/分支/状态：2026-09-19；`dev`；基线提交 `cf6ad6c`，工作区包含本次未提交修改。
+- 环境：Windows x64；目标 `x86_64-pc-windows-msvc`；Rust `1.97.1`；Node `v26.1.0`；npm `11.13.0`；Vite `8.3.0`；仅验证 AMD64/x64，不构建 ARM64。
+- 修改：窗口控制从前端 window API 改为已有 Rust command；新增统一 `set_window_theme`；启动主题从保存设置应用；窗口增加 `center: true`；capability 仅增加 `core:window:allow-start-dragging`；扩大左侧拖动区并保持右侧按钮独立；托盘组件、模式动态图标和交互路径未改。
+- 自动检查：
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`：退出码 0。
+  - `cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`：退出码 0；24/24 库测试、0 doctest；新增 light/dark/system 与 Mica 映射检查通过。
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`：退出码 0。
+  - `npm --prefix frontend run build`：退出码 0；Vite 8.3.0 转换 74 个模块。
+  - `src-tauri/tauri.conf.json` 与 `src-tauri/capabilities/default.json` JSON 解析：通过；`git diff --check`：通过（仅 Git 的 LF/CRLF 提示）。
+  - x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline`：退出码 0。
+- 产物：`src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,588,736 bytes，SHA-256 `A696D3B99A6AFA9D87B5A94EF0263ECCDECC5516B5E03BC1EF1DC5BED4BFFE1C`；版本保持 `3.0.0-alpha.1`；未生成 updater、安装器、portable ZIP 或 ARM64 成品。
+- 桌面检查：Computer Use `getState` 仅返回 Codex in-app browser（`apps=[]`），没有可绑定的原生 Tauri 窗口；未执行窗口拖动、初始位置、最小化、托盘、Mica、单实例、UAC 或 DPI 实机动作，未改变系统状态。
+- 结果：自动检查 `pass`；BUG-003 为 `fixed-awaiting-retest`，MIG-006 保持 `review`，等待 Windows AMD64/x64 测试 EXE 人工验收。
+
+### MIG-033-ISSUE-DIAG-2026-09-19 — 托盘应用重启竞态定位
+
+- 范围：`BUG-004`、`MIG-009`、V03/V09；本轮只读诊断，不修改代码。
+- 证据：当前托盘 `restart-app` 回调同步运行在 Tauri 主线程并调用 `AppHandle::restart()`；本地锁定的 Tauri `2.11.5` 源码 `src/app.rs` 明确写明，主线程调用 `restart()` 会跳过 `RunEvent::ExitRequested`，直接执行 `cleanup_before_exit()` 后重启；`lib.rs` 的项目清理只注册在 `RunEvent::ExitRequested` 中并调用 `shutdown_runtime`。
+- 结论：连接状态下该路径不会执行 `stop_core_impl`，因此无法等待/结束 sing-box，也不会取消 traffic task 或恢复由本次运行接管的代理；这解释了重启后旧 sing-box PID 残留。现有 `CoreProcess::stop` 不是本次首要根因。
+- 候选修复：使用 `AppHandle::request_restart()` 并保留 `Result<(), AppError>` 的 `Ok(())` 返回，让 Tauri 事件循环先触发现有清理链；不新增依赖或第二套 shutdown 路径。
+- 结果/限制：没有执行修复构建或桌面进程测试；BUG-004 保持 `diagnosed-awaiting-fix`。修复后必须在 Windows AMD64/x64 连接状态下验证旧 PID 退出、重启后单核心、代理恢复和流量停止/恢复。
+
+### MIG-034-ISSUE-FIX-2026-09-19 — 托盘应用重启清理修复
+
+- 范围：`BUG-004`、`MIG-009`、V03/V09；修复托盘 `Restart APP` 绕过退出清理的问题。
+- 修改：`commands::restart` 使用 `AppHandle::request_restart()`，随后显式返回 `Ok(())`；保留现有 `RunEvent::ExitRequested` → `shutdown_runtime` → `stop_core_impl` 链路，不新增依赖、线程或第二套进程管理。
+- 自动检查：
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`：通过。
+  - `cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`：通过，24/24 库测试、0 doctest。
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`：通过。
+  - `npm --prefix frontend run build`：通过；Vite 转换 74 个模块。
+  - 重启入口静态检查：确认 `request_restart` 与 `Ok(())` 同时存在，未残留直接 `app.restart()` 调用。
+  - x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline` 通过；版本 `3.0.0-alpha.1`，SHA-256 `1BCD3E1BD88C3EA84B48D1E503D7E0EA75DAFAD4DAA7FD34CCE7C9E1DF2C59BB`。
+- 限制：未生成安装器、portable ZIP 或 ARM64 产物；当前会话没有可绑定的原生 Tauri 窗口，真实托盘重启、sing-box PID、代理和流量恢复仍需 Windows AMD64/x64 人工复测。BUG-004 为 `fixed-awaiting-retest`。
+
+### MIG-035-ISSUE-DIAG-2026-09-19 — 托盘应用重启未重新拉起
+
+- 范围：`BUG-004`、`MIG-009`、V03/V09；本轮只做原因和成本评估，不修改业务代码。
+- 用户证据：当前 `request_restart()` 版本执行托盘 `Restart APP` 后，sing-box 先退出，WinBox 主程序没有自动重新出现。
+- 定位：`request_restart()` 已触发项目的 `RunEvent::ExitRequested` 和 `shutdown_runtime`，所以 sing-box 清理部分已生效。之后 Tauri 2.11.5 在 `RunEvent::Exit` 中调用内部 `process::restart()`，使用 `current_exe` 与原始启动参数执行 `Command::spawn()`；spawn 失败只写 Tauri 内部日志。当前源码无法把该错误写入 WinBox app.log，也无法确认新进程是否因 `-minimized` 隐藏或因启动后立即退出而被误判为未启动。
+- 排除/未证实：single-instance Windows 插件在 `RunEvent::Exit` 回调中释放 mutex，按本地源码顺序早于 Tauri 的 relaunch；因此单实例不是当前已确认根因，但仍需 x64 进程级测试排除。
+- 成本：删除菜单、command 注册/实现和未使用前端 API 属于低成本；保留则需要受控 Windows relaunch、错误可观测性、启动参数处理和单实例/退出时序的中等规模改动，并必须人工复测真实 PID、窗口、托盘和管理员权限行为。
+- 结论：`Restart Core` 已覆盖内核重启，程序更新已有 helper 负责更新后启动；当前没有前端调用者的 `Restart APP` 不是核心需求。按 ponytail 最小实现原则，已按用户决定删除该入口；核心重启并发审计转入 `MIG-036-CORE-RESTART-AUDIT-2026-09-19`。
+
+### MIG-036-CORE-RESTART-AUDIT-2026-09-19 — 内核重启并发审计与清理
+
+- 范围：`MIG-009`、BUG-004 后续处置、V03/V07/V09；删除应用级重启入口并复核核心重启的调用链和竞态边界。
+- 修改：移除托盘 `Restart APP`、`commands::restart` 注册/实现和未使用的前端 `Restart` API；保留托盘与主界面的 `Restart Core`。将 `restart_core_impl` 的 `runtime.core()` 检查移入 `RuntimeState.operation` 锁内，避免与停止、模式切换、profile 切换、更新或另一条重启请求并发时使用过期状态；前端按钮在 IPC 调用前立即设置 processing，过滤事件回传前的重复点击，失败结果明确切换到错误状态。
+- 审计结论：
+  - 托盘和前端都进入同一个 `restart_core_impl`，不复制停止/启动逻辑。
+  - `apply_state`、`toggle_service`、profile 切换、内核更新、自动启动和 `shutdown_runtime` 均先取得同一操作锁，再调用 `stop_core_impl`/`start_core_impl`。
+  - 核心监视器用旧核心的 `Arc` 身份执行 `clear_core_if`，旧进程退出时不会清掉随后建立的新核心；停止路径先取消 traffic task、等待进程退出，再恢复由本次运行接管的代理。
+  - 未新增依赖、线程、launcher 或第二套生命周期清理链。
+- 自动检查：
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`：退出码 0。
+  - `cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`：退出码 0；24/24 库测试、0 doctest。
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`：退出码 0。
+  - `npm --prefix frontend run build`：退出码 0；Vite 8.3.0 转换 74 个模块。
+  - 静态入口检查：源码仅保留 `restart_core` 与 `restart_core_from_tray`，未残留 `restart-app`、`commands::restart`、`request_restart` 或前端 `Restart` API。
+  - x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline`：退出码 0；PE `Machine=0x8664`，版本 `3.0.0-alpha.1`，产物 17,583,104 bytes，SHA-256 `8DB6C2AF5A454408A7A3C221406FA07A547D9E6A7C2476A3F48F79D197BBB0FD`。
+- 限制：当前会话无法替代真实 Windows AMD64/x64 桌面进程验收；仍需人工快速连续点击界面/托盘 `Restart Core`，确认始终只有一个 sing-box PID、代理恢复、traffic 重连且失败时状态不伪报运行。ARM64 不构建、不发布、不验收。
+
+### MIG-037-CORE-RESTART-RECHECK-2026-09-19 — 核心重启生命周期复核
+
+- 范围：`MIG-009`、BUG-004 后续处置、V07/V09；复核核心监视器、重启时序和启动失败清理。
+- 复核发现：旧核心监视器在未持有生命周期锁时执行身份清理后再停止 traffic；若与重启建立新核心交错，理论上可能停止新核心的 traffic task。
+- 修复：监视器在 `clear_core_if`、traffic 停止和代理恢复前取得 `RuntimeState.operation`；重启/停止/更新释放锁后，旧监视器按 `Arc` 身份重新确认，当前已是新核心时不执行旧清理。
+- 修复：`start_core_impl` 在核心已创建但代理状态读取/持久化或输出通道初始化失败时显式停止未登记核心，再恢复代理状态并返回错误。
+- 修复：自动连接网络探测结束后重新读取快照并检查 `RuntimeState.core()`；若探测期间已有启动操作完成，则跳过自动启动，避免第二个核心。
+- 自动验证：`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、`cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`（24/24、0 doctest）、`cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`、`npm --prefix frontend run build` 均通过；未构建 ARM64。
+- x64 单 EXE：`cargo build --manifest-path src-tauri/Cargo.toml --release --bin WinBox --target x86_64-pc-windows-msvc --features tauri/custom-protocol --locked --offline` 退出码 0；`src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,589,248 bytes，文件/产品版本 `3.0.0-alpha.1`，PE `Machine=0x8664`，SHA-256 `4B44D385A0CF956601A8ECE73E0255489D9CD62A448B20762CB1ED73C3F3DEB2`；未生成 updater、安装器、portable ZIP 或 ARM64 成品。
+- 结果：代码与自动检查 `pass`；仍需 Windows AMD64/x64 实机快速点击界面/托盘 `Restart Core`，确认单一 sing-box PID、代理恢复、traffic 重连和失败状态。

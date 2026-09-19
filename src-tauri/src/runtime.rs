@@ -376,6 +376,7 @@ impl RuntimeState {
                 }
             }
 
+            let _operation = state.operation().await;
             if state.clear_core_if(&core).await {
                 state.stop_traffic().await;
                 let _ = state.restore_proxy_if_owned().await;

@@ -141,6 +141,41 @@ Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内�
 - **保留项**：loopback 映射、5 秒连接超时、受控重连、错误日志、暂存 `sing-box check`、Windows 原生替换/回滚均仍有独立边界价值，未因本次根因已定位而删除。
 - **影响/限制**：无新增依赖、无架构范围变化、无视觉或交互流程变化；自动证据见 `MIG-030-ISSUE-FIX-2026-09-19`，真实 Windows x64 sing-box/WebView 行为仍需复测。本决策补充并覆盖 MIG-029 中对应的解压预算和 WebSocket 握手实现细节。
 
+### 2026-09-19 窗口行为与主题材质修复决策 — MIG-032
+
+- **窗口入口**：继续复用已有 `minimize`、`minimize_to_tray`、`show` Rust command。前端不再直接调用需要额外 capability 的窗口控制 API，避免为最小化/隐藏/聚焦扩大权限面；新增 `set_window_theme` 作为唯一主题原生入口。
+- **主题材质**：`light` 使用 WebView `Theme::Light` + `MicaLight`，`dark` 使用 `Theme::Dark` + `MicaDark`，`system` 使用系统主题 + `Mica`。启动阶段读取已保存 `theme_mode` 并应用同一映射，切换时由前端 API 调用同一 command；不再固定 `Effect::Mica`。
+- **窗口交互**：使用 Tauri 原生 `center: true` 恢复初始居中；只增加 `core:window:allow-start-dragging`；标题栏左侧剩余区域为拖动区，右侧设置/最小化/关闭按钮保持非拖动区域。托盘组件、动态图标和模式菜单不变。
+- **影响/限制**：无新增依赖、无架构范围变化；Rust/前端自动检查见 `MIG-032-WINDOW-FIX-2026-09-19`。当前会话没有可绑定的原生 Tauri 窗口，Windows x64 的实际 Mica、DPI、拖动和托盘效果仍需人工复测。
+
+### 2026-09-19 托盘应用重启清理路径决策 — MIG-033（accepted）
+
+- **问题与约束**：托盘菜单回调运行在 Tauri 主线程；当前 `AppHandle::restart()` 在该线程会绕过 `RunEvent::ExitRequested`。项目自定义 sing-box、流量和代理清理只在该事件中执行，导致父进程重启时内核可能残留。
+- **选定候选方案**：将 `commands::restart` 改为 `app.request_restart(); Ok(())`。这是 Tauri 2.11.5 官方提供的事件驱动重启入口，保持现有单一 `shutdown_runtime` 清理链，不增加依赖、线程或重复进程管理。
+- **未选方案**：不在托盘回调中复制一套同步 shutdown；不通过另一个线程调用 `restart()` 规避主线程特例；两者都会增加清理路径或竞态面。`request_restart` 的正常事件循环路径必须由 Windows x64 实机验证。
+- **影响/证据**：该阶段性修复记录保留用于解释 sing-box 残留的历史根因；后续用户复测发现 Tauri relaunch 仍不可靠，最终处置由 `MIG-035`/`MIG-036` 改为删除 Restart APP。核心清理链仍由 `Restart Core` 和统一退出路径复用。
+
+### 2026-09-19 托盘应用重启未重新拉起处置 — MIG-035（accepted）
+
+- **已确认**：`request_restart()` 解决了上一阶段的 sing-box 残留路径；当前用户复测表明内核已退出，但应用 relaunch 没有可见结果。Tauri 内部 relaunch 的 spawn 错误不会进入 WinBox 日志；`-minimized` 原始参数还可能使新进程仅隐藏启动。
+- **选定方案**：删除 `Restart APP` 托盘菜单、Rust command 注册/实现及无调用的前端 API；保留 `Restart Core`、`Quit` 和程序更新 helper。该入口没有前端调用者，且 Tauri relaunch 的失败不可观测，继续维护会增加不必要的 Windows 进程启动边界。
+- **未选方案**：不新增 launcher、延迟启动或第二套退出/清理链；完整应用重启如未来确有需求，另立任务并先设计可观测的 Windows relaunch 契约。
+- **影响/证据**：托盘交互从 `Restart Core` 直接进入核心生命周期；BUG-004 通过移除失效入口关闭。实现与自动检查见 `MIG-036-CORE-RESTART-AUDIT-2026-09-19`。
+
+### 2026-09-19 内核重启并发审计 — MIG-036（accepted）
+
+- **发现并修复**：`restart_core_impl` 原先在获取 `RuntimeState.operation` 锁前读取 `runtime.core()`；与停止、模式切换或另一条重启请求并发时可能使用过期运行状态。现将检查移入操作锁内，所有排队请求按锁内状态决定是否执行。
+- **前端防重入**：界面重启按钮在收到后端事件前立即设置 processing，并忽略重复点击；后端操作锁仍是最终一致性边界，托盘入口继续复用同一 `restart_core_impl`。
+- **审计结论**：启停、模式切换、profile 切换、内核更新、自动启动和统一退出均在同一操作锁内进入 start/stop；核心监视器清理前也取得该锁并按 `Arc` 身份确认，不会清掉随后启动的新核心或停止其流量任务；启动失败会显式回收尚未登记的核心。未新增依赖或第二套进程清理路径。
+- **限制**：自动检查不能替代真实 Windows AMD64/x64 sing-box 进程回归；仍需人工验证重复点击/托盘快速操作时始终只有一个核心 PID，重启失败时状态和系统代理可恢复。
+
+### 2026-09-19 核心生命周期复核 — MIG-037
+
+- **发现并修复**：旧核心监视器原先在未持有生命周期锁时执行 `clear_core_if` 后再停止流量；重启恰好完成停止并建立新核心时，旧监视器可能误停新核心的流量任务。现将监视器的身份清理和后续恢复放入 `RuntimeState.operation` 锁内。
+- **启动失败清理**：核心已创建但代理状态读取/持久化或输出通道获取失败时，先显式停止未登记进程，再恢复代理状态并返回错误；不依赖 `kill_on_drop` 作为唯一清理手段。
+- **自动启动竞态**：smart 网络探测结束后重新取得操作锁、读取最新快照并检查当前核心；若用户/托盘已经启动核心则跳过自动启动，避免探测期间产生第二个 sing-box。
+- **边界**：不新增依赖、线程或第二套生命周期入口；真实 Windows x64 sing-box 的快速重启、单 PID、代理和 traffic 恢复仍需人工复测。
+
 ## 风险台账
 
 | ID | 风险/级别 | 触发与影响 | 控制/证据 | 责任任务 |

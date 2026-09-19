@@ -51,11 +51,11 @@
 | UpdateProgram | mirrorUrl | string | `update_program`/updater 受控封装 |
 | GetUWPApps | 无 | UWPApp 数组 | `get_uwp_apps`：读取失败独立于空数组 |
 | SetUWPLoopbackExemptions | selectedSIDs | string | `set_uwp_loopback_exemptions` |
-| Minimize | 无 | void | Tauri 窗口最小化 |
-| MinimizeToTray | 无 | void | 隐藏窗口、处理流量推送 |
-| Show | 无 | void | 显示并聚焦、恢复数据刷新 |
+| Minimize | 无 | void | `minimize` Rust command：最小化窗口 |
+| MinimizeToTray | 无 | void | `minimize_to_tray` Rust command：隐藏窗口、处理流量推送 |
+| Show | 无 | void | `show` Rust command：显示并聚焦、恢复数据刷新 |
+| （新增）`set_window_theme` | `mode`：`light`/`dark`/`system` | void | Rust 同步设置 WebView 主题和 Windows Mica 材质 |
 | Quit | 无 | void | 统一有序退出入口 |
-| Restart | 无 | void | 清理后重启，保留延迟/单实例语义 |
 
 `Startup`、`OnShutdown`、`StartTray`、`UpdateTrayIcon`、`UpdateTrayMenu` 为生命周期或内部辅助，不生成前端命令。P0 对比所有导出和调用者，确认不存在动态调用遗漏。
 
@@ -159,12 +159,12 @@
 
 ### 当前实现契约（2026-09-18）
 
-- `frontend/src/api/backend.ts` 现在是纯 Tauri 边界：业务调用统一使用 `invoke`、`listen` 和当前窗口 API；Wails 生成目录、Go backend 和兼容回退已删除。事件订阅返回独立卸载函数，按事件名维护，不会用一次卸载误删其他事件。
+- `frontend/src/api/backend.ts` 现在是纯 Tauri 边界：业务调用统一使用 `invoke` 和 `listen`；窗口最小化、隐藏、显示、聚焦及主题通过受控 Rust command 进入，拖动仅使用 Tauri `start-dragging` capability。Wails 生成目录、Go backend 和兼容回退已删除。事件订阅返回独立卸载函数，按事件名维护，不会用一次卸载误删其他事件。
 - 初始化顺序契约：`App` 与 `useAppState` 先注册各自事件，再等待 `EventsOn` 的 Tauri listener 注册完成，之后才读取 `get_init_data`；这样启动期间到达的状态/流量事件不会被初始化快照覆盖。卸载时逐个调用保存的卸载函数，重复挂载不会留下监听。
 - 已注册 command 覆盖初始化/版本、设置/模式、override、profile/订阅、启停/重启、日志、UWP、窗口/外部 URL、托盘、内核更新和程序更新。Rust 输入在 URL、路径、profile ID、override JSON、架构/资产名、UWP SID 等边界拒绝非法值；错误通过脱敏 `AppError { code, message }` 或既有 UI 结果字符串映射。
-- 运行状态唯一来源是 Rust `RuntimeState` + `Storage`：操作锁串行化启停/模式/更新，`CoreProcess` 只接受 EXE 同级 `data/core/sing-box.exe`，监视器处理意外退出，流量 WebSocket 将 wildcard controller 映射到 loopback、按配置发送 Clash API Bearer secret、带连接超时/受控重连和可取消停止。
+- 运行状态唯一来源是 Rust `RuntimeState` + `Storage`：操作锁串行化启停/模式/更新，`CoreProcess` 只接受 EXE 同级 `data/core/sing-box.exe`；监视器在清理旧进程前取得同一操作锁并按 `Arc` 身份确认，避免旧监视器停止新核心的流量任务；启动失败会回收尚未登记的核心进程，自动连接探测结束后会重新检查当前核心再启动。流量 WebSocket 将 wildcard controller 映射到 loopback、按配置发送 Clash API Bearer secret、带连接超时/受控重连和可取消停止。
 - 更新契约：sing-box 下载先校验 GitHub digest、ZIP 安全边界和暂存核心 `sing-box check`；Windows 替换使用 `ReplaceFileW` 旧文件备份、锁冲突短重试和阶段化 app log，启动新核心失败时恢复旧文件并尝试恢复旧进程。程序 portable 更新使用同级 `WinBox-updater.exe`；安装 bundle 的 `winbox-updater.exe` 也由后端识别，helper 在替换后清理 stage，启动失败恢复旧 EXE。
-- Windows 桌面契约：Tauri 窗口保持 400×720、无边框、透明/Mica；单实例聚焦现有窗口；托盘保留 Show、Mixed/Tun/Proxy/Stop、Restart Core、Restart APP、Quit，动态图标和模式勾选由 Rust 状态刷新；关闭请求仍由 `ask`/`tray`/`quit` 决定。
+- Windows 桌面契约：Tauri 窗口保持 400×720、启动居中、无边框、透明/Mica；单实例聚焦现有窗口；托盘保留 Show、Mixed/Tun/Proxy/Stop、Restart Core、Quit，动态图标和模式勾选由 Rust 状态刷新；关闭请求仍由 `ask`/`tray`/`quit` 决定。`light`/`dark`/`system` 分别映射 WebView `Theme` 与 `MicaLight`/`MicaDark`/`Mica`；标题栏左侧空白区可拖动，设置、最小化和关闭按钮不属于拖动区。`Restart Core` 与界面启停共用 RuntimeState 操作锁，停止和启动只走现有生命周期链。
 - 发行契约：Tauri package 保留 `WinBox.exe` 主入口和 `winbox-updater.exe` 第二 binary；Tauri bundle 自动收集两个 Cargo binary，不再重复声明 resource。CI 直接 bundle 后，portable ZIP 另放 `WinBox.exe` 与 `WinBox-updater.exe`。签名密钥不入库，未生成签名发行物前不得宣称 updater/发布验收通过。
 
 默认值参考 `internal/storage.go` 和 `internal/models.go`：smart 自动连接、system 主题、`#0090FF` 强调色、IPv6 开、文件日志开、镜像默认配置等。必须通过旧样本锁定缺失字段处理，避免把反序列化零值当产品默认值。不自动“修复”用户自定义覆盖为默认内容。
@@ -211,5 +211,9 @@
 | 2026-09-18 | 修复前端初始化监听竞态：先注册 traffic/window-close/state 事件并等待 Tauri listener 完成，再读取初始化快照；卸载逐项释放；重新生成 x64 bundle | 前端 TypeScript/Vite、Rust 20/20、fmt、clippy、Tauri NSIS/MSI、PE/portable/MSI 自动检查通过；真实 WebView 反复挂载和桌面行为仍待 x64 实机验收；ARM64 不在范围；关联 MIG-021/V04/V15 |
 | 2026-09-18 | 将 Windows manifest 依赖架构收紧为 `amd64`，并在 Rust crate 增加仅 Windows `x86_64` 的编译期门槛 | 只允许 AMD64/x64 构建；ARM64 不构建、不发布、不验收；关联 MIG-025/V15 |
 | 2026-09-19 | 根据真实 x64 测试日志修正 sing-box 解压内容预算为 128 MiB，并删除手工 WebSocket 握手，改用 tungstenite 标准请求生成 | 修复当前 x64 核心被 64 MiB 上限误拒绝和缺少 `Sec-WebSocket-Key`；保留鉴权、超时、重连、检查、替换回滚边界；关联 MIG-030 |
+| 2026-09-19 | 修复窗口 API 权限/入口、启动居中、拖动范围和主题材质映射；保存的主题在启动时应用到 WebView 与 Mica | 不新增依赖；复用已有 Rust window commands，只增加 `core:window:allow-start-dragging`；托盘和视觉交互保持不变；自动证据关联 MIG-032/V02/V03，真实桌面仍待 x64 验收 |
+| 2026-09-19 | 将托盘 `Restart APP` 从主线程直接 `AppHandle::restart()` 改为 `AppHandle::request_restart()`，保留 `Result<(), AppError>` 成功返回 | 重启先经过 `RunEvent::ExitRequested` 和既有 `shutdown_runtime`，避免 sing-box 残留；无新增依赖或第二套清理路径；自动证据关联 MIG-034/V03/V09，真实进程行为仍待 x64 验收 |
+| 2026-09-19 | 删除无法可靠重新拉起主程序的托盘 `Restart APP`；仅保留 `Restart Core`，并将其运行检查移入 RuntimeState 操作锁 | 删除无前端调用者的 relaunch 入口；核心重启防止与停止/模式切换并发时使用过期运行状态；自动证据关联 MIG-036/V03/V07/V09 |
+| 2026-09-19 | 复核核心监视器与启动失败清理：监视器清理前取得生命周期锁，未登记的已启动核心在失败分支显式停止 | 防止旧监视器停止新核心流量任务，避免代理/输出初始化失败留下孤儿 sing-box；无新增依赖或清理链；自动证据关联 MIG-037/V07/V09 |
 
 后续记录：任务 ID、旧→新字段/命令、影响调用者、存储兼容性、验证 ID、临时桥删除条件。禁止只改 Rust 或只改前端一端。

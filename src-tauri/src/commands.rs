@@ -23,6 +23,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::CheckMenuItem;
+use tauri::window::{Effect, EffectsBuilder};
+use tauri::Theme;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
@@ -347,6 +349,29 @@ pub fn save_theme(
     Ok("Success".to_owned())
 }
 
+fn window_theme(mode: &str) -> Result<(Option<Theme>, Effect), AppError> {
+    match mode {
+        "light" => Ok((Some(Theme::Light), Effect::MicaLight)),
+        "dark" => Ok((Some(Theme::Dark), Effect::MicaDark)),
+        "system" => Ok((None, Effect::Mica)),
+        _ => Err(AppError::invalid_input("Theme mode is invalid")),
+    }
+}
+
+#[tauri::command]
+pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), AppError> {
+    let (theme, effect) = window_theme(&mode)?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(AppError::operation_failed)?;
+    window
+        .set_theme(theme)
+        .map_err(|_| AppError::operation_failed())?;
+    window
+        .set_effects(EffectsBuilder::new().effect(effect).build())
+        .map_err(|_| AppError::operation_failed())
+}
+
 #[tauri::command(rename_all = "camelCase")]
 pub fn save_mode(
     tun_mode: bool,
@@ -555,10 +580,10 @@ async fn restart_core_impl(
     storage: &Storage,
     runtime: &RuntimeState,
 ) -> Result<String, AppError> {
+    let _operation = runtime.operation().await;
     if runtime.core().await.is_none() {
         return Ok("Error: Core is not running".to_owned());
     }
-    let _operation = runtime.operation().await;
     let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
     let _ = app.emit("core-restarting", ());
     let stop_result = stop_core_impl(runtime).await;
@@ -894,11 +919,6 @@ pub fn show(app: AppHandle) -> Result<(), AppError> {
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);
-}
-
-#[tauri::command]
-pub fn restart(app: AppHandle) -> Result<(), AppError> {
-    app.restart();
 }
 
 pub(crate) fn refresh_tray(app: &AppHandle, running: bool, tun_mode: bool, sys_proxy: bool) {
@@ -1379,6 +1399,7 @@ async fn start_core_impl(
         let proxy_owned = match read_system_proxy() {
             Ok(proxy_owned) => proxy_owned,
             Err(_) => {
+                let _ = process.stop().await;
                 let _ = restore_system_proxy(&proxy_restore);
                 return Err(AppError::new(
                     "proxy_state_failed",
@@ -1391,6 +1412,7 @@ async fn start_core_impl(
             .await
             .is_err()
         {
+            let _ = process.stop().await;
             let _ = restore_system_proxy(&proxy_restore);
             return Err(AppError::new(
                 "proxy_state_failed",
@@ -1404,6 +1426,7 @@ async fn start_core_impl(
     let output = match output {
         Ok(output) => output,
         Err(error) => {
+            let _ = process.stop().await;
             let _ = runtime.restore_proxy_if_owned().await;
             return Err(error);
         }
@@ -1541,6 +1564,33 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
     }
 
     let _operation = runtime.operation().await;
+    if runtime.core().await.is_some() {
+        let _ = app.emit("core-lock", false);
+        return;
+    }
+    let snapshot = match storage.load() {
+        Ok(snapshot) => snapshot,
+        Err(_) => {
+            let _ = app.emit("core-lock", false);
+            let _ = app.emit("status", false);
+            refresh_tray(&app, false, false, false);
+            return;
+        }
+    };
+    if snapshot.settings.auto_connect_state == "off"
+        || !storage.paths().core_dir.join("sing-box.exe").is_file()
+        || active_profile_path(&snapshot, storage.paths()).is_err()
+    {
+        let _ = app.emit("core-lock", false);
+        let _ = app.emit("status", false);
+        refresh_tray(
+            &app,
+            false,
+            snapshot.state.tun_mode,
+            snapshot.state.sys_proxy,
+        );
+        return;
+    }
     let _ = app.emit("core-lock", false);
     let _ = app.emit("core-starting", ());
     if start_core_impl(&app, &storage, &runtime, &snapshot)
@@ -1997,7 +2047,7 @@ fn limit_log_lines(content: &str, max_lines: usize) -> String {
 mod tests {
     use super::{
         extract_api_secret, extract_api_url, install_staged_file, is_hex_color, limit_log_lines,
-        mirrored_url, restore_installed_file,
+        mirrored_url, restore_installed_file, window_theme, Effect, Theme,
     };
     use serde_json::json;
     use std::fs;
@@ -2047,6 +2097,23 @@ mod tests {
             mirrored_url("https://mirror.example/", "https://example.com/a").expect("mirror"),
             "https://mirror.example/https://example.com/a"
         );
+    }
+
+    #[test]
+    fn window_theme_matches_webview_and_mica_modes() {
+        let (light_theme, light_effect) = window_theme("light").expect("light");
+        assert_eq!(light_theme, Some(Theme::Light));
+        assert_eq!(light_effect, Effect::MicaLight);
+
+        let (dark_theme, dark_effect) = window_theme("dark").expect("dark");
+        assert_eq!(dark_theme, Some(Theme::Dark));
+        assert_eq!(dark_effect, Effect::MicaDark);
+
+        let (system_theme, system_effect) = window_theme("system").expect("system");
+        assert_eq!(system_theme, None);
+        assert_eq!(system_effect, Effect::Mica);
+
+        assert!(window_theme("unknown").is_err());
     }
 
     #[test]

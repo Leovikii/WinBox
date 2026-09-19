@@ -18,10 +18,10 @@
 | MIG-004 | P0 数据/更新兼容原型与阶段结论 | MIG-002, MIG-003 | done | Codex / 2026-09-17 | Q01–Q05 结论；V05、V13、V14 原型证据；P0 门槛满足 | `MIG-004-PROT-2026-09-17`；原型验收完成；真实下载/签名/替换回滚/升级链转 MIG-012–014，ARM64 已排除 |
 | MIG-005 | P1 工程、API/DTO、前端接入简化 | MIG-004 | review | Codex / 2026-09-17 | V01、V04；契约和所有调用者同步，无发行 mock | `MIG-005-FINAL-2026-09-18`；全量 command、Tauri invoke/listen、统一错误和调用者已接入，真实 WebView 证据待复核 |
 | MIG-005-a | P1 前端 API 边界与临时兼容适配 | MIG-004 | done | Codex / 2026-09-17 | Tauri API 只有单一业务入口，前端构建通过 | `MIG-005-FINAL-2026-09-18`；已删除 Wails 适配和生成目录 |
-| MIG-006 | P1 窗口/托盘/主题/单实例 | MIG-005 | review | Codex / 2026-09-18 | V02、V03；桌面效果及行为对等 | `MIG-006-FINAL-2026-09-18`；Mica、托盘菜单/动态图标、单实例和关闭路径已实现，需实机截图/行为证据 |
+| MIG-006 | P1 窗口/托盘/主题/单实例 | MIG-005 | review | Codex / 2026-09-19 | V02、V03；桌面效果及行为对等 | `MIG-006-FINAL-2026-09-18`、`MIG-032-WINDOW-FIX-2026-09-19`；窗口 command 权限、居中、拖动区和应用主题材质已修复并通过自动检查，待 x64 实机证据 |
 | MIG-007 | P2 存储、旧数据迁移、设置 | MIG-006 | review | Codex / 2026-09-18 | V05；可恢复、幂等、写入失败可见 | `MIG-007-FINAL-2026-09-18`；Rust storage、默认值、未知字段保留和原子写入通过单元检查，文件占用/跨文件恢复待实机 |
 | MIG-008 | P2 订阅/配置转换/日志接口 | MIG-007 | review | Codex / 2026-09-18 | V06、V08；配置与日志行为通过 | `MIG-008-FINAL-2026-09-18`；profile、override、日志、sing-box check 和下载边界已实现，真实订阅/内核待复核 |
-| MIG-009 | P3 内核生命周期、三种模式、状态 | MIG-008 | review | Codex / 2026-09-18 | V07、V09；并发/失败状态收敛 | `MIG-009-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`；操作锁、启停/重启、崩溃监视和失败回滚已实现，真实 sing-box 待复核 |
+| MIG-009 | P3 内核生命周期、三种模式、状态 | MIG-008 | review | Codex / 2026-09-19 | V07、V09；并发/失败状态收敛 | `MIG-009-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`；删除不可靠的应用重启入口，核心重启与监视器清理共用操作锁并增加前端防重入，真实 sing-box 仍待复核 |
 | MIG-010 | P3 流量、日志流、智能连接 | MIG-009 | review | Codex / 2026-09-18 | V08、V10；可取消、断线恢复、无重复监听 | `MIG-010-FINAL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；图表问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V08/V10 外部验收仍保持 review |
 | MIG-011 | P3 系统代理、自启、权限、UWP | MIG-009, MIG-010 | review | Codex / 2026-09-18 | V09、V11、V12 实机证据 | `MIG-011-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`；平台命令、manifest、任务计划和 UWP 差异更新已实现，管理员系统状态待实机 |
 | MIG-012 | P4 内核更新 | MIG-011 | review | Codex / 2026-09-18 | V13；失败恢复二进制/配置/状态 | `MIG-012-KERNEL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；解压预算问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V13 外部验收仍保持 review |
@@ -47,8 +47,10 @@
 | --- | --- | --- | --- | --- |
 | BUG-001 / MIG-012 | 内核升级 | `resolved` | 用户日志已确定下载成功后在暂存阶段失败：错误为 `ZIP archive exceeds the size limit`。官方 `sing-box 1.14.1` x64 ZIP 约 32.8 MB，但解压后的 `sing-box.exe` 约 81.9 MB；旧 64 MiB 解压上限误拒绝当前核心，因此替换阶段实际尚未执行。现已将声明解压上限调整为 128 MiB，并区分压缩包/解压内容超限；此前增加的 `sing-box check`、阶段日志、`ReplaceFileW` 备份交换、锁冲突短重试和启动失败回滚继续保留，因为它们覆盖后续真实失败路径。用户已确认 Windows x64 测试通过。 | `MIG-031-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-012 的整体 V13 验收覆盖回归。仍不引入不适配独立 sing-box 的 `tauri-plugin-updater`。 |
 | BUG-002 / MIG-010 | 主界面网速图表 | `resolved` | 用户日志已确定连接失败的直接原因：`Missing, duplicated or incorrect header sec-websocket-key`。此前自建 WebSocket `Request` 绕过了 tungstenite 标准握手头生成，缺少 `Sec-WebSocket-Key`；现已删除手工握手构造，改用 `IntoClientRequest`，仅追加已有配置中的 Bearer secret，并保留 loopback 映射、5 秒连接超时、受控重连和有界日志。用户已确认 Windows x64 测试通过。 | `MIG-031-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-010 的整体 V08/V10 验收覆盖回归。保持 Rust WebSocket→Tauri event→Vue chart 单链路。 |
+| BUG-003 / MIG-006 | 窗口拖动、最小化、初始位置与浅色材质 | `fixed-awaiting-retest` | 前端直接调用的窗口 API 未纳入当前 capability，错误未展示；窗口未配置居中；拖动属性只覆盖标题文字；启动始终使用跟随系统的 Mica，不能表达应用浅/深主题。已改为 Rust command 统一处理窗口控制和 `Theme`/`MicaLight`/`MicaDark` 映射，增加居中配置并扩大左侧拖动区。 | `MIG-032-WINDOW-FIX-2026-09-19`；自动检查通过，等待 Windows x64 测试 EXE 复核拖动、最小化、居中、主题材质、托盘和单实例；不改变托盘动态图标/模式菜单。 |
+| BUG-004 / MIG-009 | 托盘 Restart APP 后 sing-box 残留及应用未重新拉起 | `resolved` | 已删除无可靠 relaunch 保障且无前端调用者的 `Restart APP` 托盘入口、Rust command/API；不再存在该失败路径。`Restart Core` 保留并统一经过 `RuntimeState.operation` 锁和既有 stop/start 清理链，监视器清理也在同一锁内完成。 | `MIG-035-ISSUE-DIAG-2026-09-19`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`；自动检查通过，真实 Windows x64 下仍需确认核心重启的单 PID、代理恢复和快速重复操作行为。 |
 
-两个问题已由用户在 Windows x64 测试 EXE 上确认解决；MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他 V08/V10/V13 条件。
+BUG-001/BUG-002 已由用户在 Windows x64 测试 EXE 上确认解决；BUG-003 等待桌面复测；BUG-004 已通过删除失效的应用重启入口关闭，核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
 
 ## 交接日志
 
@@ -260,3 +262,51 @@
 - 证据：`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、x64 target `cargo test --locked --offline`（23/23、0 doctest）、x64 target clippy `-D warnings`、`npm --prefix frontend run build`（Vite 8.3.0，77 模块）和 `git diff --check` 均通过。
 - 产物：仅刷新 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,587,200 bytes，版本 `3.0.0-alpha.1`，PE `Machine=0x8664`，SHA-256 `F5F995482EEB1B4C83BD44CD6E45DC77A99C441A040D8FC45C20873AB149EDAB`；未生成 updater、安装器、portable ZIP 或其他成品。
 - 限制：BUG-001/BUG-002 已由用户完成 x64 实机复测并关闭；当前会话仍无可绑定的原生 Tauri WebView，因此其他桌面验收项仍不能由自动化替代；ARM64 不构建、不发布、不验收。
+
+### 2026-09-19 — MIG-032 窗口、主题与拖动修复
+
+- 根因：前端最小化/隐藏/显示/聚焦/主题调用直接走 Tauri window API，但当前 capability 没有对应权限且错误被忽略；窗口配置没有 `center`；拖动属性只覆盖标题文字；固定 `Effect::Mica` 只跟随系统主题，不能表达应用浅色模式。
+- 修复：前端窗口控制改为复用已有 Rust `minimize`、`minimize_to_tray`、`show` command；新增受控 `set_window_theme` command，统一设置 WebView `Theme` 与 `Mica`/`MicaLight`/`MicaDark`；启动读取保存的 `theme_mode`；增加 `center: true` 和最小拖动 capability；顶部左侧空白区扩展为拖动区，按钮区保持独立。未修改托盘组件、模式动态图标、菜单或用户交互路径。
+- 修改：`src-tauri/capabilities/default.json`、`src-tauri/tauri.conf.json`、`src-tauri/src/{commands,lib}.rs`、`frontend/src/{App.vue,api/backend.ts,composables/useTheme.ts}`，以及关联契约/决策/验收记录。
+- 证据：`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、x64 target `cargo test --locked --offline`（24/24、0 doctest）、x64 target clippy `-D warnings`、`npm --prefix frontend run build`（Vite 8.3.0，74 模块）、JSON 配置解析和 `git diff --check` 均通过。
+- 产物：仅刷新 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,588,736 bytes，版本 `3.0.0-alpha.1`，目标 `x86_64-pc-windows-msvc`，SHA-256 `A696D3B99A6AFA9D87B5A94EF0263ECCDECC5516B5E03BC1EF1DC5BED4BFFE1C`；未生成 updater、安装器、portable ZIP 或 ARM64 成品。
+- 限制：Computer Use 当前只返回 Codex 浏览器、没有可绑定的原生 Tauri 窗口，无法在本会话执行真实居中/拖动/最小化/托盘/Mica/单实例回归；MIG-006 与 BUG-003 保持 `review`/`fixed-awaiting-retest`，等待 Windows AMD64/x64 测试 EXE 人工复测。
+
+### 2026-09-19 — MIG-033 托盘应用重启竞态定位
+
+- 范围：`BUG-004`、`MIG-009`、V03/V09；用户在连接状态下通过托盘 `Restart APP` 后发现 sing-box 内核残留。
+- 根因：`src-tauri/src/lib.rs` 的 `restart-app` 菜单回调在 Tauri 主线程同步调用 `commands::restart`；`src-tauri/src/commands.rs` 当前使用 `AppHandle::restart()`。Tauri 2.11.5 源码与文档明确规定，主线程调用该方法会跳过 `RunEvent::ExitRequested`，直接执行 Tauri 自身 `cleanup_before_exit()` 并重启进程。项目的 `shutdown_runtime` 只在 `RunEvent::ExitRequested` 中调用，所以不会进入 `stop_core_impl`，也不会取消流量任务或恢复代理。
+- 方案：采用 Tauri 官方 `AppHandle::request_restart()`，保留现有 `RunEvent::ExitRequested` → `shutdown_runtime` → `CoreProcess::stop` 清理链；`restart` command 继续返回 `Result<(), AppError>`，在请求后显式返回 `Ok(())`。不新增线程、插件或第二套进程清理逻辑。
+- 本轮结果：仅完成源码与 Tauri 2.11.5 本地实现的只读确认，未修改业务代码、未构建产物；BUG-004 保持 `diagnosed-awaiting-fix`。修复后需用 Windows AMD64/x64 测试 EXE 在连接状态下确认旧核心 PID 退出、重启后只存在一个核心，并检查代理、流量和托盘状态。
+
+### 2026-09-19 — MIG-034 托盘应用重启清理修复
+
+- 修改：`src-tauri/src/commands.rs` 的 `restart` command 改用 `AppHandle::request_restart()`，并显式返回 `Ok(())`；未新增依赖、线程或重复清理路径。
+- 结果：Tauri 重启请求现在经过 `RunEvent::ExitRequested`，由现有 `shutdown_runtime` 停止流量任务、停止并等待 sing-box、恢复代理后再由 Tauri 重启进程。
+- 自动验证：fmt、x64 target Rust 测试（24/24、0 doctest）、x64 target clippy、前端构建和重启入口静态检查通过；x64 单 EXE 构建通过，版本 `3.0.0-alpha.1`，SHA-256 `1BCD3E1BD88C3EA84B48D1E503D7E0EA75DAFAD4DAA7FD34CCE7C9E1DF2C59BB`。
+- 限制：本会话没有可绑定的原生 Tauri 窗口，尚未执行真实托盘重启、sing-box PID、代理和流量状态复测；BUG-004 为 `fixed-awaiting-retest`，ARM64 不构建、不发布、不验收。
+
+### 2026-09-19 — MIG-035 托盘应用重启未重新拉起诊断
+
+- 用户复测结果：使用当前 `request_restart()` 版本从托盘执行 `Restart APP` 时，sing-box 先退出，但 WinBox 没有自动重新出现。
+- 已确认：上一阶段的清理修复有效；`RunEvent::ExitRequested` → `shutdown_runtime` → `stop_core_impl` 已经执行到足以退出 sing-box。失败点位于清理之后的 Tauri relaunch，不是内核停止逻辑。
+- 代码证据：Tauri 2.11.5 的 `request_restart()` 在 `RunEvent::Exit` 后调用内部 `process::restart()`；该实现按 `current_exe` 和原始参数执行 `Command::spawn()`，失败只写 Tauri 内部日志，不返回当前 `AppError` 或 WinBox app.log。single-instance 插件在同一 `RunEvent::Exit` 阶段先释放 Windows mutex，因此单实例竞态尚未被证实。原始启动参数若含 `-minimized`，重启进程会启动后继续隐藏窗口。
+- 修复成本评估：删除 Restart APP 为低成本，涉及托盘菜单、Rust command 注册/实现、未使用的前端 API 和关联契约/台账；保留并做到可靠拉起为中等成本，需要受控 relaunch/错误记录、参数策略、单实例/退出时序和 Windows x64 实机回归，可能涉及一个新的 Windows 启动边界，不能只靠自动编译证明。
+- 处置结果：用户决定删除 Restart APP；实现与核心重启并发审计记录在 `MIG-036-CORE-RESTART-AUDIT-2026-09-19`，本条诊断结论由该任务收敛。
+
+### 2026-09-19 — MIG-036 内核重启并发审计与清理
+
+- 修改：删除托盘 `Restart APP`、Rust `restart` command 注册/实现和未使用的前端 `Restart` API；保留托盘与界面的 `Restart Core`。
+- 并发修复：将 `restart_core_impl` 的运行状态检查移入 `RuntimeState.operation` 锁内；前端重启按钮在调用前设置 processing、忽略重复点击，并在失败结果返回时切换到错误状态；托盘入口继续复用同一锁内实现。
+- 审计：启停、模式切换、profile 切换、内核更新、自动启动和统一退出均在同一操作锁内；核心监视器使用旧进程 `Arc` 身份清理，避免误清理新进程。未增加依赖、线程或第二套清理链。
+- 验证：`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、x64 target Rust test（24/24、0 doctest）、x64 target clippy `-D warnings`、`npm --prefix frontend run build`（Vite 74 modules）均通过；x64 单 EXE 构建通过，产物 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，17,583,104 bytes，版本 `3.0.0-alpha.1`，PE `Machine=0x8664`，SHA-256 `8DB6C2AF5A454408A7A3C221406FA07A547D9E6A7C2476A3F48F79D197BBB0FD`；release 目录未生成 updater、bundle、NSIS、MSI 或 ARM64 产物。
+- 限制：自动检查不能替代真实 Windows AMD64/x64 快速重复操作、代理恢复和 sing-box 单 PID 人工复测；ARM64 不构建、不发布、不验收。
+
+### 2026-09-19 — MIG-037 核心重启生命周期复核
+
+- 复核发现：旧核心监视器在身份清理后、未持有生命周期锁时停止 traffic；与重启建立新核心的时序交错，理论上可能停止新核心的 traffic task。
+- 修复：监视器在 `clear_core_if` 和代理/traffic 清理前取得 `RuntimeState.operation`；重启/停止/更新完成并释放锁后，旧监视器会再次按 `Arc` 身份判断，发现当前已是新核心则不做清理。
+- 修复：`start_core_impl` 在进程已创建但代理状态或输出初始化失败时显式停止未登记核心，再返回错误；避免把 `kill_on_drop` 当作正常清理策略。
+- 修复：自动连接网络探测结束后重新读取快照并检查 `RuntimeState.core()`；若探测期间已有启动操作完成，则跳过自动启动，避免第二个核心。
+- 验证：Rust x64 target 测试 24/24、clippy `-D warnings`、fmt、前端 TypeScript/Vite 构建均通过；静态检查确认仍仅有 `Restart Core` 入口。最新单 EXE 为 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，PE `Machine=0x8664`，版本 `3.0.0-alpha.1`，17,589,248 bytes，SHA-256 `4B44D385A0CF956601A8ECE73E0255489D9CD62A448B20762CB1ED73C3F3DEB2`；未生成 ARM64 产物。
+- 限制：当前会话没有可绑定的原生 Tauri 窗口，无法替代 Windows AMD64/x64 实机的快速点击、PID 唯一性、代理恢复和 traffic 重连验证。

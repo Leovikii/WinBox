@@ -155,10 +155,15 @@ const handleSaveUWPExemptions = async () => {
 };
 
 const handleRestartCore = async () => {
+  if (appState.isProcessing.value) return;
+  appState.isProcessing.value = true;
   const result = await Backend.RestartCore();
   if (result !== "Success") {
+    appState.msg.value = "Error";
+    appState.errorLog.value = result;
     appState.errorAlertMessage.value = result;
     appState.showErrorAlert.value = true;
+    appState.isProcessing.value = false;
   }
 };
 </script>
@@ -166,11 +171,13 @@ const handleRestartCore = async () => {
 <template>
   <div class="h-screen w-screen relative bg-transparent text-white select-none overflow-hidden font-sans flex flex-col">
     <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative">
-      <div data-tauri-drag-region class="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2.5">
-        <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
-        WinBox
+      <div data-tauri-drag-region class="h-full flex-1 flex items-center min-w-0">
+        <div class="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2.5">
+          <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
+          WinBox
+        </div>
       </div>
-      <div class="flex">
+      <div class="flex shrink-0">
         <button 
           @click="toggleSettings(!showSettings)" 
           class="text-gray-500 dark:text-[#888] w-12 h-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-800 dark:hover:text-white transition-all duration-200 relative"

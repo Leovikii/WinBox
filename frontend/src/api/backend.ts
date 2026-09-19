@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 
 export interface ProfileDto {
   id: string
@@ -185,28 +184,21 @@ export const BrowserOpenURL = (url: string) =>
   invokeOrThrow<void>('open_url', { url })
 
 export const Minimize = () =>
-  getCurrentWindow().minimize()
+  invokeOrThrow<void>('minimize')
 
 export const MinimizeToTray = () =>
-  getCurrentWindow().hide()
+  invokeOrThrow<void>('minimize_to_tray')
 
 export const Show = () =>
-  getCurrentWindow().show().then(() => getCurrentWindow().setFocus())
+  invokeOrThrow<void>('show')
 
 export const Quit = () => invoke<void>('quit')
-export const Restart = () => invoke<void>('restart')
 export const StartTray = () => invoke<void>('start_tray')
 export const UpdateTrayIcon = () => invoke<void>('update_tray_icon')
 export const UpdateTrayMenu = () => invoke<void>('update_tray_menu')
 
-export const WindowSetDarkTheme = () =>
-  getCurrentWindow().setTheme('dark')
-
-export const WindowSetLightTheme = () =>
-  getCurrentWindow().setTheme('light')
-
-export const WindowSetSystemDefaultTheme = () =>
-  getCurrentWindow().setTheme(null)
+export const SetWindowTheme = (mode: string) =>
+  invokeOrThrow<void>('set_window_theme', { mode })
 
 const listenersByName = new Map<string, Set<() => void>>()
 const pendingListenerRegistrations = new Set<Promise<void>>()

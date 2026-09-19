@@ -22,8 +22,6 @@ use storage::Storage;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-#[cfg(windows)]
-use tauri::window::{Effect, EffectsBuilder};
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -61,6 +59,7 @@ pub fn run() {
             commands::set_pre_release,
             commands::set_log_config,
             commands::set_close_behavior,
+            commands::set_window_theme,
             commands::apply_state,
             commands::toggle_service,
             commands::restart_core,
@@ -82,7 +81,6 @@ pub fn run() {
             commands::minimize_to_tray,
             commands::show,
             commands::quit,
-            commands::restart,
             commands::start_tray,
             commands::update_tray_icon,
             commands::update_tray_menu,
@@ -111,8 +109,6 @@ pub fn run() {
             let separator_two = PredefinedMenuItem::separator(app)?;
             let restart_core_item =
                 MenuItem::with_id(app, "restart-core", "Restart Core", true, None::<&str>)?;
-            let restart_app_item =
-                MenuItem::with_id(app, "restart-app", "Restart APP", true, None::<&str>)?;
             let separator_three = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             app.manage(commands::TrayMenuState {
@@ -132,7 +128,6 @@ pub fn run() {
                     &stop_item,
                     &separator_two,
                     &restart_core_item,
-                    &restart_app_item,
                     &separator_three,
                     &quit_item,
                 ],
@@ -177,9 +172,6 @@ pub fn run() {
                             commands::restart_core_from_tray(app).await;
                         });
                     }
-                    "restart-app" => {
-                        let _ = commands::restart(app.clone());
-                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -200,6 +192,10 @@ pub fn run() {
                 })
                 .build(app)?;
             let snapshot = storage.load().unwrap_or_default();
+            let _ = commands::set_window_theme(
+                app.handle().clone(),
+                snapshot.settings.theme_mode.clone(),
+            );
             commands::refresh_tray(
                 app.handle(),
                 false,
@@ -207,9 +203,7 @@ pub fn run() {
                 snapshot.state.sys_proxy,
             );
 
-            #[cfg(windows)]
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_effects(EffectsBuilder::new().effect(Effect::Mica).build());
                 let _ = window.set_shadow(true);
             }
 

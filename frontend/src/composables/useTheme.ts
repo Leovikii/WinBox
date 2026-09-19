@@ -43,14 +43,13 @@ export function useTheme() {
     let isDarkValue = false
     if (themeMode.value === 'dark') {
       isDarkValue = true
-      Backend.WindowSetDarkTheme()
     } else if (themeMode.value === 'light') {
       isDarkValue = false
-      Backend.WindowSetLightTheme()
     } else {
       isDarkValue = mediaQuery.matches
-      Backend.WindowSetSystemDefaultTheme()
     }
+
+    void Backend.SetWindowTheme(themeMode.value).catch(() => {})
     
     isDark.value = isDarkValue
 
