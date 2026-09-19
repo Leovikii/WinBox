@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import * as Backend from '../api/backend'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
 import ManageProfilesModal from './ManageProfilesModal.vue'
 import AppLogsModal from './AppLogsModal.vue'

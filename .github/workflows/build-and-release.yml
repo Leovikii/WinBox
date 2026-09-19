@@ -20,13 +20,15 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
+    name: Build ${{ matrix.arch }}
     runs-on: windows-latest
-    env:
-      VERSION: ''
-      CHANGELOG: ''
-      IS_PRERELEASE: 'false'
-      MAKE_LATEST: 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            rust-target: x86_64-pc-windows-msvc
     defaults:
       run:
         shell: bash
@@ -41,25 +43,73 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: '1.25.x'
+          targets: ${{ matrix.rust-target }}
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
 
-      - name: Build WinBox
-        run: wails build -clean -ldflags "-s -w" -trimpath
+      - name: Build Tauri bundles
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f
+        with:
+          projectPath: .
+          args: --target ${{ matrix.rust-target }} --bundles nsis,msi
+
+      - name: Package architecture assets
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TARGET_DIR="src-tauri/target/${{ matrix.rust-target }}/release"
+          test -f "$TARGET_DIR/WinBox.exe"
+          test -f "$TARGET_DIR/winbox-updater.exe"
+          mkdir -p release-assets
+          mkdir WinBox
+          cp "$TARGET_DIR/WinBox.exe" WinBox/WinBox.exe
+          cp "$TARGET_DIR/winbox-updater.exe" WinBox/WinBox-updater.exe
+          7z a -tzip "release-assets/WinBox-v${VERSION}-windows-${{ matrix.arch }}.zip" WinBox/
+          cp "$(find "$TARGET_DIR/bundle/nsis" -maxdepth 1 -type f -name '*-setup.exe' -print -quit)" \
+            "release-assets/WinBox-${VERSION}-windows-${{ matrix.arch }}-setup.exe"
+          cp "$(find "$TARGET_DIR/bundle/msi" -maxdepth 1 -type f -name '*.msi' -print -quit)" \
+            "release-assets/WinBox-${VERSION}-windows-${{ matrix.arch }}.msi"
+
+      - name: Upload architecture assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: winbox-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: windows-latest
+    env:
+      VERSION: ''
+      CHANGELOG: ''
+      IS_PRERELEASE: 'false'
+      MAKE_LATEST: 'true'
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download architecture assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: winbox-*
+          path: release-assets
+          merge-multiple: true
 
       - name: Get Version
-        if: github.event_name == 'push'
-        id: version
-        run: echo "VERSION=v$(node -p "require('./wails.json').info.productVersion")" >> $GITHUB_ENV
+        run: echo "VERSION=v$(node -p \"require('./src-tauri/tauri.conf.json').version\")" >> $GITHUB_ENV
 
       - name: Generate Changelog
-        if: github.event_name == 'push'
-        id: changelog
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
@@ -71,16 +121,8 @@ jobs:
           echo "$LOGS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Package Release
-        if: github.event_name == 'push'
-        run: |
-          mkdir WinBox
-          cp build/bin/WinBox.exe WinBox/
-          7z a -tzip "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox/
-
       - name: Check Prerelease Status
         if: github.event_name == 'push'
-        id: prerelease_check
         run: |
           if [[ "${{ env.VERSION }}" == *"-"* ]]; then
             echo "IS_PRERELEASE=true" >> $GITHUB_ENV
@@ -91,7 +133,6 @@ jobs:
           fi
 
       - name: Create Release
-        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.VERSION }}
@@ -99,6 +140,6 @@ jobs:
           body: |
             ### Changes
             ${{ env.CHANGELOG }}
-          files: WinBox-${{ env.VERSION }}-windows-amd64.zip
+          files: release-assets/*
           prerelease: ${{ env.IS_PRERELEASE == 'true' }}
           make_latest: ${{ env.MAKE_LATEST }}

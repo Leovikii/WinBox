@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
+import * as Backend from '../api/backend'
 
 export interface UWPApp {
   sid: string

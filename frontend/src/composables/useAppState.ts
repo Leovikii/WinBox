@@ -1,6 +1,7 @@
-import { ref, computed, onMounted } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import * as Backend from '../api/backend'
+import { EventsOn } from '../api/backend'
+import type { StateSyncDto } from '../api/backend'
 import { cleanLog } from '../utils/logUtils'
 import { getModeColor } from '../utils/modeColors'
 
@@ -26,11 +27,8 @@ const logLevel = ref("")
 const logToFile = ref(true)
 const closeBehavior = ref("ask")
 
-let unsubscribeStatus: (() => void) | null = null
-let unsubscribeStateSync: (() => void) | null = null
-let unsubscribeLog: (() => void) | null = null
-
-let isInitialized = false
+const eventUnsubscribers: Array<() => void> = []
+let mountedUsers = 0
 
 export function useAppState() {
 
@@ -113,7 +111,7 @@ export function useAppState() {
   })
 
   const refreshData = async () => {
-    const data = await Backend.GetInitData()
+    const data = await Backend.getInitData()
     running.value = data.running
     coreExists.value = data.coreExists
     if (!data.coreExists) msg.value = "Kernel Missing"
@@ -130,11 +128,11 @@ export function useAppState() {
     autoConnectState.value = data.autoConnectState
     mirrorUrl.value = data.mirror
     mirrorEnabled.value = data.mirrorEnabled
-    ipv6Enabled.value = data.ipv6_enabled !== undefined ? data.ipv6_enabled : true
-    preRelease.value = data.pre_release
-    logLevel.value = data.log_level !== undefined ? data.log_level : ""
-    logToFile.value = data.log_to_file !== undefined ? data.log_to_file : true
-    closeBehavior.value = data.close_behavior || "ask"
+    ipv6Enabled.value = data.ipv6Enabled
+    preRelease.value = data.preRelease
+    logLevel.value = data.logLevel
+    logToFile.value = data.logToFile
+    closeBehavior.value = data.closeBehavior || "ask"
     return data
   }
 
@@ -346,26 +344,26 @@ export function useAppState() {
     msg.value = "Offline"
 
     // Setup state sync events
-    EventsOn("core-starting", () => {
+    eventUnsubscribers.push(EventsOn("core-starting", () => {
       isProcessing.value = true
       msg.value = "Starting..."
-    })
+    }))
 
-    EventsOn("core-stopping", () => {
+    eventUnsubscribers.push(EventsOn("core-stopping", () => {
       isProcessing.value = true
       msg.value = "Stopping..."
-    })
+    }))
 
-    EventsOn("core-restarting", () => {
+    eventUnsubscribers.push(EventsOn("core-restarting", () => {
       isProcessing.value = true
       msg.value = "Restarting..."
-    })
+    }))
 
-    EventsOn("core-lock", (isLocked: boolean) => {
+    eventUnsubscribers.push(EventsOn("core-lock", (isLocked: boolean) => {
       isProcessing.value = isLocked
-    })
+    }))
 
-    unsubscribeStatus = EventsOn("status", (isRunning: boolean) => {
+    eventUnsubscribers.push(EventsOn("status", (isRunning: boolean) => {
       // Ignore intermediate offline signals during start/restart
       if (isProcessing.value && !isRunning) {
         if (msg.value === "Starting..." || msg.value === "Restarting...") {
@@ -383,9 +381,9 @@ export function useAppState() {
         msg.value = "Running"
       }
       isProcessing.value = false
-    })
+    }))
 
-    unsubscribeStateSync = EventsOn("state-sync", (state: any) => {
+    eventUnsubscribers.push(EventsOn("state-sync", (state: StateSyncDto) => {
       tunMode.value = state.tunMode
       sysProxy.value = state.sysProxy
 
@@ -394,9 +392,9 @@ export function useAppState() {
         sysProxy.value = true
         Backend.SaveMode(false, true)
       }
-    })
+    }))
 
-    unsubscribeLog = EventsOn("log", (logMsg: string) => {
+    eventUnsubscribers.push(EventsOn("log", (logMsg: string) => {
       const cleaned = cleanLog(logMsg)
 
       if (cleaned.startsWith("Error:") || cleaned.includes("failed")) {
@@ -405,14 +403,21 @@ export function useAppState() {
       } else {
         msg.value = cleaned
       }
-    })
+    }))
   }
 
   onMounted(() => {
-    if (!isInitialized) {
-      isInitialized = true
-      refreshData()
+    mountedUsers += 1
+    if (mountedUsers === 1) {
       setupEventListeners()
+      void Backend.waitForEventsReady().then(() => refreshData())
+    }
+  })
+
+  onUnmounted(() => {
+    mountedUsers = Math.max(0, mountedUsers - 1)
+    if (mountedUsers === 0) {
+      for (const unsubscribe of eventUnsubscribers.splice(0)) unsubscribe()
     }
   })
 

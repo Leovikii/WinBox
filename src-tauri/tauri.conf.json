@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "WinBox",
+  "version": "3.0.0-alpha.1",
+  "identifier": "com.leovikii.winbox",
+  "build": {
+    "frontendDist": "../frontend/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix ../frontend run dev",
+    "beforeBuildCommand": "npm --prefix ../frontend run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "WinBox",
+        "width": 400,
+        "height": 720,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": ["icons/icon.ico"]
+  }
+}

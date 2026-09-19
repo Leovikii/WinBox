@@ -1,6 +1,5 @@
-import { ref, onMounted } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { WindowSetSystemDefaultTheme, WindowSetLightTheme, WindowSetDarkTheme } from '../../wailsjs/runtime/runtime'
+import { ref, onMounted, onUnmounted } from 'vue'
+import * as Backend from '../api/backend'
 
 export const ACCENT_COLORS = [
   { name: 'Blue', value: '#0090FF' },
@@ -28,7 +27,7 @@ function hexToRgb(hex: string): string {
 const accentColor = ref('#0090FF')
 const themeMode = ref('system') // 'light' | 'dark' | 'system'
 const isDark = ref(false)
-let isInitialized = false
+let mountedUsers = 0
 
 // Set up media query listener
 const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -44,13 +43,13 @@ export function useTheme() {
     let isDarkValue = false
     if (themeMode.value === 'dark') {
       isDarkValue = true
-      WindowSetDarkTheme()
+      Backend.WindowSetDarkTheme()
     } else if (themeMode.value === 'light') {
       isDarkValue = false
-      WindowSetLightTheme()
+      Backend.WindowSetLightTheme()
     } else {
       isDarkValue = mediaQuery.matches
-      WindowSetSystemDefaultTheme()
+      Backend.WindowSetSystemDefaultTheme()
     }
     
     isDark.value = isDarkValue
@@ -85,7 +84,7 @@ export function useTheme() {
 
   const loadTheme = async () => {
     try {
-      const meta = await Backend.GetInitData()
+      const meta = await Backend.getInitData()
       if (meta.accentColor) {
         accentColor.value = meta.accentColor
       }
@@ -100,11 +99,16 @@ export function useTheme() {
   }
 
   onMounted(() => {
-    if (!isInitialized) {
-      isInitialized = true
-      loadTheme()
+    mountedUsers += 1
+    if (mountedUsers === 1) {
+      void loadTheme()
       mediaQuery.addEventListener('change', applyTheme)
     }
+  })
+
+  onUnmounted(() => {
+    mountedUsers = Math.max(0, mountedUsers - 1)
+    if (mountedUsers === 0) mediaQuery.removeEventListener('change', applyTheme)
   })
 
   return {

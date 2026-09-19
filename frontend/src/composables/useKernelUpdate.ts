@@ -1,9 +1,17 @@
-import { ref, computed, onMounted } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import * as Backend from '../api/backend'
+import { EventsOn } from '../api/backend'
 import { useAppState } from './useAppState'
 import { cleanLog } from '../utils/logUtils'
 import { isNewerVersion } from '../utils/versionCompare'
+
+const overrideErrorMessage = (error: unknown) => {
+  if (typeof error === 'string') return error
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return 'Failed to load override configuration'
+}
 
 const localVer = ref("Unknown")
 const remoteVer = ref("Unknown")
@@ -24,8 +32,8 @@ const errorAlertMessage = ref("")
 let updateStateTimeout: number | null = null
 let editorCloseTimeout: number | null = null
 
-let isInitialized = false
 let unsubscribeDownloadProgress: (() => void) | null = null
+let mountedUsers = 0
 
 export function useKernelUpdate() {
   const appState = useAppState()
@@ -68,16 +76,12 @@ export function useKernelUpdate() {
     }
   }
 
-  const openEditor = async (type: "tun" | "mixed" | "mirror") => {
-    editingType.value = type
-    saveBtnText.value = "Save"
-    if (type === 'mirror') {
-      editorContent.value = appState.mirrorUrl.value
-      editorOriginalContent.value = appState.mirrorUrl.value
-      editorDefaultContent.value = "https://gh-proxy.com/"
-    } else {
-      const content = await Backend.GetOverride(type)
-      const defaultContentRaw = await Backend.GetDefaultOverride(type)
+  const loadOverrideEditor = async (type: "tun" | "mixed") => {
+    try {
+      const [content, defaultContentRaw] = await Promise.all([
+        Backend.getOverride(type),
+        Backend.getDefaultOverride(type),
+      ])
       try {
         const obj = JSON.parse(content)
         editorContent.value = JSON.stringify(obj, null, 2)
@@ -91,9 +95,28 @@ export function useKernelUpdate() {
       } catch {
         editorDefaultContent.value = defaultContentRaw
       }
+      return true
+    } catch (error) {
+      errorAlertMessage.value = overrideErrorMessage(error)
+      showErrorAlert.value = true
+      return false
     }
+  }
+
+  const openEditor = async (type: "tun" | "mixed" | "mirror") => {
+    editingType.value = type
+    saveBtnText.value = "Save"
     showErrorAlert.value = false
     errorAlertMessage.value = ""
+    if (type === 'mirror') {
+      editorContent.value = appState.mirrorUrl.value
+      editorOriginalContent.value = appState.mirrorUrl.value
+      editorDefaultContent.value = "https://gh-proxy.com/"
+    } else {
+      showEditor.value = true
+      await loadOverrideEditor(type)
+      return
+    }
     showEditor.value = true
   }
 
@@ -121,9 +144,14 @@ export function useKernelUpdate() {
         showErrorAlert.value = true
         return
       }
-      res = await Backend.SaveOverride(editingType.value as string, editorContent.value)
-      if (res === "Success") {
+      try {
+        await Backend.saveOverride(editingType.value, editorContent.value)
+        res = "Success"
         editorOriginalContent.value = editorContent.value
+      } catch (error) {
+        errorAlertMessage.value = overrideErrorMessage(error)
+        showErrorAlert.value = true
+        return
       }
     }
     if (res === "Success") {
@@ -148,46 +176,45 @@ export function useKernelUpdate() {
     if (editingType.value === 'mirror') {
       editorContent.value = "https://gh-proxy.com/"
     } else {
-      const res = await Backend.ResetOverride(editingType.value)
       try {
-        const content = res === "Success" ? await Backend.GetOverride(editingType.value) : "{}"
+        await Backend.resetOverride(editingType.value)
+        const content = await Backend.getOverride(editingType.value)
         const obj = JSON.parse(content)
         editorContent.value = JSON.stringify(obj, null, 2)
-      } catch {
-        editorContent.value = "Error"
+      } catch (error) {
+        errorAlertMessage.value = overrideErrorMessage(error)
+        showErrorAlert.value = true
       }
     }
   }
 
   const switchEditorTab = async (type: "tun" | "mixed") => {
-    editingType.value = type
-    saveBtnText.value = "Save"
-    const content = await Backend.GetOverride(type)
-    const defaultContentRaw = await Backend.GetDefaultOverride(type)
-    try {
-      const obj = JSON.parse(content)
-      editorContent.value = JSON.stringify(obj, null, 2)
-    } catch {
-      editorContent.value = content
-    }
-    editorOriginalContent.value = editorContent.value
-    try {
-      const defaultObj = JSON.parse(defaultContentRaw)
-      editorDefaultContent.value = JSON.stringify(defaultObj, null, 2)
-    } catch {
-      editorDefaultContent.value = defaultContentRaw
+    if (await loadOverrideEditor(type)) {
+      editingType.value = type
+      saveBtnText.value = "Save"
     }
   }
 
   onMounted(() => {
-    if (!isInitialized) {
-      isInitialized = true
+    mountedUsers += 1
+    if (mountedUsers === 1) {
       unsubscribeDownloadProgress = EventsOn("download-progress", (pct: number) => {
         downloadProgress.value = pct
       })
     }
   })
 
+  onUnmounted(() => {
+    mountedUsers = Math.max(0, mountedUsers - 1)
+    if (mountedUsers === 0) {
+      unsubscribeDownloadProgress?.()
+      unsubscribeDownloadProgress = null
+      if (updateStateTimeout) clearTimeout(updateStateTimeout)
+      if (editorCloseTimeout) clearTimeout(editorCloseTimeout)
+      updateStateTimeout = null
+      editorCloseTimeout = null
+    }
+  })
 
 
   const isEditorChanged = computed(() => {

@@ -1,8 +1,8 @@
-# <img src="build/appicon.png" width="32" style="vertical-align: -5px;"> WinBox
+# <img src="frontend/src/assets/icon-builder/src/tray.svg" width="32" style="vertical-align: -5px;"> WinBox
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Wails](https://wails.io) and Vue 3.
+A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Tauri 2](https://tauri.app), Rust, and Vue 3.
 
 <div align="center">
   <img src="frontend/src/assets/demo/demo1.png" alt="WinBox Dashboard 1" width="350" style="border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.1); margin: 0 10px;">
@@ -11,12 +11,12 @@ A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://githu
 
 ## Overview
 
-WinBox is designed to provide a seamless and professional proxy management experience on Windows. It combines a robust Go backend with a modern, lightweight frontend, prioritizing stability, performance, and automation.
+WinBox is designed to provide a seamless and professional proxy management experience on Windows. It combines a Rust backend with a modern, lightweight frontend, prioritizing stability, performance, and automation.
 
 ## Key Features
 
 * **Smart Auto-Connect**: Intelligent state management that automatically detects system network connectivity. The proxy kernel seamlessly connects and disconnects based on your actual network availability, ensuring a truly hands-free experience.
-* **Zero-Configuration Kernel**: Fully automated provisioning. WinBox detects your system architecture (AMD64/ARM64) and automatically downloads, installs, and updates the correct Sing-box core without manual intervention.
+* **Zero-Configuration Kernel**: Fully automated provisioning for Windows AMD64/x64. WinBox downloads, installs, and updates the matching Sing-box core without manual intervention.
 * **UWP Loopback Manager**: Includes a built-in exemption manager to grant Windows UWP applications (e.g., Microsoft Store apps) local loopback access, effortlessly bypassing Windows AppContainer isolation.
 * **High-Performance Architecture**: Features a zero-overhead, event-driven logging system that streams core outputs to the frontend without polling delays or memory leaks. The application is compiled with advanced optimization flags for a drastically reduced binary footprint.
 * **Modern Design System**: Crafted following WinUI 3 principles. It features an adaptive Light/Dark mode and utilizes a premium, high-contrast color palette inspired by Radix UI, delivering a professional and native Windows 11 aesthetic.
@@ -26,8 +26,8 @@ WinBox is designed to provide a seamless and professional proxy management exper
 ## Installation
 
 1. Navigate to the [Releases](../../releases) page.
-2. Download the latest `WinBox.exe`.
-3. **Run the executable.**
+2. Download the portable ZIP or the NSIS/MSI installer.
+3. **Run WinBox.**
    *Note: TUN mode requires the application to be launched with Administrator privileges to manage virtual network interfaces.*
 
 ## Quick Start
@@ -39,9 +39,10 @@ WinBox is designed to provide a seamless and professional proxy management exper
 ## Build from Source
 
 **Prerequisites:**
-* [Go](https://go.dev/) (1.21+)
+* [Rust](https://www.rust-lang.org/tools/install) (stable, Windows MSVC toolchain)
 * [Node.js](https://nodejs.org/) (18+)
-* [Wails CLI](https://wails.io/docs/gettingstarted/installation)
+* WebView2 Runtime
+* [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
 
 **Build Instructions:**
 
@@ -50,6 +51,12 @@ WinBox is designed to provide a seamless and professional proxy management exper
 git clone https://github.com/YourUsername/WinBox.git
 cd WinBox
 
-# 2. Build the application (Production build)
-wails build -clean -ldflags "-s -w" -trimpath
+# 2. Install frontend dependencies
+npm ci --prefix frontend
+
+# 3. Build the Tauri application and NSIS/MSI bundles
+cargo tauri build --bundles nsis,msi
 ```
+
+The migration rules and current implementation evidence live in
+[`docs/tauri-migration/README.md`](docs/tauri-migration/README.md).

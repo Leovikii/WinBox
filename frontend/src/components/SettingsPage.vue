@@ -3,14 +3,14 @@ import { ref } from 'vue'
 import { WButton, WSwitch, WSelect, WCard, WExpandable, WModal, WTextarea, WScrollArea, WSegmentedControl } from '@/components/ui'
 import WColorPicker from '@/components/ui/WColorPicker.vue'
 import UWPLoopbackModal from '@/components/UWPLoopbackModal.vue'
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
+import * as Backend from '../api/backend'
+import { BrowserOpenURL } from '../api/backend'
 
 import { useAppState } from '@/composables/useAppState'
 import { useKernelUpdate } from '@/composables/useKernelUpdate'
 import { useProgramUpdate } from '@/composables/useProgramUpdate'
 import { useTheme } from '@/composables/useTheme'
 import { useUWPLoopback } from '@/composables/useUWPLoopback'
-import * as Backend from '../../wailsjs/go/internal/App'
 import { WInfoBar } from '@/components/ui'
 
 const appState = useAppState()
