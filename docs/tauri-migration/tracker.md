@@ -1,6 +1,6 @@
 # 迁移进度与交接台账
 
-唯一进度来源。初始化日期：2026-09-16。当前实现已覆盖 Rust/Tauri 后端、Vue API、Windows 平台边界和发行辅助程序；本版只支持 Windows AMD64/x64，ARM64 已排除，不构建、不发布、不作为阻塞或验收条件。`review` 项仍需对应的真实 Tauri/安装器证据，不能用编译替代实机验收。
+唯一进度来源。初始化日期：2026-09-16。迁移实现已覆盖 Rust/Tauri 后端、Vue API、Windows 平台边界和核心生命周期；本版只支持 Windows AMD64/x64，ARM64 已排除，不构建、不发布、不作为阻塞或验收条件。MIG-042 的 NSIS/updater 最终发行收尾已实施；BUG-009 模式持久化问题已由用户实测确认解决，MIG-009 与 MIG-042 的其他阶段验收仍待完成。`review` 项不能以编译替代实机验收。
 
 ## 状态规则
 
@@ -12,34 +12,37 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | DOC-001 | 建立批准后的完整文档与 agent 规则 | 用户批准 | done | 本次文档 agent | 含前端补充要求、计划/契约/决策/台账/验收；DOC-V1 | 未提交工作区 |
 | MIG-001 | P0 环境、行为、数据与视觉基线 | DOC-001 | review | Codex / 2026-09-17 | V01、V02；全调用盘点和脱敏 fixture 索引 | `MIG-001-BL-2026-09-17`；代码/构建基线已记录，V02 截图与实机行为待复核 |
-| MIG-002 | P0 插件/依赖与发行路径选型 | MIG-001 | review | Codex / 2026-09-17 | D01–D10 有版本/来源/许可与验证记录；Q01–Q04 明确 | `MIG-002P0-2026-09-17`、`MIG-018-FINAL-2026-09-18`；依赖和 x64 CI 方案已落地，签名/installer 演练待验证 |
+| MIG-002 | P0 插件/依赖与发行路径选型 | MIG-001 | review | Codex / 2026-09-17 | D01–D10 有版本/来源/许可与验证记录；Q01–Q04 明确 | `MIG-002P0-2026-09-17`、`MIG-018-FINAL-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终方向为 x64 NSIS + 官方 updater，Tauri CLI/签名资产自动验证通过，GitHub Action/Release 仍待外部验收 |
 | MIG-002-a | P0 Tauri 2 核心/官方插件编译原型 | MIG-001（环境与源码盘点已具备；V02 视觉基线不影响本编译原型） | done | Codex / 2026-09-17 | D01/D02 精确版本、来源/许可和锁文件；最小壳 cargo check/test/clippy | `MIG-002A-2026-09-17`；仅完成 x64 编译原型，运行时、前端接入、发行配置和其余 P0 选型仍待验证 |
 | MIG-003 | P0 Windows 权限/自启/进程原型 | MIG-001, MIG-002 | done | Codex / 2026-09-17 | V03、V07、V09、V11 原型证据，限制明确 | `MIG-003-PROT-2026-09-17`；原型验收完成；管理员实机与真实 sing-box 行为转 V11/V09 实机复核 |
 | MIG-004 | P0 数据/更新兼容原型与阶段结论 | MIG-002, MIG-003 | done | Codex / 2026-09-17 | Q01–Q05 结论；V05、V13、V14 原型证据；P0 门槛满足 | `MIG-004-PROT-2026-09-17`；原型验收完成；真实下载/签名/替换回滚/升级链转 MIG-012–014，ARM64 已排除 |
 | MIG-005 | P1 工程、API/DTO、前端接入简化 | MIG-004 | review | Codex / 2026-09-17 | V01、V04；契约和所有调用者同步，无发行 mock | `MIG-005-FINAL-2026-09-18`；全量 command、Tauri invoke/listen、统一错误和调用者已接入，真实 WebView 证据待复核 |
 | MIG-005-a | P1 前端 API 边界与临时兼容适配 | MIG-004 | done | Codex / 2026-09-17 | Tauri API 只有单一业务入口，前端构建通过 | `MIG-005-FINAL-2026-09-18`；已删除 Wails 适配和生成目录 |
 | MIG-006 | P1 窗口/托盘/主题/单实例 | MIG-005 | review | Codex / 2026-09-19 | V02、V03；桌面效果及行为对等 | `MIG-006-FINAL-2026-09-18`、`MIG-032-WINDOW-FIX-2026-09-19`；窗口 command 权限、居中、拖动区和应用主题材质已修复并通过自动检查，待 x64 实机证据 |
-| MIG-007 | P2 存储、旧数据迁移、设置 | MIG-006 | review | Codex / 2026-09-18 | V05；可恢复、幂等、写入失败可见 | `MIG-007-FINAL-2026-09-18`；Rust storage、默认值、未知字段保留和原子写入通过单元检查，文件占用/跨文件恢复待实机 |
+| MIG-007 | P2 存储、兼容字段与设置 | MIG-006 | review | Codex / 2026-09-18 | V05；可恢复、幂等、写入失败可见 | `MIG-007-FINAL-2026-09-18`；Rust storage、默认值、未知字段保留和原子写入通过单元检查，文件占用/跨文件恢复待实机；旧单 EXE 数据迁移不属于实现范围 |
 | MIG-008 | P2 订阅/配置转换/日志接口 | MIG-007 | review | Codex / 2026-09-18 | V06、V08；配置与日志行为通过 | `MIG-008-FINAL-2026-09-18`、`MIG-038-CONFIG-HTTP-FIX-2026-09-19`、`MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；profile、override、日志、时间格式、会话清理、轮转、sing-box check 和下载边界已实现，配置更新与日志/时间场景已由用户在 Windows x64 复测通过，阶段其余验收仍保持 review |
-| MIG-009 | P3 内核生命周期、三种模式、状态 | MIG-008 | review | Codex / 2026-09-19 | V07、V09；并发/失败状态收敛 | `MIG-009-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`；删除不可靠的应用重启入口，核心重启与监视器清理共用操作锁并增加前端防重入，真实 sing-box 仍待复核 |
+| MIG-009 | P3 内核生命周期、三种模式、状态 | MIG-008 | review | Codex / 2026-09-19 | V07、V09；并发/失败状态收敛 | `MIG-009-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`、`MIG-043-MODE-PERSISTENCE-2026-09-21`；停止后用户模式保持问题已由用户实测确认解决，真实 sing-box 与其他 V07/V09 场景仍待 x64 复核 |
 | MIG-010 | P3 流量、日志流、智能连接 | MIG-009 | review | Codex / 2026-09-18 | V08、V10；可取消、断线恢复、无重复监听 | `MIG-010-FINAL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；图表问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V08/V10 外部验收仍保持 review |
 | MIG-011 | P3 系统代理、自启、权限、UWP | MIG-009, MIG-010 | review | Codex / 2026-09-18 | V09、V11、V12 实机证据 | `MIG-011-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`；平台命令、manifest、任务计划和 UWP 差异更新已实现，管理员系统状态待实机 |
 | MIG-012 | P4 内核更新 | MIG-011 | review | Codex / 2026-09-18 | V13；失败恢复二进制/配置/状态 | `MIG-012-KERNEL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；解压预算问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V13 外部验收仍保持 review |
-| MIG-013 | P4 应用更新与旧客户端过渡 | MIG-012 | review | Codex / 2026-09-18 | V14；便携行为、渠道、签名、恢复实证 | `MIG-013-FINAL-2026-09-18`；独立 helper、stage 清理、启动失败恢复和 portable ZIP 规则已实现，签名/真实替换待复核 |
-| MIG-014 | P4 CI 与发行产物演练 | MIG-013 | review | Codex / 2026-09-18 | V15；x64 构建/运行分别记录 | `MIG-014-BUNDLE-2026-09-18`；本机 x64 Tauri CLI 已生成 NSIS/MSI 和 portable ZIP，签名/CI 仍待执行 |
-| MIG-015 | P5 视觉/交互/性能/故障全量回归 | MIG-014 | review | Codex / 2026-09-18 | V01–V16；无发布阻断风险 | `MIG-015-FINAL-2026-09-18`；自动检查和远程 changelog 安全边界通过，真实 WebView/管理员/网络/installer 回归待复核 |
-| MIG-016 | P5 移除旧栈与临时适配 | MIG-015 | review | Codex / 2026-09-18 | V17；新环境可独立构建，无活动 Wails 依赖 | `MIG-014-BUNDLE-2026-09-18`；Go/Wails 源码、生成目录、旧配置和旧构建资源已删除，最终 x64 Tauri bundle 已通过 |
-| MIG-017 | P5 最终文档、台账和交接 | MIG-016 | in_progress | Codex / 2026-09-18 | V18；文档与代码一致，总体验收满足 | `MIG-018-FINAL-2026-09-18`、`MIG-019-BUNDLE-2026-09-18`、`MIG-020-BUNDLE-2026-09-18`、`MIG-021-INIT-ORDER-2026-09-18`、`MIG-023-X64-TEST-2026-09-18`、`MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-026-FINAL-AUDIT-2026-09-18`、`MIG-027-VERSION-TEST-2026-09-18`；x64 自动检查和文档同步完成，待人工 Windows WebView/系统/签名验收 |
+| MIG-013 | P4 应用更新与旧客户端过渡 | MIG-012 | review | Codex / 2026-09-18 | V14；NSIS 行为、手动数据说明、签名、恢复实证 | `MIG-013-FINAL-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；旧 portable helper 方案已被 MIG-042 替代，官方 updater/NSIS 代码与签名构建已完成，桌面跨版本验收待执行 |
+| MIG-014 | P4 CI 与发行产物演练 | MIG-013 | review | Codex / 2026-09-18 | V15；x64 NSIS 构建/运行分别记录 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；workflow 已改为 x64 NSIS，unsigned/signed 本地构建与资产模拟通过，GitHub Action/Release 待外部验收 |
+| MIG-015 | P5 视觉/交互/性能/故障全量回归 | MIG-014 | review | Codex / 2026-09-18 | V01–V16；无发布阻断风险 | `MIG-015-FINAL-2026-09-18`、`MIG-041-RELEASE-PREP-2026-09-19`；自动检查和远程 changelog 安全边界通过，真实 WebView/管理员/网络/发布更新仍待复核 |
+| MIG-016 | P5 移除旧栈与临时适配 | MIG-015 | review | Codex / 2026-09-18 | V17；新环境可独立构建，无活动 Wails 或自定义应用 updater 依赖 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；Go/Wails、自定义应用 updater 和旧 helper 活动代码已删除，静态扫描通过 |
+| MIG-017 | P5 最终文档、台账和交接 | MIG-016 | review | Codex / 2026-09-18 | V18；文档与最终 NSIS/updater 代码一致，总体验收满足 | `MIG-018-FINAL-2026-09-18`、`MIG-019-BUNDLE-2026-09-18`、`MIG-020-BUNDLE-2026-09-18`、`MIG-021-INIT-ORDER-2026-09-18`、`MIG-023-X64-TEST-2026-09-18`、`MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-026-FINAL-AUDIT-2026-09-18`、`MIG-027-VERSION-TEST-2026-09-18`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终文档与自动验证完成，真实桌面/Release 证据待外部验收 |
+| MIG-042 | P5 最终发行收尾：NSIS、官方 updater 与安装数据 | MIG-017 | review | Codex / 2026-09-20 | V05、V14、V15、V19；x64 一键 NSIS 安装/升级/卸载、默认路径无选择页、安装目录最小清单、数据目录隔离、人工数据说明、官方签名更新、统一退出清理和 main Release 证据 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`；代码、NSIS、workflow 和自动检查通过；真实安装/升级/卸载、CI secrets/main Release、官方应用内跨版本更新仍需外部验收 |
 
 依赖代表阶段门槛；同阶段若实际可独立工作，可在解释依赖后细分任务，不必建立新的管理系统。子任务使用 `MIG-xxx-a`，不得将未验证项隐藏在父任务 done 下。
 
 ## 当前阻塞
 
-当前没有代码实施阻塞；`review` 项的未完成部分是需要真实 Tauri WebView、管理员权限、真实 sing-box、安装器/签名和 x64 Windows 环境的外部验收，不把它们伪记为通过。ARM64 已排除，不是未完成项。未开始不等于 blocked。
+当前没有迁移代码实施阻塞；MIG-042 的代码与自动验证已完成，进入外部 review。当前最终配置只使用 x64 NSIS 和官方 updater，MIG-041 portable-only 内容仅保留为历史记录。私钥不得入库，GitHub Actions secrets、main Release、真实安装/升级/卸载和应用内更新仍需外部验收；Linux/ARM64 不属于本版范围。未完成外部验收不等于 blocked。
 
 | 日期 | 任务 | 实际阻塞 | 恢复条件 | 可继续工作 |
 | --- | --- | --- | --- | --- |
-| 2026-09-18 | MIG-006/011–015 | Computer Use 当前仅返回浏览器、没有可绑定的原生窗口；管理员 Tauri WebView、真实 sing-box、签名和 x64 桌面实机证据仍缺；bundle 自动证据已完成 | 在 x64 桌面启动最终产物/安装器并保存原系统状态；签名环境可用 | 人工桌面验收与签名/CI 环境可用后继续 |
+| 2026-09-18 | MIG-006/011–015 | Computer Use 当前仅返回浏览器、没有可绑定的原生窗口；管理员 Tauri WebView、真实 sing-box 和 x64 桌面实机证据仍缺 | 在 x64 桌面启动最终 NSIS 产物并保存窗口、系统状态、核心和更新证据 | 用户手动测试最终 NSIS；MIG-042 完成后合并 PR 到 `main` |
+| 2026-09-19 | MIG-042 | 尚未配置 updater public key/private key；当前 workflow 和代码仍是旧 portable 草案，不能执行正式签名 Release | 实施官方 updater、配置 GitHub Actions secrets，并完成 Windows x64 NSIS/应用内更新验收 | 用户提供/配置签名材料后继续；预更新选择复用既有 `pre_release`，不需要新增 channel；旧数据由用户按发行说明自行处理 |
+| 2026-09-20 | MIG-042 | 当前 GitHub Release 仍只有旧 portable ZIP，稳定版及旧预发布版均无 `latest.json`；本机不能替代 GitHub secrets/main Release 及真实安装/升级/卸载桌面证据 | 合并 dev PR 到 `main`，由 workflow 生成 NSIS、签名和 `latest.json`；之后在 Windows x64 验收安装器、更新、退出清理和数据目录 | 当前无 metadata 应显示 `Latest`；正式 updater 跨版本链仍等待 main Release；不提交私钥、不在本机发布 Release |
 
 ## 问题台账
 
@@ -51,8 +54,11 @@
 | BUG-004 / MIG-009 | 托盘 Restart APP 后 sing-box 残留及应用未重新拉起 | `resolved` | 已删除无可靠 relaunch 保障且无前端调用者的 `Restart APP` 托盘入口、Rust command/API；不再存在该失败路径。`Restart Core` 保留并统一经过 `RuntimeState.operation` 锁和既有 stop/start 清理链，监视器清理也在同一锁内完成。 | `MIG-035-ISSUE-DIAG-2026-09-19`、`MIG-036-CORE-RESTART-AUDIT-2026-09-19`、`MIG-037-CORE-RESTART-RECHECK-2026-09-19`；自动检查通过，真实 Windows x64 下仍需确认核心重启的单 PID、代理恢复和快速重复操作行为。 |
 | BUG-005 / MIG-008 | 配置下载 UA 与失败日志缺失 | `resolved` | 迁移后的共享 `reqwest` 客户端发送 `WinBox/2.8`，远端配置下发服务要求 `sing-box`，导致添加/更新配置失败；`add_profile`、`update_active_profile`、程序更新和版本检查的失败早退没有统一写入 `app.log`，非 2xx 状态也被丢弃。现已统一使用 `sing-box`，远程操作失败写入 `RuntimeState` app log，保留 HTTP 状态码并对配置校验错误脱敏。用户已在 Windows AMD64/x64 测试 EXE 上确认配置更新通过。 | `MIG-038-CONFIG-HTTP-FIX-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-008 的整体 V06 验收覆盖回归；不记录 URL、响应正文或配置内容。 |
 | BUG-006 / MIG-039 | 时间格式、启动日志清理与日志轮转遗漏 | `resolved` | 迁移后应用日志和 `Profile.updated` 写入 Unix 秒数；Tauri 启动未清空 `app.log`/`core/box.log`，缺少旧版启动/退出记录，应用日志也没有 10 MiB/5 归档轮转。Rust 现已使用跨平台本地时间格式化，启动在异步自动连接前清空当前日志并写入启动记录，正常退出写入退出记录，恢复轮转；前端兼容迁移期间已写入的 Unix 秒/毫秒值和旧日期字符串。用户已在 Windows AMD64/x64 测试 EXE 上确认重启后日志清理、日志时间和配置更新时间显示正常。 | `MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-008 的整体 V06/V08 验收覆盖回归；Linux 不在本版构建/验收范围。 |
+| BUG-007 / MIG-012 | 无活动配置时内核更新暂存失败 | `fixed-awaiting-retest` | `check_staged_core` 原先无条件要求活动 profile，所以没有选择配置时在执行核心检查前报 `No active configuration selected`。现在无活动 ID 时验证暂存核心 `sing-box version` 成功；已有选择时仍生成运行配置并执行 `sing-box check`，损坏/缺失配置仍拒绝更新。 | `MIG-042-UPDATE-CHECK-2026-09-20`；Rust 回归检查通过，等待用户在 Windows x64 无活动配置状态下复测内核更新。 |
+| BUG-008 / MIG-013 | 旧 Release 缺少 updater metadata 导致应用更新检查报错 | `fixed-awaiting-retest` | 只读 GitHub Release 查询确认当前 `v2.8.0` 与旧预发布资产只有 portable ZIP，没有 `latest.json`；代码也曾将预发布列表第一项（稳定版）误作预发布。现按 `prerelease=true` 筛选，并检查所选 Release 的 `latest.json`；缺少时返回本机版本，不调用 updater，前端现有同版本分支显示 `Latest`。 | `MIG-042-UPDATE-CHECK-2026-09-20`；当前无 metadata 情况已自动覆盖，等待用户验证 UI；正式签名跨版本更新要等 main workflow 发布带 metadata 的 Release。 |
+| BUG-009 / MIG-009 | 停止服务后启动模式复位为默认 Proxy | `resolved` | 共享 `apply_state(false,false)` 成功停止后将 `tun_mode`、`sys_proxy` 一并写成 false；前端将空状态解释成默认 Proxy。现停止路径只停止核心并同步保留模式；离线模式选择与默认 Proxy 持久化改为等待结果，失败可见并回滚选择。用户已确认实测问题解决。此前被旧路径清成 `false/false` 的记录无法反推出历史模式，需由用户重新选择。 | `MIG-043-MODE-PERSISTENCE-2026-09-21`；自动验证及用户实测均通过；BUG-009 关闭，MIG-009 其他 V07/V09 验收仍保持 review。 |
 
-BUG-001/BUG-002/BUG-005/BUG-006 已由用户在 Windows AMD64/x64 测试 EXE 上确认解决；BUG-003 等待桌面复测；BUG-004 已通过删除失效的应用重启入口关闭。核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
+BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户实测确认解决；BUG-003、BUG-007、BUG-008 仍等待对应桌面复测；BUG-004 已通过删除失效的应用重启入口关闭。核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
 
 ## 交接日志
 
@@ -335,3 +341,59 @@ BUG-001/BUG-002/BUG-005/BUG-006 已由用户在 Windows AMD64/x64 测试 EXE 上
 - 范围：`BUG-005`、`BUG-006`；复测配置更新的 `sing-box` UA、远程失败日志、时间格式、重启后的日志清理和配置更新时间显示。
 - 用户验证：在 Windows AMD64/x64 测试 EXE 上确认配置更新成功；确认日志时间可读、配置更新时间显示正常，重启后日志按当前会话清理，问题修复结果符合预期。
 - 结果：`BUG-005`、`BUG-006` 状态更新为 `resolved`；`MIG-008` 仍保持 `review`，其余订阅、日志压力和真实核心生命周期验收继续按 V06/V08/V13 执行。ARM64 不构建、不发布、不验收。
+
+### 2026-09-19 — MIG-041 x64 portable 发布准备
+
+- 完成：将 `.github/workflows/build-and-release.yml` 从 Tauri NSIS/MSI bundle 改为只构建 `x86_64-pc-windows-msvc` 的 `WinBox.exe` 与 `winbox-updater.exe`；PR 只上传 Action artifact，合并到 `main` 后才创建版本 Release。
+- 产物契约：Release 上传裸 `WinBox.exe` 和 `WinBox-v<version>-windows-amd64.zip`；ZIP 内保留 `WinBox/WinBox.exe`、`WinBox/WinBox-updater.exe`，确保 `update_program` 能找到 helper。未设计或上传安装包，未使用本机测试 EXE 作为发布输入。
+- 同步：`src-tauri/tauri.conf.json` 暂停 bundle，根 README、迁移 README、contracts、decisions 和 validation 均改为 portable-only 发布说明；版本保持 `3.0.0-alpha.1`，架构保持 AMD64/x64。
+- 自动验证：更新资产/ZIP 安全暂存 6/6，helper 更新阶段 3/3；本机 x64 目标构建命令与前端构建待本轮完成，GitHub Action、Release 和跨版本应用内更新待用户将 PR 合并到 `main` 后验证。
+
+### 2026-09-19 — MIG-042 最终发行收尾计划登记
+
+- 用户将最终发行形式改为 Windows AMD64/x64 NSIS 安装版，并批准使用 Tauri 官方 updater；不再维护单 EXE、portable ZIP 或 MSI，不构建 ARM64/Linux。
+- 用户确认现有预更新检查能力已经覆盖稳定/预发布选择，因此不新增独立 alpha channel；MIG-042 复用 `pre_release` 设置和同一版本检查策略。
+- 数据契约：安装目录只保存程序文件；用户数据统一使用 Tauri `appLocalDataDir()`，Windows 典型位置为 `%LOCALAPPDATA%\com.leovikii.winbox\`。程序不自动扫描或迁移旧便携 `data/`，发行说明提供人工备份/复制步骤。
+- 更新契约：删除自定义 `WinBox-updater.exe`、应用 ZIP 替换/回滚和程序更新 command；官方 updater 安装前复用统一退出清理，sing-box 核心更新保持独立。
+- 发布契约：PR 到 `main` 只验证 x64 NSIS；合并 `main` 后 GitHub Actions 使用签名 secrets 发布 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`。Tauri v2 Windows updater 直接使用签名安装器，不额外生成 `.nsis.zip`；本机产物只用于测试。
+- 计划证据：`MIG-042-RELEASE-PLAN-2026-09-19`；本条只登记方案，不代表代码、签名、安装器或 Release 已执行。下一步按 [plan.md](plan.md) 的 P5.1 顺序实施。
+
+### 2026-09-20 — MIG-042 兼容范围进一步收口
+
+- 用户确认：如果旧单 EXE → NSIS 的自动兼容或旧数据迁移增加复杂度，则不实现；旧版更新日志中明确说明升级方式和手动数据处理步骤。
+- 方案调整：删除自动发现、目录选择、数据复制、合并和回滚迁移需求；新版只保证新 `appLocalDataDir()` 数据根，用户自行备份旧 `data/` 后按文档复制。
+- 影响：MIG-042 验收从“自动数据迁移”改为“人工说明准确、安装目录与数据目录分离、升级不删除新数据”；不新增迁移代码、依赖或首次启动 UI。
+
+### 2026-09-20 — MIG-042 一键安装与目录精简计划登记
+
+- 用户确认的体验目标：NSIS 默认安装到 `%ProgramFiles%\\WinBox\\`（通常为 `C:\\Program Files\\WinBox\\`），不让用户选择路径或组件，完成必要 UAC 后自动安装并启动；缺少 WebView2 时使用官方 bootstrapper。
+- 安装目录白名单：主程序、Tauri/Windows 必需 loader/资源和 NSIS 卸载文件；禁止写入配置、订阅、核心、日志、`updates/` 或持久化 `backups/`。
+- 数据目录白名单：现有 `config/`、按需生成的 `profiles/`、内核所需 `core/`、应用/内核日志和代理恢复状态；不改 JSON 布局，不删除功能所需文件。
+- 临时文件策略：下载、原子写入、核心替换/回滚和 updater 暂存只在事务期间存在，并且只在成功或恢复完成后清理；恢复未完成时保留最小恢复材料，不为目录整洁牺牲功能；不新增迁移代码、数据库或长期临时目录。
+- 验收：MIG-042 执行时补充 NSIS 安装后文件清单、默认路径/无选择页、自动启动、WebView2、数据目录隔离、升级保留数据和卸载保留数据的 Windows x64 证据。本条只登记计划，不代表实现完成。
+
+### 2026-09-20 — MIG-042 预更新检查地址修复
+
+- 根因：官方 updater 的预发布 metadata 使用 GitHub 网页仓库地址是正确的，但用于获取最新预发布 tag 的 `latest_release` 也误用了该网页地址，导致请求返回 HTML 而不是 Release API JSON。
+- 修改：分离 `https://github.com/Leovikii/WinBox` 下载/metadata 地址与 `https://api.github.com/repos/Leovikii/WinBox` Release API 地址；稳定与预发布 metadata endpoint 增加回归检查，非法 tag 继续拒绝。
+- 自动检查：x64 `cargo fmt -- --check`、`cargo check --locked --offline`、`cargo test --locked --offline`（29/29、0 doctest）、`cargo clippy --all-targets --locked --offline -- -D warnings`、`npm --prefix frontend run build`、unsigned 和 signed x64 NSIS 构建均通过；Tauri 输出 `Target: x64`，主程序 PE `Machine=0x8664`，版本 `3.0.0-alpha.1`。
+- 当前 signed x64 测试产物：主程序 SHA-256 `BF22B132D366797D22361F1DDA3C39FA5CE97A1F26A07679FC95DDABBAEF79EF`（18,679,296 bytes）；安装器 SHA-256 `1632519412C7ED812BEA772484DAEEA96EE06964B405818FBB1FC29031693178`（4,583,698 bytes）；同名 `.sig` 428 bytes（SHA-256 `1D77A1F45D2C8E796CE8C52E48059FA92F939DCE1D290F0B73E12B52FE758CBD`）。产物只在本机用于测试，不作为 Release 输入。
+- 结果/限制：代码与自动检查通过；MIG-042 仍保持 `review`，等待 Windows x64 真实安装、官方 updater 跨版本更新和 GitHub Actions/main Release 验收。ARM64/Linux 不构建、不发布、不验收。
+
+### 2026-09-20 — MIG-042 应用更新无 metadata 与内核暂存校验修复
+
+- 实测与只读远端核对：官方 updater 报 `Could not fetch a valid release JSON from the remote`。GitHub Release API 返回当前稳定 `v2.8.0`、预发布 `v2.8.0-rc.1` 等旧 Release；它们只有旧 portable ZIP，没有 `latest.json`。同时旧代码在预发布模式下直接取 Release 列表第一项，实际会把稳定 `v2.8.0` 当成预发布目标。
+- 应用更新修复：Release 模式按已有 `pre_release` 设置取稳定或只取 `prerelease=true` 的最新项；先检查资产列表是否包含 `latest.json`。缺少官方 updater metadata 时，检查 command 返回当前应用版本（`useProgramUpdate` 的同版本分支显示 `Latest`，不进入 `FAILED`/error）；真正存在 metadata 时仍由 Tauri updater 负责 JSON、签名、下载和安装。手动更新入口在 metadata 缺失时返回 `update_not_available`。无需前端改动或新增 channel。
+- 内核更新修复：`check_staged_core` 在没有活动 profile ID 时改为运行暂存 `sing-box.exe version` 并要求成功；已有 profile 仍执行完整 `sing-box check`，已选配置文件缺失或损坏继续拒绝替换。未改变核心独立更新和回滚链。
+- 修改：`src-tauri/src/commands.rs`、本台账及 `docs/tauri-migration/{contracts,decisions,validation}.md`；无新依赖、无 UI 样式/交互改动。
+- 自动验证：x64 Rust 测试 `32/32`、0 doctest；新增预发布筛选、legacy Release 无 metadata、无 profile/已选 profile 缺失行为测试。x64 clippy `-D warnings`、fmt、前端 TypeScript/Vite build、`git diff --check` 通过。
+- 验收边界：当前旧 Release 无法验证 Tauri 跨版本签名安装；需合并 `main` 后由 workflow 发布带 `latest.json` 的新 NSIS Release，再在 Windows AMD64/x64 验证稳定/预发布通道、签名和安装前统一退出清理。内核无活动配置的真实更新仍需用户复测。ARM64/Linux 不构建、不发布、不验收。
+
+### 2026-09-21 — MIG-043 / BUG-009 模式选择持久化修复
+
+- 根因：UI 和托盘复用的 `apply_state(false, false)` 停止分支在核心停止后将持久化模式也写成 `false/false`；初始化随即把空模式默认成 Proxy。
+- 同类路径审计：模式字段的其他写入只有显式模式选择。`toggle_service`、正常退出、核心重启、配置切换和内核更新均未清除模式；托盘 Stop 复用已修复的 `apply_state`。前端原先另有离线模式与默认 Proxy 的 fire-and-forget 保存，现等待结果，失败时回滚或显示现有错误状态。
+- 修改：停止仅停止核心并同步原有选择，不再保存空模式；模式 JSON、Tauri command/DTO、界面样式和交互选项不变，无新增依赖。
+- 自动验证：Windows x64 `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、`cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`（33/33、0 doctest）、`cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`、`npm --prefix frontend run build`、`git diff --check` 均通过。新增停止请求与模式选择区分的 Rust 回归测试。
+- 本机 unsigned x64 测试产物：`src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，18,771,456 bytes，版本 `3.0.0-alpha.1`，SHA-256 `8C2A10B86621F58B87C46B003366311854F71ACDE9D4641656794953947B7280`；安装器 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-alpha.1_x64-setup.exe`，4,585,218 bytes，SHA-256 `5F98913B2A614A646C58B718F0F6A07394DA2472B469DDE8F97F659443DB17BD`。Tauri 输出 `Target: x64`；unsigned 包无 updater 签名，仅供本机人工测试，不作为 Release 输入。不构建 ARM64。
+- 结果/限制：BUG-009 为 `fixed-awaiting-retest`；当前环境不能启动/操作原生 Tauri 窗口。已被旧路径清成 `false/false` 的记录无法恢复历史模式，复测应先重新选择目标模式，再在 Windows AMD64/x64 测试包上验证界面 Stop、托盘 Stop、退出后重启，以及 TUN/Mixed/Proxy 选择在停止和离线保存后的持久性。MIG-009/MIG-042 的其他实机验收保持原状态。

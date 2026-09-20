@@ -39,7 +39,6 @@ pub enum UpdateError {
     UnsupportedArchitecture(String),
     InvalidVersion(String),
     InvalidAssetName { expected: String, actual: String },
-    InvalidPortableEntry(String),
     InvalidDigest(String),
     DigestMismatch { expected: String, actual: String },
     UnsafeArchiveEntry(String),
@@ -63,9 +62,6 @@ impl std::fmt::Display for UpdateError {
             Self::InvalidVersion(version) => write!(f, "invalid release version: {version}"),
             Self::InvalidAssetName { expected, actual } => {
                 write!(f, "unexpected asset name {actual}; expected {expected}")
-            }
-            Self::InvalidPortableEntry(entry) => {
-                write!(f, "portable ZIP must contain WinBox.exe, got {entry}")
             }
             Self::InvalidDigest(digest) => write!(f, "invalid SHA-256 digest: {digest}"),
             Self::DigestMismatch { expected, actual } => {
@@ -122,141 +118,6 @@ pub fn validate_sing_box_asset_name(
             actual: asset_name.to_owned(),
         })
     }
-}
-
-pub fn expected_portable_asset_name(
-    version: &str,
-    architecture: TargetArchitecture,
-) -> Result<String, UpdateError> {
-    validate_version(version)?;
-    Ok(format!(
-        "WinBox-v{version}-{}.zip",
-        architecture.asset_suffix()
-    ))
-}
-
-pub fn validate_portable_asset_name(
-    asset_name: &str,
-    version: &str,
-    architecture: TargetArchitecture,
-) -> Result<(), UpdateError> {
-    let expected = expected_portable_asset_name(version, architecture)?;
-    if asset_name == expected {
-        Ok(())
-    } else {
-        Err(UpdateError::InvalidAssetName {
-            expected,
-            actual: asset_name.to_owned(),
-        })
-    }
-}
-
-pub fn validate_portable_entry_name(entry_name: &str) -> Result<(), UpdateError> {
-    if entry_name == "WinBox.exe" {
-        Ok(())
-    } else {
-        Err(UpdateError::InvalidPortableEntry(entry_name.to_owned()))
-    }
-}
-
-pub fn stage_portable_archive(
-    archive_path: &Path,
-    asset_name: &str,
-    expected_digest: &str,
-    staging_dir: &Path,
-    version: &str,
-    architecture: TargetArchitecture,
-) -> Result<PathBuf, UpdateError> {
-    validate_portable_asset_name(asset_name, version, architecture)?;
-    let metadata =
-        fs::symlink_metadata(archive_path).map_err(|source| io_error(archive_path, source))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(UpdateError::Io {
-            path: archive_path.to_path_buf(),
-            source: io::Error::new(io::ErrorKind::InvalidInput, "archive is not a regular file"),
-        });
-    }
-    if metadata.len() > MAX_ARCHIVE_BYTES {
-        return Err(UpdateError::ArchiveTooLarge);
-    }
-    let expected_digest = normalize_digest(expected_digest)?;
-    let mut archive_file =
-        File::open(archive_path).map_err(|source| io_error(archive_path, source))?;
-    verify_reader_sha256(&mut archive_file, archive_path, expected_digest)?;
-    archive_file
-        .seek(SeekFrom::Start(0))
-        .map_err(|source| io_error(archive_path, source))?;
-    if staging_dir.exists() {
-        return Err(UpdateError::StagingDirectoryExists(
-            staging_dir.to_path_buf(),
-        ));
-    }
-    if let Some(parent) = staging_dir
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-    {
-        fs::create_dir_all(parent).map_err(|source| io_error(parent, source))?;
-    }
-    fs::create_dir(staging_dir).map_err(|source| io_error(staging_dir, source))?;
-
-    let result = stage_portable_contents(archive_file, staging_dir);
-    if result.is_err() {
-        let _ = fs::remove_dir_all(staging_dir);
-    }
-    result
-}
-
-fn stage_portable_contents(file: File, staging_dir: &Path) -> Result<PathBuf, UpdateError> {
-    let mut archive = ZipArchive::new(file)?;
-    if archive.len() > MAX_ARCHIVE_ENTRIES {
-        return Err(UpdateError::TooManyArchiveEntries);
-    }
-
-    let mut executable_path = None;
-    for index in 0..archive.len() {
-        let mut entry = archive.by_index(index)?;
-        let components = validate_archive_entry_path(entry.name())?;
-        if entry.is_symlink() {
-            return Err(UpdateError::UnsafeArchiveEntry(entry.name().to_owned()));
-        }
-        if entry.is_dir() {
-            continue;
-        }
-        if components
-            .last()
-            .is_none_or(|part| part != OsStr::new("WinBox.exe"))
-        {
-            continue;
-        }
-        if executable_path.is_some() {
-            return Err(UpdateError::DuplicateExecutable);
-        }
-        if entry.size() == 0 {
-            return Err(UpdateError::EmptyExecutable);
-        }
-        if entry.size() > MAX_EXTRACTED_BYTES {
-            return Err(UpdateError::ExtractedContentTooLarge);
-        }
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
-            .map_err(|source| io_error(Path::new(entry.name()), source))?;
-        let target = staging_dir.join("WinBox.exe");
-        let mut output = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&target)
-            .map_err(|source| io_error(&target, source))?;
-        output
-            .write_all(&bytes)
-            .map_err(|source| io_error(&target, source))?;
-        output
-            .sync_all()
-            .map_err(|source| io_error(&target, source))?;
-        executable_path = Some(target);
-    }
-
-    executable_path.ok_or(UpdateError::MissingExecutable)
 }
 
 pub fn sha256_file(path: &Path) -> Result<String, UpdateError> {
@@ -497,14 +358,6 @@ mod tests {
             TargetArchitecture::X64
         )
         .is_err());
-        assert!(validate_portable_asset_name(
-            "WinBox-v2.8.0-windows-amd64.zip",
-            "2.8.0",
-            TargetArchitecture::X64
-        )
-        .is_ok());
-        assert!(validate_portable_entry_name("WinBox.exe").is_ok());
-        assert!(validate_portable_entry_name("winbox.exe").is_err());
     }
 
     #[test]

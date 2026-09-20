@@ -26,9 +26,6 @@ use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if startup::try_apply_update() {
-        return;
-    }
     let startup = StartupOptions::from_environment();
     if startup.delay_start {
         std::thread::sleep(DELAY_START);
@@ -43,6 +40,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::get_init_data,
             commands::get_product_version,
@@ -90,8 +88,7 @@ pub fn run() {
             commands::update_program
         ])
         .setup(move |app| {
-            let executable = std::env::current_exe()?;
-            let paths = AppPaths::portable(executable)?;
+            let paths = AppPaths::from_data_dir(app.path().app_local_data_dir()?);
             let runtime = RuntimeState::new(paths.clone());
             tauri::async_runtime::block_on(runtime.clear_session_logs())?;
             let storage = Storage::new(paths);

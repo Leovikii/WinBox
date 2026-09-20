@@ -96,7 +96,7 @@
 | 文件 | 已知内容/作用 |
 | --- | --- |
 | config/settings.json | mirror、mirror_enabled、auto_connect_state、start_on_boot、close_behavior、theme_mode、accent_color、ipv6_enabled、log_level、log_to_file、pre_release；旧类型还含可选 auto_connect |
-| config/state.json | active_id、tun_mode、sys_proxy |
+| config/state.json | active_id；tun_mode、sys_proxy 保存用户选择模式而非运行状态；停止/退出不清零，两个值均为 false 时才应用默认 Proxy 初始化 |
 | system-proxy.json | WinBox 接管系统代理前后的最小快照；停止/崩溃恢复后按当前值匹配才删除，不存在时不覆盖其他软件状态 |
 | config/profiles.json | Profile 数组 |
 | config/overrides/tun.json | TUN 覆盖配置 |
@@ -116,10 +116,10 @@
 - 系统代理恢复先读取当前快照；原快照中不存在的注册表值只有在当前确实存在时才删除，避免重复恢复或本地化 `reg.exe` 缺失值错误。
 - 当前原型不向前端暴露通用 shell，也不扫描或终止其他 `sing-box.exe`。stdout/stderr 持续排空；输出通道关闭后监视器仍轮询进程但不忙等，日志 DTO 和状态协调留在 MIG-009。
 
-### 发行与旧客户端过渡契约（P0）
+### 发行与旧客户端过渡契约（P0 历史记录）
 
 - 旧 Wails portable 资产保持 `WinBox-v<version>-windows-amd64.zip` 命名，ZIP 内提供 `WinBox.exe`；首个 Tauri x64 过渡资产继续使用该布局，使旧客户端的资产筛选和 EXE 替换逻辑仍可工作。
-- Tauri 官方 updater 资产使用签名的 Windows NSIS/MSI updater 包（例如 `*.nsis.zip` 或 `*.msi.zip`）及 `latest.json`，不能把这些资产投喂给旧 Wails 更新器，也不能把 plain binary 当作官方 portable updater。
+- Tauri 官方 updater 资产使用签名的 Windows NSIS/MSI updater 包及 `latest.json`；当前 Tauri v2 Windows NSIS 目标直接发布 `*-setup.exe` 与同名 `.sig`，不额外生成 `.nsis.zip`。不能把这些资产投喂给旧 Wails 更新器，也不能把 plain binary 当作官方 portable updater。
 - portable 模式的数据根仍是运行中 EXE 同级的 `data/`。在本次迁移中不自动扫描 AppData 或其他目录；未来安装版导入必须是显式、可恢复的迁移步骤。
 - sing-box 下载必须匹配 Windows x64 的精确资产名 `windows-amd64`，并在替换前完成发布元数据 digest、ZIP 边界和内核配置检查。ARM64 资产不属于本版支持范围。
 
@@ -162,12 +162,25 @@
 - `frontend/src/api/backend.ts` 现在是纯 Tauri 边界：业务调用统一使用 `invoke` 和 `listen`；窗口最小化、隐藏、显示、聚焦及主题通过受控 Rust command 进入，拖动仅使用 Tauri `start-dragging` capability。Wails 生成目录、Go backend 和兼容回退已删除。事件订阅返回独立卸载函数，按事件名维护，不会用一次卸载误删其他事件。
 - 初始化顺序契约：`App` 与 `useAppState` 先注册各自事件，再等待 `EventsOn` 的 Tauri listener 注册完成，之后才读取 `get_init_data`；这样启动期间到达的状态/流量事件不会被初始化快照覆盖。卸载时逐个调用保存的卸载函数，重复挂载不会留下监听。
 - 已注册 command 覆盖初始化/版本、设置/模式、override、profile/订阅、启停/重启、日志、UWP、窗口/外部 URL、托盘、内核更新和程序更新。Rust 输入在 URL、路径、profile ID、override JSON、架构/资产名、UWP SID 等边界拒绝非法值；错误通过脱敏 `AppError { code, message }` 或既有 UI 结果字符串映射。
-- 运行状态唯一来源是 Rust `RuntimeState` + `Storage`：操作锁串行化启停/模式/更新，`CoreProcess` 只接受 EXE 同级 `data/core/sing-box.exe`；监视器在清理旧进程前取得同一操作锁并按 `Arc` 身份确认，避免旧监视器停止新核心的流量任务；启动失败会回收尚未登记的核心进程，自动连接探测结束后会重新检查当前核心再启动。流量 WebSocket 将 wildcard controller 映射到 loopback、按配置发送 Clash API Bearer secret、带连接超时/受控重连和可取消停止。
-- 更新契约：sing-box 下载先校验 GitHub digest、ZIP 安全边界和暂存核心 `sing-box check`；Windows 替换使用 `ReplaceFileW` 旧文件备份、锁冲突短重试和阶段化 app log，启动新核心失败时恢复旧文件并尝试恢复旧进程。程序 portable 更新使用同级 `WinBox-updater.exe`；安装 bundle 的 `winbox-updater.exe` 也由后端识别，helper 在替换后清理 stage，启动失败恢复旧 EXE。
+- 运行状态唯一来源是 Rust `RuntimeState` + `Storage`：操作锁串行化启停/模式/更新，`CoreProcess` 只接受 Tauri `appLocalDataDir()/core/sing-box.exe`；监视器在清理旧进程前取得同一操作锁并按 `Arc` 身份确认，避免旧监视器停止新核心的流量任务；启动失败会回收尚未登记的核心进程，自动连接探测结束后会重新检查当前核心再启动。流量 WebSocket 将 wildcard controller 映射到 loopback、按配置发送 Clash API Bearer secret、带连接超时/受控重连和可取消停止。
+- 更新契约：sing-box 下载先校验 GitHub digest、ZIP 安全边界和暂存核心 `sing-box check`；无活动配置时用暂存二进制的 `sing-box version` 验证可执行性；已选择的配置仍必须通过 `sing-box check`。Windows 替换使用 `ReplaceFileW` 旧文件备份、锁冲突短重试和阶段化 app log，启动新核心失败时恢复旧文件并尝试恢复旧进程。应用更新保留 `check_program_update`/`update_program` command 名称作为薄 Rust 封装，Release API 按 `pre_release` 选择稳定版或 `prerelease=true` 版本；Release 尚无 `latest.json` 时视为所选通道暂无可用更新，已有 metadata 才交由官方 `tauri-plugin-updater` 检查签名、下载和安装 NSIS；不再存在自定义 helper。
 - 远程 HTTP 契约：配置、sing-box 核心、程序资产和 release 元数据请求统一使用 `User-Agent: sing-box`，以兼容远端配置下发服务的 UA 检查；非 2xx 下载/元数据错误保留 HTTP 状态码。配置添加/更新及更新流程的失败写入 `RuntimeState` app log，但日志不得包含 URL、响应正文、订阅凭据或配置内容；配置校验失败只记录脱敏原因。
 - 时间/日志契约：应用日志使用本地 `YYYY-MM-DD HH:mm:ss`，配置 `Profile.updated` 使用本地 `YYYY-MM-DD HH:mm`；启动阶段在异步自动连接前清空 `app.log` 与 `core/box.log`，写入 `Application started`，正常退出写入 `Application shutdown`。`onAppLog` 先完成监听注册再读取文件，避免启动事件与快照读取竞态；应用日志超过 10 MiB 时轮转并保留 5 个归档。
 - Windows 桌面契约：Tauri 窗口保持 400×720、启动居中、无边框、透明/Mica；单实例聚焦现有窗口；托盘保留 Show、Mixed/Tun/Proxy/Stop、Restart Core、Quit，动态图标和模式勾选由 Rust 状态刷新；关闭请求仍由 `ask`/`tray`/`quit` 决定。`light`/`dark`/`system` 分别映射 WebView `Theme` 与 `MicaLight`/`MicaDark`/`Mica`；标题栏左侧空白区可拖动，设置、最小化和关闭按钮不属于拖动区。`Restart Core` 与界面启停共用 RuntimeState 操作锁，停止和启动只走现有生命周期链。
-- 发行契约：Tauri package 保留 `WinBox.exe` 主入口和 `winbox-updater.exe` 第二 binary；Tauri bundle 自动收集两个 Cargo binary，不再重复声明 resource。CI 直接 bundle 后，portable ZIP 另放 `WinBox.exe` 与 `WinBox-updater.exe`。签名密钥不入库，未生成签名发行物前不得宣称 updater/发布验收通过。
+- 发行契约：当前代码已切换为 x64 NSIS 和官方 updater；MIG-041 portable 内容仅保留为历史记录，不属于当前构建或发布路径。
+
+### 最终发行目标契约（MIG-042，已实施；待外部验收）
+
+- **范围**：只支持 Windows AMD64/x64（`x86_64-pc-windows-msvc`），只发布 NSIS 安装程序；不发布单 EXE、portable ZIP、MSI、ARM64 或 Linux 产物。
+- **安装体验**：NSIS 使用 per-machine 默认路径 `%ProgramFiles%\WinBox\`（通常为 `C:\Program Files\WinBox\`），不显示安装路径、组件或可选功能页面；用户只需完成必要的 UAC 确认，安装完成自动启动。缺失 WebView2 时使用官方 bootstrapper，离线缺失时明确报错。
+- **安装目录**：只允许 `WinBox.exe`、Tauri/Windows 所需 loader 或资源文件，以及 NSIS 生成的卸载文件；不得创建 `data/`、`core/`、配置、订阅、日志、`updates/` 或持久化 `backups/`。
+- **安装数据**：用户数据唯一根为 Tauri `appLocalDataDir()`，Windows 典型位置为 `%LOCALAPPDATA%\com.leovikii.winbox\`。仅保留现有功能需要的 `config/`、按需生成的 `profiles/`、`core/`、日志和代理恢复状态文件；下载、原子写入、核心替换和回滚暂存只在事务期间存在并在收尾时清理。
+- **旧数据**：程序不实现旧单 EXE 的自动升级、目录扫描或数据迁移。发行说明提供人工步骤；用户退出应用并备份旧便携 `data/` 后，在确认新版数据根为空时自行复制内容。程序不自动覆盖、合并或修复旧文件。
+- **应用更新**：锁定 `tauri-plugin-updater 2.11.0`；由官方 updater 负责检查、签名验证、下载和启动 NSIS 安装。删除 `WinBox-updater.exe`、应用 ZIP 替换/回滚；`check_program_update`/`update_program` 只保留为前端兼容的薄 Rust 封装，sing-box 核心更新仍保留现有独立 command。
+- **预更新**：复用现有 `pre_release` 设置和版本检查策略选择稳定/预发布版本，不新增独立 alpha channel；预发布查询只选 GitHub 标记为 `prerelease=true` 的最新 Release。Release 尚无 `latest.json` 时，后端返回当前版本，现有 UI 显示 `Latest` 而不是失败；有 metadata 后仍由官方 updater 执行签名校验和更新。
+- **退出清理**：官方 updater 安装前 hook 复用统一 shutdown；获取 `RuntimeState.operation` 锁，停止 traffic、等待 sing-box、恢复本应用接管的代理并 flush 日志；更新中状态阻止自动连接/监视器重新启动核心。
+- **CI/Release**：PR 到 `main` 只构建和验证 x64 NSIS；合并 `main` 后由 GitHub Actions 使用 secrets 生成并发布 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`。Tauri v2 Windows updater 不额外生成 `.nsis.zip`；生产私钥不入库，本机测试产物不作为 Release 输入。
+- **卸载/升级**：升级只替换程序文件；卸载默认保留用户数据。NSIS、手动数据说明、错误签名、断网、清理失败和跨版本应用内更新均需 Windows x64 证据后才能标记发布可用。
 
 默认值参考 `internal/storage.go` 和 `internal/models.go`：smart 自动连接、system 主题、`#0090FF` 强调色、IPv6 开、文件日志开、镜像默认配置等。必须通过旧样本锁定缺失字段处理，避免把反序列化零值当产品默认值。不自动“修复”用户自定义覆盖为默认内容。
 
@@ -217,5 +230,8 @@
 | 2026-09-19 | 将托盘 `Restart APP` 从主线程直接 `AppHandle::restart()` 改为 `AppHandle::request_restart()`，保留 `Result<(), AppError>` 成功返回 | 重启先经过 `RunEvent::ExitRequested` 和既有 `shutdown_runtime`，避免 sing-box 残留；无新增依赖或第二套清理路径；自动证据关联 MIG-034/V03/V09，真实进程行为仍待 x64 验收 |
 | 2026-09-19 | 删除无法可靠重新拉起主程序的托盘 `Restart APP`；仅保留 `Restart Core`，并将其运行检查移入 RuntimeState 操作锁 | 删除无前端调用者的 relaunch 入口；核心重启防止与停止/模式切换并发时使用过期运行状态；自动证据关联 MIG-036/V03/V07/V09 |
 | 2026-09-19 | 复核核心监视器与启动失败清理：监视器清理前取得生命周期锁，未登记的已启动核心在失败分支显式停止 | 防止旧监视器停止新核心流量任务，避免代理/输出初始化失败留下孤儿 sing-box；无新增依赖或清理链；自动证据关联 MIG-037/V07/V09 |
+| 2026-09-19 | 最终发行收口：从 portable-only 草案切换为 x64 NSIS + 官方 updater；用户数据固定为 `appLocalDataDir()`，预更新复用既有 `pre_release` 设置 | MIG-041 被 MIG-042 supersede；不新增独立更新 channel，不保留自定义应用更新器；代码、签名构建和 workflow 已完成，真实安装、GitHub Actions/main Release 和跨版本更新仍待外部验收 |
+| 2026-09-20 | 修复无活动配置时的暂存内核校验；应用更新检查先确认所选 Release 有 `latest.json`，并按 `prerelease` 标志筛选预发布版本 | 无配置时检查 staged `sing-box version`，已选配置仍执行 `sing-box check`；缺少 updater metadata 返回当前版本，由现有 UI 显示 `Latest`；真实内核更新及官方更新安装仍待 Windows x64 验收；关联 MIG-042-UPDATE-CHECK/V13/V14 |
+| 2026-09-21 | 修复停止服务时将已保存模式误写为 `false/false`；停止成功后同步保留的模式，离线模式保存及默认 Proxy 保存均等待结果 | UI 与托盘共用 `apply_state` 停止路径；停止/退出保留配置选择，首次空状态仍默认 Proxy；存储格式和视觉不变；自动证据见 MIG-043-MODE-PERSISTENCE-2026-09-21，用户已确认实测问题解决 |
 
 后续记录：任务 ID、旧→新字段/命令、影响调用者、存储兼容性、验证 ID、临时桥删除条件。禁止只改 Rust 或只改前端一端。

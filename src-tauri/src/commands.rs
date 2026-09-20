@@ -7,11 +7,8 @@ use crate::platform::windows::{
 };
 use crate::runtime::RuntimeState;
 use crate::storage::{Storage, StorageError};
-use crate::updates::{
-    expected_portable_asset_name, expected_sing_box_asset_name, stage_portable_archive,
-    stage_sing_box_archive, TargetArchitecture,
-};
-use reqwest::Client;
+use crate::updates::{expected_sing_box_asset_name, stage_sing_box_archive, TargetArchitecture};
+use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -26,6 +23,7 @@ use tauri::menu::CheckMenuItem;
 use tauri::window::{Effect, EffectsBuilder};
 use tauri::Theme;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::{Updater, UpdaterExt};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -35,6 +33,8 @@ const MAX_PROFILE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_UPDATE_BYTES: u64 = 512 * 1024 * 1024;
 const DEFAULT_DASHBOARD_URL: &str = "http://127.0.0.1:9090/ui";
 const HTTP_USER_AGENT: &str = "sing-box";
+const PROGRAM_REPOSITORY: &str = "https://github.com/Leovikii/WinBox";
+const PROGRAM_REPOSITORY_API: &str = "https://api.github.com/repos/Leovikii/WinBox";
 
 #[derive(Debug, Serialize)]
 pub struct AppError {
@@ -178,7 +178,7 @@ pub struct InitDataDto {
 struct ReleaseInfo {
     tag_name: String,
     #[serde(default)]
-    body: String,
+    prerelease: bool,
     #[serde(default)]
     assets: Vec<ReleaseAsset>,
 }
@@ -482,6 +482,10 @@ pub async fn apply_state(
     apply_state_impl(&app, target_tun, target_proxy, &storage, &runtime).await
 }
 
+fn requested_mode(target_tun: bool, target_proxy: bool) -> Option<(bool, bool)> {
+    (target_tun || target_proxy).then_some((target_tun, target_proxy))
+}
+
 async fn apply_state_impl(
     app: &AppHandle,
     target_tun: bool,
@@ -491,26 +495,36 @@ async fn apply_state_impl(
 ) -> Result<String, AppError> {
     let _operation = runtime.operation().await;
     let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    if (target_tun || target_proxy) && active_profile_path(&snapshot, storage.paths()).is_err() {
+
+    let Some((target_tun, target_proxy)) = requested_mode(target_tun, target_proxy) else {
+        let _ = app.emit("core-stopping", ());
+        let result = stop_core_impl(runtime).await;
+        if result == "Stopped" || result == "Already stopped" {
+            let _ = app.emit("status", false);
+            let _ = app.emit(
+                "state-sync",
+                json!({
+                    "tunMode": snapshot.state.tun_mode,
+                    "sysProxy": snapshot.state.sys_proxy
+                }),
+            );
+            refresh_tray(
+                app,
+                false,
+                snapshot.state.tun_mode,
+                snapshot.state.sys_proxy,
+            );
+        }
+        return Ok(result);
+    };
+
+    if active_profile_path(&snapshot, storage.paths()).is_err() {
         return Ok("config-missing".to_owned());
     }
     let was_running = runtime.core().await.is_some();
     let needs_restart = !was_running
         || snapshot.state.tun_mode != target_tun
         || snapshot.state.sys_proxy != target_proxy;
-
-    if !target_tun && !target_proxy {
-        let _ = app.emit("core-stopping", ());
-        let result = stop_core_impl(runtime).await;
-        if result == "Stopped" || result == "Already stopped" {
-            snapshot.state.tun_mode = false;
-            snapshot.state.sys_proxy = false;
-            storage.save(&snapshot).map_err(map_storage_write_error)?;
-            let _ = app.emit("status", false);
-            refresh_tray(app, false, false, false);
-        }
-        return Ok(result);
-    }
 
     let previous = snapshot.clone();
     snapshot.state.tun_mode = target_tun;
@@ -1081,20 +1095,31 @@ pub async fn check_program_update(
 ) -> Result<ProgramUpdateDto, AppError> {
     let result = async {
         let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-        let release = latest_release(
-            "https://api.github.com/repos/Leovikii/WinBox",
-            snapshot.settings.pre_release,
-        )
-        .await?;
-        if release.tag_name.is_empty() {
-            return Err(AppError::new(
-                "update_check_failed",
-                "No release version found",
-            ));
+        let release = latest_release(PROGRAM_REPOSITORY_API, snapshot.settings.pre_release).await?;
+        if !release_has_updater_metadata(&release) {
+            return Ok(ProgramUpdateDto {
+                version: app.package_info().version.to_string(),
+                changelog: String::new(),
+            });
         }
-        Ok(ProgramUpdateDto {
-            version: release.tag_name,
-            changelog: release.body,
+        let tag = snapshot
+            .settings
+            .pre_release
+            .then_some(release.tag_name.as_str());
+        let updater = build_program_updater(&app, snapshot.settings.pre_release, tag)?;
+        let update = updater
+            .check()
+            .await
+            .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?;
+        Ok(match update {
+            Some(update) => ProgramUpdateDto {
+                version: update.version,
+                changelog: update.body.unwrap_or_default(),
+            },
+            None => ProgramUpdateDto {
+                version: app.package_info().version.to_string(),
+                changelog: String::new(),
+            },
         })
     }
     .await;
@@ -1366,111 +1391,57 @@ pub async fn update_program(
 ) -> Result<String, AppError> {
     let result = async {
         let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-        let release = latest_release(
-            "https://api.github.com/repos/Leovikii/WinBox",
-            snapshot.settings.pre_release,
-        )
-        .await?;
-        let version = release.tag_name.trim_start_matches('v');
-        let architecture = TargetArchitecture::current().map_err(|_| AppError::update_failed())?;
-        let expected = expected_portable_asset_name(version, architecture)
-            .map_err(|_| AppError::update_failed())?;
-        let asset = release
-            .assets
-            .iter()
-            .find(|asset| asset.name == expected)
-            .ok_or_else(AppError::update_failed)?;
-        let digest = asset.digest.clone().ok_or_else(AppError::update_failed)?;
-        let executable = std::env::current_exe().map_err(|_| AppError::operation_failed())?;
-        let parent = executable.parent().ok_or_else(AppError::operation_failed)?;
-        let update_dir = parent.join("data").join("updates");
-        fs::create_dir_all(&update_dir).map_err(|_| AppError::operation_failed())?;
-        let staging = update_dir.join(format!("stage-{}", Uuid::new_v4()));
-        let archive = staging.with_extension("zip");
-        let download_url = mirrored_url(&mirror, &asset.browser_download_url)?;
-        if let Err(error) = download_file(&app, &download_url, &archive).await {
-            cleanup_program_update_files(&archive, &staging);
-            return Err(error);
-        }
-        let staged = match stage_portable_archive(
-            &archive,
-            &asset.name,
-            &digest,
-            &staging,
-            version,
-            architecture,
-        )
-        .map_err(|_| AppError::update_failed())
-        {
-            Ok(staged) => staged,
-            Err(error) => {
-                cleanup_program_update_files(&archive, &staging);
-                return Err(error);
-            }
-        };
-        let target_name = match executable.file_name() {
-            Some(name) => name,
-            None => {
-                cleanup_program_update_files(&archive, &staging);
-                return Err(AppError::operation_failed());
-            }
-        };
-        if target_name != "WinBox.exe" {
-            cleanup_program_update_files(&archive, &staging);
-            return Err(AppError::invalid_input(
-                "Portable program updates require WinBox.exe",
+        let release = latest_release(PROGRAM_REPOSITORY_API, snapshot.settings.pre_release).await?;
+        if !release_has_updater_metadata(&release) {
+            return Err(AppError::new(
+                "update_not_available",
+                "No updater metadata is available for the selected release",
             ));
         }
-        let helper = match update_helper_path(&app, parent) {
-            Some(helper) => helper,
-            None => {
-                cleanup_program_update_files(&archive, &staging);
-                return Err(AppError::new(
-                    "update_helper_missing",
-                    "The program update helper is not installed",
-                ));
-            }
-        };
-        let _ = app.emit("log", "Update ready. Restarting...");
-        if Command::new(helper)
-            .args([
-                "--apply-update",
-                staged.to_string_lossy().as_ref(),
-                executable.to_string_lossy().as_ref(),
-            ])
-            .current_dir(parent)
-            .spawn()
-            .is_err()
-        {
-            cleanup_program_update_files(&archive, &staging);
-            return Err(AppError::operation_failed());
+        let tag = snapshot
+            .settings
+            .pre_release
+            .then_some(release.tag_name.as_str());
+        let updater = build_program_updater(&app, snapshot.settings.pre_release, tag)?;
+        let _operation = runtime.operation().await;
+        let mut update = updater
+            .check()
+            .await
+            .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?
+            .ok_or_else(|| {
+                AppError::new("update_not_available", "No program update is available")
+            })?;
+        if !mirror.trim().is_empty() {
+            let download_url = mirrored_url(&mirror, update.download_url.as_str())?;
+            update.download_url = Url::parse(&download_url)
+                .map_err(|error| AppError::detailed("update_download_failed", error.to_string()))?;
         }
-        app.exit(0);
+        let _ = app.emit("log", "Update ready. Restarting...");
+        let mut downloaded = 0_u64;
+        let bytes = update
+            .download(
+                |chunk, total| {
+                    downloaded = downloaded.saturating_add(chunk as u64);
+                    let progress = total
+                        .and_then(|total| downloaded.checked_mul(100)?.checked_div(total))
+                        .unwrap_or(0)
+                        .min(100) as u32;
+                    let _ = app.emit("download-progress", progress);
+                },
+                || {
+                    let _ = app.emit("download-progress", 100_u32);
+                },
+            )
+            .await
+            .map_err(|error| AppError::detailed("update_download_failed", error.to_string()))?;
+        drop(_operation);
+        update
+            .install(bytes)
+            .map_err(|error| AppError::detailed("update_install_failed", error.to_string()))?;
         Ok("Success".to_owned())
     }
     .await;
     log_failed_result(runtime.inner(), &app, "Program update", result).await
-}
-
-fn cleanup_program_update_files(archive: &Path, staging: &Path) {
-    let _ = fs::remove_file(archive);
-    let _ = fs::remove_dir_all(staging);
-}
-
-fn update_helper_path(app: &AppHandle, executable_parent: &Path) -> Option<PathBuf> {
-    let portable = executable_parent.join("WinBox-updater.exe");
-    if portable.is_file() {
-        return Some(portable);
-    }
-    let installed = executable_parent.join("winbox-updater.exe");
-    if installed.is_file() {
-        return Some(installed);
-    }
-    app.path()
-        .resource_dir()
-        .ok()
-        .map(|resource_dir| resource_dir.join("winbox-updater.exe"))
-        .filter(|path| path.is_file())
 }
 
 fn restore_installed_file(backup: Option<PathBuf>, target: &Path) -> Result<(), AppError> {
@@ -1767,6 +1738,16 @@ fn active_profile_path(snapshot: &DataSnapshot, paths: &AppPaths) -> Result<Path
     }
 }
 
+fn staged_profile_path(
+    snapshot: &DataSnapshot,
+    paths: &AppPaths,
+) -> Result<Option<PathBuf>, AppError> {
+    if snapshot.state.active_id.is_empty() {
+        return Ok(None);
+    }
+    active_profile_path(snapshot, paths).map(Some)
+}
+
 fn build_runtime_config(profile_path: &Path, snapshot: &DataSnapshot) -> Result<Value, AppError> {
     let bytes = fs::read(profile_path).map_err(|_| AppError::operation_failed())?;
     let mut config: Value = serde_json::from_slice(&bytes)
@@ -1854,7 +1835,9 @@ fn check_staged_core(
     storage: &Storage,
     snapshot: &DataSnapshot,
 ) -> Result<(), AppError> {
-    let profile = active_profile_path(snapshot, storage.paths())?;
+    let Some(profile) = staged_profile_path(snapshot, storage.paths())? else {
+        return run_core_version_check(staging_dir);
+    };
     let config = build_runtime_config(&profile, snapshot)?;
     let bytes = serde_json::to_vec_pretty(&config).map_err(|_| AppError::operation_failed())?;
     let config_path = staging_dir.join("config.check.json");
@@ -1908,14 +1891,39 @@ fn run_core_check(core_dir: &Path, config: &Path) -> Result<(), AppError> {
     }
 }
 
+fn run_core_version_check(core_dir: &Path) -> Result<(), AppError> {
+    let executable = core_dir.join("sing-box.exe");
+    if !executable.is_file() {
+        return Err(AppError::new("kernel_missing", "sing-box is not installed"));
+    }
+    let output = core_version_output(core_dir).map_err(|error| {
+        update_phase_error(
+            "update_check_failed",
+            "staged executable check",
+            io_error_detail(&error),
+        )
+    })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    Err(update_phase_error(
+        "update_check_failed",
+        "staged executable check",
+        if detail.is_empty() {
+            "sing-box version command returned a failure status"
+        } else {
+            &detail
+        },
+    ))
+}
+
 fn local_version(core_dir: &Path) -> String {
     let executable = core_dir.join("sing-box.exe");
     if !executable.is_file() {
         return "Not Installed".to_owned();
     }
-    let mut command = Command::new(executable);
-    configure_hidden_command(&mut command);
-    let Ok(output) = command.args(["version"]).output() else {
+    let Ok(output) = core_version_output(core_dir) else {
         return "Unknown".to_owned();
     };
     let text = String::from_utf8_lossy(&output.stdout);
@@ -1928,6 +1936,56 @@ fn local_version(core_dir: &Path) -> String {
         return "Unknown".to_owned();
     };
     version.to_owned()
+}
+
+fn core_version_output(core_dir: &Path) -> io::Result<std::process::Output> {
+    let mut command = Command::new(core_dir.join("sing-box.exe"));
+    configure_hidden_command(&mut command);
+    command.current_dir(core_dir).args(["version"]).output()
+}
+
+fn program_update_endpoint(pre_release: bool, tag: Option<&str>) -> Result<Url, AppError> {
+    let endpoint = if pre_release {
+        let tag = tag
+            .map(str::trim)
+            .filter(|tag| {
+                !tag.is_empty()
+                    && tag.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
+                    })
+            })
+            .ok_or_else(|| AppError::new("update_check_failed", "Release tag is invalid"))?;
+        format!("{PROGRAM_REPOSITORY}/releases/download/{tag}/latest.json")
+    } else {
+        format!("{PROGRAM_REPOSITORY}/releases/latest/download/latest.json")
+    };
+    Url::parse(&endpoint)
+        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))
+}
+
+fn build_program_updater(
+    app: &AppHandle,
+    pre_release: bool,
+    tag: Option<&str>,
+) -> Result<Updater, AppError> {
+    let endpoint = program_update_endpoint(pre_release, tag)?;
+    let cleanup_app = app.clone();
+    let cleanup_runtime = app.state::<RuntimeState>().inner().clone();
+    app.updater_builder()
+        .target("windows-x86_64-nsis")
+        .endpoints(vec![endpoint])
+        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?
+        .on_before_exit(move || {
+            let app = cleanup_app.clone();
+            let runtime = cleanup_runtime.clone();
+            let _ = std::thread::spawn(move || {
+                tauri::async_runtime::block_on(shutdown_runtime(&app, &runtime));
+            })
+            .join();
+            cleanup_app.cleanup_before_exit();
+        })
+        .build()
+        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))
 }
 
 async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, AppError> {
@@ -1955,16 +2013,27 @@ async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, Ap
             .json::<Vec<ReleaseInfo>>()
             .await
             .map_err(|_| AppError::new("network_error", "Release data is invalid"))?;
-        releases
-            .into_iter()
-            .next()
-            .ok_or_else(|| AppError::new("update_check_failed", "No release found"))
+        select_pre_release(releases)
     } else {
         response
             .json::<ReleaseInfo>()
             .await
             .map_err(|_| AppError::new("network_error", "Release data is invalid"))
     }
+}
+
+fn select_pre_release(releases: Vec<ReleaseInfo>) -> Result<ReleaseInfo, AppError> {
+    releases
+        .into_iter()
+        .find(|release| release.prerelease)
+        .ok_or_else(|| AppError::new("update_check_failed", "No pre-release found"))
+}
+
+fn release_has_updater_metadata(release: &ReleaseInfo) -> bool {
+    release
+        .assets
+        .iter()
+        .any(|asset| asset.name == "latest.json")
 }
 
 fn http_client() -> Result<Client, AppError> {
@@ -2177,7 +2246,9 @@ fn limit_log_lines(content: &str, max_lines: usize) -> String {
 mod tests {
     use super::{
         current_time_string, extract_api_secret, extract_api_url, http_client, install_staged_file,
-        is_hex_color, limit_log_lines, mirrored_url, restore_installed_file, window_theme, Effect,
+        is_hex_color, limit_log_lines, mirrored_url, program_update_endpoint,
+        release_has_updater_metadata, requested_mode, restore_installed_file, select_pre_release,
+        staged_profile_path, window_theme, AppPaths, DataSnapshot, Effect, Profile, ReleaseInfo,
         Theme, HTTP_USER_AGENT,
     };
     use serde_json::json;
@@ -2228,6 +2299,88 @@ mod tests {
             mirrored_url("https://mirror.example/", "https://example.com/a").expect("mirror"),
             "https://mirror.example/https://example.com/a"
         );
+    }
+
+    #[test]
+    fn stop_request_is_not_a_mode_selection() {
+        assert_eq!(requested_mode(false, false), None);
+        assert_eq!(requested_mode(false, true), Some((false, true)));
+        assert_eq!(requested_mode(true, false), Some((true, false)));
+        assert_eq!(requested_mode(true, true), Some((true, true)));
+    }
+
+    #[test]
+    fn program_update_endpoints_use_release_metadata_for_each_channel() {
+        assert_eq!(
+            program_update_endpoint(false, None)
+                .expect("stable endpoint")
+                .as_str(),
+            "https://github.com/Leovikii/WinBox/releases/latest/download/latest.json"
+        );
+        assert_eq!(
+            program_update_endpoint(true, Some("v3.0.0-alpha.1"))
+                .expect("pre-release endpoint")
+                .as_str(),
+            "https://github.com/Leovikii/WinBox/releases/download/v3.0.0-alpha.1/latest.json"
+        );
+        assert!(program_update_endpoint(true, Some("<invalid>")).is_err());
+    }
+
+    #[test]
+    fn pre_release_lookup_skips_stable_releases() {
+        let releases: Vec<ReleaseInfo> = serde_json::from_value(json!([
+            {"tag_name":"v3.0.0","prerelease":false},
+            {"tag_name":"v3.0.0-alpha.2","prerelease":true},
+            {"tag_name":"v3.0.0-alpha.1","prerelease":true}
+        ]))
+        .expect("release list");
+        assert_eq!(
+            select_pre_release(releases)
+                .expect("latest pre-release")
+                .tag_name,
+            "v3.0.0-alpha.2"
+        );
+    }
+
+    #[test]
+    fn legacy_release_without_updater_metadata_is_not_updateable() {
+        let legacy: ReleaseInfo = serde_json::from_value(json!({
+            "tag_name":"v2.8.0",
+            "prerelease":false,
+            "assets":[{"name":"WinBox-v2.8.0-windows-amd64.zip","browser_download_url":"https://example.invalid/legacy.zip"}]
+        }))
+        .expect("legacy release");
+        assert!(!release_has_updater_metadata(&legacy));
+
+        let current: ReleaseInfo = serde_json::from_value(json!({
+            "tag_name":"v3.0.0-alpha.1",
+            "prerelease":true,
+            "assets":[{"name":"latest.json","browser_download_url":"https://example.invalid/latest.json"}]
+        }))
+        .expect("updater release");
+        assert!(release_has_updater_metadata(&current));
+    }
+
+    #[test]
+    fn staged_core_check_needs_a_profile_only_when_one_is_selected() {
+        let root = temp_dir();
+        let paths = AppPaths::from_data_dir(&root);
+        let no_selection = DataSnapshot::default();
+        assert!(staged_profile_path(&no_selection, &paths)
+            .expect("version-only check")
+            .is_none());
+
+        let mut selected = DataSnapshot::default();
+        selected.state.active_id = "profile-1".to_owned();
+        selected.profiles.push(Profile {
+            id: "profile-1".to_owned(),
+            ..Profile::default()
+        });
+        let error =
+            staged_profile_path(&selected, &paths).expect_err("selected profile file is missing");
+        assert_eq!(error.code, "config_missing");
+        assert_eq!(error.message, "Profile file is missing");
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

@@ -110,6 +110,16 @@ export function useAppState() {
     return "bg-transparent"
   })
 
+  const persistMode = async (tun: boolean, proxy: boolean) => {
+    const result = await Backend.SaveMode(tun, proxy)
+    if (result !== "Success") {
+      msg.value = "Error"
+      errorLog.value = result
+      return false
+    }
+    return true
+  }
+
   const refreshData = async () => {
     const data = await Backend.getInitData()
     running.value = data.running
@@ -121,7 +131,7 @@ export function useAppState() {
     // Enforce default mode (Proxy) if none selected
     if (!tunMode.value && !sysProxy.value) {
       sysProxy.value = true
-      Backend.SaveMode(false, true)
+      await persistMode(false, true)
     }
 
     startOnBoot.value = data.startOnBoot
@@ -226,9 +236,16 @@ export function useAppState() {
 
     // If not running, just update the setting state
     if (!running.value) {
+      const prevTun = tunMode.value
+      const prevProxy = sysProxy.value
       tunMode.value = newTun
       sysProxy.value = newProxy
-      Backend.SaveMode(newTun, newProxy)
+      isProcessing.value = true
+      if (!(await persistMode(newTun, newProxy))) {
+        tunMode.value = prevTun
+        sysProxy.value = prevProxy
+      }
+      isProcessing.value = false
       return
     }
 
@@ -383,14 +400,14 @@ export function useAppState() {
       isProcessing.value = false
     }))
 
-    eventUnsubscribers.push(EventsOn("state-sync", (state: StateSyncDto) => {
+    eventUnsubscribers.push(EventsOn("state-sync", async (state: StateSyncDto) => {
       tunMode.value = state.tunMode
       sysProxy.value = state.sysProxy
 
       // Enforce default mode (Proxy) if none selected
       if (!tunMode.value && !sysProxy.value) {
         sysProxy.value = true
-        Backend.SaveMode(false, true)
+        await persistMode(false, true)
       }
     }))
 

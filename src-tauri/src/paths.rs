@@ -1,5 +1,5 @@
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AppPaths {
@@ -25,17 +25,6 @@ impl AppPaths {
             app_log: data_dir.join("app.log"),
             kernel_log: data_dir.join("core").join("box.log"),
         }
-    }
-
-    pub fn portable(executable: impl AsRef<Path>) -> io::Result<Self> {
-        let executable = executable.as_ref();
-        let base = executable.parent().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "executable has no parent directory",
-            )
-        })?;
-        Ok(Self::from_data_dir(base.join("data")))
     }
 
     pub fn settings_file(&self) -> PathBuf {
@@ -87,16 +76,19 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn portable_paths_keep_data_next_to_executable() {
-        let paths = AppPaths::portable(r"C:\WinBox\WinBox.exe").expect("portable path");
-        assert_eq!(paths.data_dir, PathBuf::from(r"C:\WinBox\data"));
+    fn app_data_paths_keep_runtime_data_under_the_selected_root() {
+        let paths = AppPaths::from_data_dir(r"C:\Users\Vki\AppData\Local\com.leovikii.winbox");
+        assert_eq!(
+            paths.data_dir,
+            PathBuf::from(r"C:\Users\Vki\AppData\Local\com.leovikii.winbox")
+        );
         assert_eq!(
             paths.settings_file(),
-            PathBuf::from(r"C:\WinBox\data\config\settings.json")
+            PathBuf::from(r"C:\Users\Vki\AppData\Local\com.leovikii.winbox\config\settings.json")
         );
         assert_eq!(
             paths.kernel_log,
-            PathBuf::from(r"C:\WinBox\data\core\box.log")
+            PathBuf::from(r"C:\Users\Vki\AppData\Local\com.leovikii.winbox\core\box.log")
         );
     }
 

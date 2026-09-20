@@ -25,14 +25,14 @@
 | --- | --- | --- | --- |
 | D01 | Tauri 2 内置窗口、托盘、事件、菜单 | [tauri](https://github.com/tauri-apps/tauri) | 编译原型锁定 `tauri 2.11.5`、`tauri-build 2.6.3`；Mica、透明背景、缩放、权限、关闭行为仍需实机验证；不另写桌面框架 |
 | D02 | single-instance、opener、log | [官方 plugins-workspace](https://github.com/tauri-apps/plugins-workspace) | 编译原型锁定 `tauri-plugin-single-instance 2.4.4`、`tauri-plugin-opener 2.5.5`；log 插件暂不引入，先复用 Rust core 日志边界 |
-| D03 | updater；必要时 process | [updater 文档](https://v2.tauri.app/plugin/updater/)、[插件源码](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/updater) | 选 `tauri-plugin-updater 2.11.0`（crates.io，稳定版；`3.0.0-alpha.0` 不选）。官方 updater 要求签名，Windows 产物为 MSI/NSIS 及其 updater ZIP；plain portable binary 不作为官方 updater 路径。先在发行原型锁定 endpoint、密钥和退出清理，再接入 Rust。许可证：MIT 或 MIT/Apache-2.0。 |
+| D03 | updater；必要时 process | [updater 文档](https://v2.tauri.app/plugin/updater/)、[插件源码](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/updater) | 锁定 `tauri-plugin-updater 2.11.0`（crates.io，稳定版；`3.0.0-alpha.0` 不选）。本版只发布签名 Windows x64 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`；Tauri v2 Windows updater 直接消费签名安装器，不生成或依赖 `.nsis.zip`。plain portable binary 不作为官方 updater 路径。许可证：MIT 或 MIT/Apache-2.0。 |
 | D04 | autostart 或任务计划薄适配 | [autostart 源码](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/autostart/src/lib.rs) | 不选官方 autostart 作为既有语义的替代；保留 Windows Task Scheduler 薄适配，复用 `schtasks.exe` 参数/结果检查，保持 `WinBoxAutostart`、登录触发、30 秒延迟、HighestAvailable、`-minimized`。候选插件没有证明这些语义等价。 |
 | D05 | shell；不足时 tokio::process | [shell](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/shell)、[tokio](https://github.com/tokio-rs/tokio) | 不向前端暴露通用 shell；原型锁定 `tokio 1.53.1`（crates.io/upstream Tokio，MIT；已由 Tauri 锁入，项目持续维护），只启用 `io-util`、`process`、`rt`、`time`，在平台边界实现隐藏窗口、优雅停止、超时和进程归属检查。shell 插件暂不引入，避免新增高权限 IPC；最终日志/状态协调待 MIG-009。 |
 | D06 | reqwest | [reqwest](https://github.com/seanmonstar/reqwest) | 候选 `reqwest 0.13.5`（crates.io，2026-09-08 更新，MIT OR Apache-2.0）；后端统一 HTTP/下载、代理、TLS、超时与取消，不同时安装前端 HTTP 插件。实现时写入 Cargo.lock，并以真实镜像/断网检查锁定 feature。 |
 | D07 | tokio-tungstenite | [项目](https://github.com/snapview/tokio-tungstenite) | 候选 `tokio-tungstenite 0.30.0`（crates.io，2026-07-11 更新，MIT）；仅用于既有流量 WebSocket，复用同一 Tokio runtime，不启动第二套 runtime。到流量阶段再加入，先不把未使用依赖写入锁文件。 |
 | D08 | serde、serde_json、zip | [serde](https://github.com/serde-rs/serde)、[json](https://github.com/serde-rs/json)、[zip](https://github.com/zip-rs/zip2) | `serde/serde_json` 已锁定；更新/解压锁定 `zip 4.6.1`（MIT，crates.io，`deflate-flate2-zlib-rs` feature），不选当前 9.0.0-pre3。只允许受控条目、文件大小和路径边界，先写临时位置并执行内核 check，再替换有效核心；本阶段只实现校验与暂存，不接下载或替换。 |
 | D09 | windows-rs | [Microsoft 项目](https://github.com/microsoft/windows-rs) | 候选 `windows-sys 0.60.2`（MIT OR Apache-2.0）用于明确的 Win32/注册表/系统 API；只启用需要的 features。若标准库、`schtasks.exe` 或 Tauri API 已覆盖能力，不直接增加该依赖。 |
-| D10 | tauri-action | [官方 action](https://github.com/tauri-apps/tauri-action) | 选 `action-v1.0.0`，解析到 commit `1deb371b0cd8bd54025b384f1cd735e725c4060f`（MIT）；用于 Windows x64 构建、签名产物和受控发布。PR 只构建，签名密钥只进 CI secrets，不在仓库中生成或保存。 |
+| D10 | GitHub Actions + Tauri CLI | [Tauri CLI](https://v2.tauri.app/reference/cli/)、[GitHub Actions](https://docs.github.com/actions) | CI 直接安装并锁定 `tauri-cli 2.11.4`（crates.io，MIT/Apache-2.0），配合官方 Actions 完成 x64 构建、artifact 和 Release；不额外引入 `tauri-action`，以保留对 NSIS/签名资产的最小显式校验。PR 只构建，签名密钥只进 CI secrets，不在仓库中生成或保存。 |
 | D11 | SHA-256 完整性校验 | [RustCrypto/hashes](https://github.com/RustCrypto/hashes) | 锁定 `sha2 0.10.9`（crates.io，MIT OR Apache-2.0，维护项目为 RustCrypto/hashes）；只用于流式 SHA-256 digest 比对，已写入 `src-tauri/Cargo.lock`。digest 证明下载字节完整，不替代发布者签名或来源真实性。 |
 | D12 | Tauri 前端 IPC/event API | [官方 `@tauri-apps/api`](https://github.com/tauri-apps/tauri/tree/dev/packages/api) | 锁定 npm `@tauri-apps/api 2.11.1`（npm registry；2026-09-12 元数据更新时间；仓库 `tauri-apps/tauri`；Apache-2.0 OR MIT），写入 `frontend/package-lock.json`。仅使用官方 `core.invoke`、`core.isTauri` 和 `event.listen`；不启用 globalTauri、不暴露通用 shell。限制：Rust command/event 仍需逐项迁移和实机验证。 |
 | D13 | 跨平台本地时间格式化 | [chrono](https://github.com/chronotope/chrono) | 锁定 `chrono 0.4.45`（crates.io，MIT OR Apache-2.0，维护项目为 chronotope/chrono）；仅启用 `clock`，用于本地日志/配置更新时间格式化。Windows 与未来 Linux 共用同一实现，不增加平台 API。 |
@@ -45,14 +45,14 @@
 
 | ID | 问题 | 建议方向/所需证据 | 解决任务 |
 | --- | --- | --- | --- |
-| Q01 | 便携自动更新与安装版组合 | 验证 updater 支持的实际 Windows 产物；保留便携体验，无法对等时提出具体方案供用户决定 | MIG-002/004 |
-| Q02 | 旧 Wails 客户端过渡 | 对照旧 ZIP/文件名选择逻辑，确定兼容资产或桥接版本；不能默认旧版识别 updater 元数据 | MIG-004 |
+| Q01 | 应用更新形式与预更新策略 | 已确定只使用签名 NSIS + 官方 updater；稳定/预发布选择复用现有 `pre_release` 设置，不新增独立 channel | MIG-042 |
+| Q02 | 旧 Wails/便携客户端过渡 | 不再发布 portable 兼容资产，也不实现旧单 EXE 自动升级或自动数据迁移；发行说明提供人工复制步骤 | MIG-042 |
 | Q03 | Windows 支持范围与架构证据 | 确定最低 OS、WebView2 安装策略、Mica 降级和 x64 设备目标；ARM64 排除在本版之外 | MIG-001/002 |
-| Q04 | 数据模式与路径发现 | 便携模式选择方式、安装版数据路径、同机多份旧目录优先级、权限不足处理 | MIG-004 |
+| Q04 | 数据模式与路径发现 | 已确定安装版唯一使用 `appLocalDataDir()`；旧便携目录不由程序扫描、选择、合并或迁移，用户按发行说明自行处理 | MIG-042 |
 | Q05 | 内核下载真实性校验 | 核查上游签名/checksum 可得性、可信来源和镜像影响；明确验证边界 | MIG-004 |
 | Q06 | 新 DTO/事件与生成类型需求 | 手写薄类型是否足够；如采用代码生成，记录收益，避免引入完整框架 | MIG-005 |
 
-Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内完成，不要求用户逐项批准命名。
+Q01、Q02、Q04 已由 MIG-042 锁定最终发行方向，但在代码、签名、NSIS 和 Windows x64 实机证据完成前不得将应用更新标为可发行。Q03、Q05 的历史验证边界仍适用；Q06 可在 P1 内完成，不要求用户逐项批准命名。
 
 ### 2026-09-17 P0 观察（不是问题结论）
 
@@ -108,7 +108,7 @@ Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内�
 - `useKernelUpdate` 的打开、切换、保存和重置后刷新统一经 API 适配层；Tauri reject 显示为编辑器错误提示，非 Tauri 兼容路径把旧 `Success`/`Error: ...` 结果转换为成功或异常。
 - 影响：`contracts.md` 增加 override 读写契约；验证证据为 `MIG-005-OVERRIDE-2026-09-18`、`MIG-005-OVERRIDE-WRITE-2026-09-18`；MIG-005、V04 继续 `in_progress`/局部通过。
 
-### 2026-09-18 实施收口决策 — Tauri runtime、更新与发行
+### 2026-09-18 实施收口决策 — Tauri runtime、更新与发行（历史方案，已由 MIG-042 替代）
 
 - **不引入 `tauri-plugin-updater`**：当前产品必须同时保留 portable ZIP 和安装版；没有入库签名密钥或已验证 endpoint 时，官方 updater 不能安全替代 portable 更新。安装版 bundle 先固定 NSIS/MSI，签名和 updater 元数据作为发布前置条件，不把未签名 plain binary 宣称为 updater。
 - **portable helper 采用独立 Rust binary**：`winbox-updater` 只接收绝对路径、要求 stage 位于应用目录下且入口是 `WinBox.exe`，替换失败/新进程启动失败恢复旧 EXE；Tauri bundle 直接收集第二 binary，portable ZIP 单独重命名为 `WinBox-updater.exe`。没有建立长期 sidecar 或通用 shell 入口。
@@ -117,7 +117,7 @@ Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内�
 - **CI 构建顺序固定**：先 `npm ci --prefix frontend`，再运行 Tauri bundle；Tauri CLI 的 `cargo build --bins` 会同时生成 `WinBox.exe` 与 `winbox-updater.exe`，不再额外预编译或显式复制同一 MSI/NSIS resource，避免 WiX 重复组件。普通 `cargo check/test` 不依赖 bundle。未安装 `cargo-tauri` 的开发机只执行 Rust/前端检查，不能伪造 bundle 证据。
 - **前端工具链安全维护**：2026-09-18 将 Vite 更新到 `8.3.0`、`@vitejs/plugin-vue` 更新到 `6.0.9`、PostCSS 更新到 `8.5.28`，并用 npm `overrides` 固定 `browserslist 4.29.0` 与 `baseline-browser-mapping 2.11.25`；Node 26 满足 Vite 8 的 Node 要求。`npm ci`、完整 audit 和生产构建均通过，不升级 Tailwind/Vue 等无安全必要的业务/样式依赖。
 
-### 2026-09-18 发行构建修正 — 主入口与 binary resource
+### 2026-09-18 发行构建修正 — 主入口与 binary resource（历史方案，已由 MIG-042 替代）
 
 - 将主 Cargo binary 固定为 `WinBox.exe`，保留旧 portable ZIP 和旧客户端的入口契约；`default-run` 固定 Tauri CLI 在主 GUI 与 updater helper 两个 binary 中选择 GUI。
 - 本机 x64 Tauri CLI 证明会把两个 Cargo binary 自动写入 NSIS/MSI；显式 `bundle.resources` 会导致 WiX ICE30 重复组件，因此删除该配置。安装包内 helper 仍是 `winbox-updater.exe`，portable ZIP 内按兼容契约重命名为 `WinBox-updater.exe`。
@@ -159,7 +159,7 @@ Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内�
 ### 2026-09-19 托盘应用重启未重新拉起处置 — MIG-035（accepted）
 
 - **已确认**：`request_restart()` 解决了上一阶段的 sing-box 残留路径；当前用户复测表明内核已退出，但应用 relaunch 没有可见结果。Tauri 内部 relaunch 的 spawn 错误不会进入 WinBox 日志；`-minimized` 原始参数还可能使新进程仅隐藏启动。
-- **选定方案**：删除 `Restart APP` 托盘菜单、Rust command 注册/实现及无调用的前端 API；保留 `Restart Core`、`Quit` 和程序更新 helper。该入口没有前端调用者，且 Tauri relaunch 的失败不可观测，继续维护会增加不必要的 Windows 进程启动边界。
+- **选定方案**：删除 `Restart APP` 托盘菜单、Rust command 注册/实现及无调用的前端 API；保留 `Restart Core`、`Quit` 和官方 updater 入口。该入口没有前端调用者，且 Tauri relaunch 的失败不可观测，继续维护会增加不必要的 Windows 进程启动边界。
 - **未选方案**：不新增 launcher、延迟启动或第二套退出/清理链；完整应用重启如未来确有需求，另立任务并先设计可观测的 Windows relaunch 契约。
 - **影响/证据**：托盘交互从 `Restart Core` 直接进入核心生命周期；BUG-004 通过移除失效入口关闭。实现与自动检查见 `MIG-036-CORE-RESTART-AUDIT-2026-09-19`。
 
@@ -192,13 +192,50 @@ Q01–Q05 未解决前不得将对应功能标为可发行。Q06 可在 P1 内�
 - **未选方案**：不增加 Windows-only 时间 API、日志框架或新的前端日期库；不改变用户日志查看和手动清空入口。
 - **影响/证据**：跨平台格式化代码不改变本版 Windows AMD64/x64 范围；自动检查见 `MIG-039-LOG-TIME-2026-09-19`，Linux 仅登记为后续大版本的构建验证，不在本版构建或验收。
 
+### 2026-09-19 x64 portable 发布准备 — MIG-041（superseded）
+
+- **问题**：原 CI 仍构建并上传 NSIS/MSI，且未单独发布 `WinBox.exe`；这与当前只发布单 EXE 和 portable ZIP 的范围不一致。应用内更新还需要同目录的 `WinBox-updater.exe`，不能只发布裸 EXE。
+- **选定方案**：GitHub Actions 仅使用 `x86_64-pc-windows-msvc`，先构建前端，再用锁定 Cargo 命令生成 `WinBox.exe` 与 `winbox-updater.exe`；Release 上传裸 `WinBox.exe` 和 `WinBox-v<version>-windows-amd64.zip`。ZIP 保留 `WinBox/WinBox.exe`、`WinBox/WinBox-updater.exe`，供 `update_program` 校验、暂存和替换。
+- **触发与版本**：PR 指向 `main` 只构建并上传 Action artifact；合并后的 `push` 才创建对应版本 Release。版本从 `src-tauri/tauri.conf.json` 读取，当前为 `3.0.0-alpha.1`，包含连字符时标记为 prerelease。ARM64、安装包和签名不在本范围。
+- **未选方案**：不保留 NSIS/MSI 构建步骤，不让本机测试 EXE 参与发布，不把裸 EXE 当作应用内更新资产，也不新增发布脚本或 updater 框架。
+- **影响/证据**：更新契约、README、迁移 README、Tauri bundle 配置和 workflow 已同步；本机 x64 目标构建与更新单元检查见 `MIG-041-RELEASE-PREP-2026-09-19`。真实 GitHub Action、Release 和跨版本应用内更新需用户将 PR 合并到 `main` 后复核。
+
+### 2026-09-19 最终发行收尾：NSIS 与官方 updater — MIG-042（accepted-plan）
+
+- **范围**：本版只支持 Windows AMD64/x64；最终发行物只保留 NSIS 安装程序。单 EXE 绿色版、portable ZIP、MSI、ARM64 和 Linux 不属于本版发行范围。
+- **问题**：MIG-041 的 portable-only 方案与用户批准的安装版更新策略不一致；继续保留自定义 helper 会产生第二套应用替换、回滚和生命周期清理链。
+- **选定方案**：锁定 `tauri-plugin-updater 2.11.0`，使用 Tauri 官方 updater 完成检查、签名验证、下载和 NSIS 安装。保留现有更新 UI，删除 `WinBox-updater.exe` 及自定义应用更新 command/替换/回滚实现。sing-box 核心更新继续由现有独立流程负责。
+- **预更新策略**：复用已有 `pre_release` 设置和版本检查逻辑，不新增独立 alpha channel；预发布查询必须按 GitHub Release 的 `prerelease=true` 标志选择最新版本。检查前确认所选 Release 有 `latest.json`，旧 Release 没有 updater metadata 时作为该通道“暂无更新”返回当前版本，由现有 UI 显示 `Latest`；实际 metadata 的签名检查、下载和安装仍全部由官方 updater 完成。`3.0.0-alpha.1` 只在该设置允许时参与检查。
+- **数据策略**：安装程序文件与用户数据分离。唯一数据根为 Tauri `appLocalDataDir()`，Windows 典型路径为 `%LOCALAPPDATA%\com.leovikii.winbox\`；只保留现有功能需要的配置、订阅、override、核心、日志和代理恢复状态。事务备份/暂存按需短暂存在，并且只在成功或恢复完成后清理；若恢复尚未完成，保留最小恢复材料，不建立无功能用途的持久 `updates/` 或 `backups/` 目录。升级只替换安装目录文件，卸载默认保留数据。
+- **安装体验与目录精简**：NSIS 采用 per-machine 单确认安装，默认 `%ProgramFiles%\WinBox\`（通常为 `C:\Program Files\WinBox\`），不提供路径、组件或可选功能选择，安装完成自动启动；缺少 WebView2 时使用官方 bootstrapper。安装目录只保留主程序、Tauri/Windows 必需运行文件和卸载文件，禁止写入用户数据。
+- **最小数据布局**：保留当前 JSON 文件布局：`config/` 保存设置、状态、profile 索引和实际使用的 overrides；`profiles/` 只保存已导入 profile；`core/` 只在需要时保存 sing-box、运行配置和内核日志；应用日志、轮转归档和代理恢复状态按现有功能产生。这个精简只删除无用途的长期目录，不合并/重命名 JSON，不删除任何现有功能所需文件。
+- **旧数据迁移**：不实现旧单 EXE 的自动升级、目录扫描、选择或数据导入。发行说明提供人工步骤：退出旧版、备份旧 `data/`、安装新版并确认新版数据根为空后，由用户自行复制内容。程序不自动覆盖、合并或修复旧文件。
+- **退出清理**：官方 updater 安装前 hook 复用统一 `shutdown_runtime`/操作锁，停止 traffic、等待 sing-box、恢复本应用代理并 flush 日志；设置最小更新中边界，防止自动连接或监视器重新启动核心。
+- **CI/发布**：PR 到 `main` 只构建验证 x64 NSIS；合并 `main` 后使用 GitHub Actions secrets 签名并发布 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`。Tauri v2 Windows updater 直接使用签名安装器，不额外生成 `.nsis.zip`。本机产物仅供测试，不作为 Release 输入；不构建其他架构或格式。
+- **安全与依赖**：public key 入库，private key/password 只进入 GitHub Actions secrets；capability 只授予官方 updater 所需权限，不开放通用 shell 或任意文件操作。`tauri-plugin-updater 2.11.0` 的来源、许可证和锁文件记录沿用 D03，并在实现时补实际版本验证。
+- **完成条件**：代码、锁文件、契约、CI、手动数据说明、NSIS 安装/升级/卸载、错误签名、安装前清理和应用内跨版本更新均有 Windows x64 证据后，MIG-042 才能标记 `done`。
+- **影响**：MIG-041 的 portable workflow、helper、资产和数据根结论全部被本决策替代；MIG-041 仅保留为历史记录，不能作为当前发布契约。
+
+### 2026-09-20 无更新反馈与内核暂存校验 — MIG-042-UPDATE-CHECK
+
+- **应用更新**：Release 不含 `latest.json` 表示该通道暂无可安装的 Tauri 更新；先按 `pre_release` 选对 Release，再返回当前版本供现有 UI 显示 `Latest`。有 metadata 才调用官方 updater；网络/API 错误仍按错误反馈，不伪装为无更新。
+- **内核更新**：无活动 profile 时不以配置缺失阻止独立核心更新，只要求暂存 `sing-box.exe version` 成功；存在活动 profile 时仍生成运行配置并执行 `sing-box check`，选择的 profile 缺失或无效依旧阻止替换。
+- **影响与证据**：不新增依赖、不改变界面交互；更新契约同步至 `contracts.md`，自动测试及 unsigned x64 NSIS 证据见 `MIG-042-UPDATE-CHECK-2026-09-20`。真实内核更新与签名应用更新仍待 Windows x64 实测及 main Release。
+
+### 2026-09-21 模式选择持久化与停止语义 — MIG-009-MODE-PERSISTENCE
+
+- **问题**：`apply_state(false, false)` 的停止路径把持久化的 `tun_mode`、`sys_proxy` 清零，随后前端将空状态默认成 Proxy；离线模式选择和空状态默认保存也未等待 `SaveMode` 完成。
+- **方案**：将 `(false, false)` 仅视为停止进程的请求，不改写磁盘模式；停止成功时发送仍保存的模式。离线模式选择和默认 Proxy 均等待保存完成，失败时显示现有错误状态；空状态默认仍为 Proxy。
+- **同类路径审计**：托盘 Stop 复用同一停止入口；`toggle_service`、正常退出、核心重启、配置切换和核心更新均未清除已保存模式，不需增加第二套状态或生命周期实现。
+- **影响/证据**：不改 JSON 格式、command/DTO、视觉或模式选择交互，不新增依赖；Rust 回归测试、前端构建及 x64 NSIS 自动验证见 `MIG-043-MODE-PERSISTENCE-2026-09-21`，用户已确认实测问题解决；MIG-009 其他阶段验收仍待完成。
+
 ## 风险台账
 
 | ID | 风险/级别 | 触发与影响 | 控制/证据 | 责任任务 |
 | --- | --- | --- | --- | --- |
 | R01 | 高：插件自启不等价 | UAC 或登录时无法静默运行，丢失延迟/权限 | 保留系统任务计划并实测 V11 | MIG-003/011 |
 | R02 | 高：错误进程/代理清理 | 影响其他代理软件或留下断网状态 | 进程归属、代理归属、崩溃恢复 V09 | MIG-009/011 |
-| R03 | 高：数据迁移/落盘失败 | 覆盖唯一副本、错误成功提示 | 备份、幂等、写入失败/中断 V05 | MIG-007 |
+| R03 | 高：数据落盘/人工迁移误操作 | 覆盖唯一副本、错误成功提示或用户复制错误 | 原子写入、安装前备份说明、目标目录为空检查 V05/V19 | MIG-007/MIG-042 |
 | R04 | 高：更新路径不兼容 | 便携或旧客户端无法升级/错误替换 | 真实产物升级链与回退 V13–V15 | MIG-004/012/013 |
 | R05 | 高：全应用管理员权限扩大影响 | 不受控 IPC/远程内容/路径导致高权限操作 | command 输入校验、最小权限、受控内容与 URL，V16 | MIG-005/015 |
 | R06 | 中：事件/快照竞态 | 页面卡忙碌态、重复流量、状态回退 | 单一来源、订阅释放/顺序检查 V04/V07 | MIG-005/009 |

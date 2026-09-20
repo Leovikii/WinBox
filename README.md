@@ -26,9 +26,27 @@ WinBox is designed to provide a seamless and professional proxy management exper
 ## Installation
 
 1. Navigate to the [Releases](../../releases) page.
-2. Download the portable ZIP or the NSIS/MSI installer.
-3. **Run WinBox.**
+2. Download the Windows AMD64/x64 NSIS installer and confirm the installation. It uses the default `C:\Program Files\WinBox\` location and does not require a path or component choice.
+3. The installer starts WinBox automatically after installation.
    *Note: TUN mode requires the application to be launched with Administrator privileges to manage virtual network interfaces.*
+
+WinBox stores user data outside the installation directory, normally at
+`%LOCALAPPDATA%\com.leovikii.winbox\`. Updates replace application files only.
+The installation directory contains only the application and installer-generated
+runtime/uninstall files; profiles, settings, logs and the sing-box core stay in
+the data directory.
+The installer does not automatically migrate data from the old single-file
+portable version. Before first launch, old portable users should back up their
+old `data` directory and manually copy its contents to the new data directory
+if they want to keep their profiles and settings.
+
+For a manual upgrade from the old portable version:
+
+1. Exit the old WinBox completely and back up its `data` directory.
+2. Install the NSIS version; if it starts automatically, exit it before setup.
+3. Confirm the new data directory has no user data, then copy the contents of
+   the old `data` directory into `%LOCALAPPDATA%\com.leovikii.winbox\`.
+4. Keep the backup until the new installation has been verified.
 
 ## Quick Start
 
@@ -51,12 +69,22 @@ WinBox is designed to provide a seamless and professional proxy management exper
 git clone https://github.com/YourUsername/WinBox.git
 cd WinBox
 
-# 2. Install frontend dependencies
+# 2. Install frontend dependencies and build the frontend
 npm ci --prefix frontend
+npm --prefix frontend run build
 
-# 3. Build the Tauri application and NSIS/MSI bundles
-cargo tauri build --bundles nsis,msi
+# 3. Build the Windows AMD64/x64 NSIS installer for local testing
+cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign
 ```
+
+Pull requests to `main` build the unsigned x64 NSIS installer for validation.
+After merge, GitHub Actions signs and publishes the NSIS installer and the
+official Tauri updater artifacts. Local test executables are never used as
+release inputs. This release line does not publish portable, MSI or ARM64
+artifacts.
+
+The in-app updater uses the existing pre-release setting when checking release
+metadata; no separate update channel is created.
 
 The migration rules and current implementation evidence live in
 [`docs/tauri-migration/README.md`](docs/tauri-migration/README.md).
