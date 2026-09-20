@@ -1,5 +1,5 @@
 import { ref, computed, shallowRef } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
+import * as Backend from '../api/backend'
 import { useAppState } from './useAppState'
 import { cleanLog } from '../utils/logUtils'
 

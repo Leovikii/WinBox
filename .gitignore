@@ -1,12 +1,12 @@
-# Wails build artifacts
-build/bin/
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
 frontend/dist/
-frontend/wailsjs/
 
 # Node modules
 node_modules/
 
-# Go build output
+# Native build output
 *.exe
 *.dll
 *.so

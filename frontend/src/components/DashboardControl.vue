@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onActivated, nextTick } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import * as Backend from '../api/backend'
 import { WButton, WSelect, WModal, WInput, WScrollArea, WSegmentedControl, WSpeedChart } from './ui'
 import ManageProfilesModal from './ManageProfilesModal.vue'
 import AppLogsModal from './AppLogsModal.vue'
@@ -100,13 +99,36 @@ const handleProfileChange = (val: string | number) => {
   }
 }
 
+const parseUpdatedDate = (value: string): Date | null => {
+  const trimmed = value.trim()
+  if (/^\d{10}$/.test(trimmed)) {
+    const date = new Date(Number(trimmed) * 1000)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  if (/^\d{13}$/.test(trimmed)) {
+    const date = new Date(Number(trimmed))
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const normalized = trimmed.replace(
+    /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}(?::\d{2})?)$/,
+    '$1T$2',
+  )
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const formatLocalDate = (date: Date): string => {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
 
 const formattedUpdatedTime = computed(() => {
   const updatedStr = profilesState.activeProfile.value?.updated
   if (!updatedStr) return 'Never'
   
-  const updatedDate = new Date(updatedStr)
-  if (isNaN(updatedDate.getTime())) return updatedStr
+  const updatedDate = parseUpdatedDate(updatedStr)
+  if (!updatedDate) return updatedStr
 
   const now = new Date()
   const diffSecs = Math.floor((now.getTime() - updatedDate.getTime()) / 1000)
@@ -119,7 +141,7 @@ const formattedUpdatedTime = computed(() => {
   if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`
   if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
   
-  return updatedStr.split(' ')[0]
+  return formatLocalDate(updatedDate)
 })
 
 

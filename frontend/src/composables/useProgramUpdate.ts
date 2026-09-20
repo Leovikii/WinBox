@@ -1,24 +1,38 @@
-import { ref, onMounted } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { EventsOn } from '../../wailsjs/runtime/runtime'
-import wailsConfig from '@wails'
+import { ref, onMounted, onUnmounted } from 'vue'
+import * as Backend from '../api/backend'
+import { EventsOn } from '../api/backend'
 import { useAppState } from './useAppState'
 import { isNewerVersion } from '../utils/versionCompare'
 
-const programLocalVer = ref(wailsConfig.info.productVersion)
+const programLocalVer = ref("Unknown")
 const programRemoteVer = ref("Unknown")
 const programUpdateState = ref("idle")
 const programDownloadProgress = ref(0)
 const programChangelog = ref("")
 
 let updateStateTimeout: number | null = null
-let isInitialized = false
 let unsubscribeDownloadProgress: (() => void) | null = null
+let productVersionPromise: Promise<void> | null = null
+let mountedUsers = 0
 
 export function useProgramUpdate() {
   const appState = useAppState()
 
+  const loadProductVersion = () => {
+    if (!productVersionPromise) {
+      productVersionPromise = Backend.getProductVersion()
+        .then((version) => {
+          programLocalVer.value = version
+        })
+        .catch(() => {
+          // Keep the explicit Unknown value when the runtime cannot provide metadata.
+        })
+    }
+    return productVersionPromise
+  }
+
   const checkProgramUpdate = async () => {
+    await loadProductVersion()
     programUpdateState.value = "checking"
     const res = await Backend.CheckProgramUpdate() as any
     if (res.error) {
@@ -59,13 +73,24 @@ export function useProgramUpdate() {
   }
 
   onMounted(() => {
-    if (!isInitialized) {
-      isInitialized = true
+    mountedUsers += 1
+    if (mountedUsers === 1) {
+      void loadProductVersion()
       unsubscribeDownloadProgress = EventsOn("download-progress", (pct: number) => {
         if (programUpdateState.value === "updating") {
           programDownloadProgress.value = pct
         }
       })
+    }
+  })
+
+  onUnmounted(() => {
+    mountedUsers = Math.max(0, mountedUsers - 1)
+    if (mountedUsers === 0) {
+      unsubscribeDownloadProgress?.()
+      unsubscribeDownloadProgress = null
+      if (updateStateTimeout) clearTimeout(updateStateTimeout)
+      updateStateTimeout = null
     }
   })
 

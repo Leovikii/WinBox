@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { marked } from 'marked';
-import * as Backend from '../wailsjs/go/internal/App';
-import wailsConfig from '@wails';
-import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
+import * as Backend from './api/backend';
+import { EventsOn } from './api/backend';
+import type { TrafficUpdateDto } from './api/backend';
 import { useAppState } from './composables/useAppState';
 import { useProfiles } from './composables/useProfiles';
 import { useKernelUpdate } from './composables/useKernelUpdate';
@@ -30,6 +30,8 @@ const toggleSettings = (open: boolean) => {
 // Traffic speed state
 const uploadSpeed = ref(0);
 const downloadSpeed = ref(0);
+let unsubscribeWindowClose: (() => void) | null = null;
+let unsubscribeTraffic: (() => void) | null = null;
 
 const appState = useAppState();
 const profilesState = useProfiles();
@@ -38,11 +40,22 @@ const programState = useProgramUpdate();
 const themeState = useTheme();
 const uwpState = useUWPLoopback();
 
+const escapeChangelogHtml = (value: string) => value.replace(/[&<>\"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}[character] ?? character))
+
+const changelogRenderer = new marked.Renderer()
+changelogRenderer.html = ({ text }) => escapeChangelogHtml(text)
+
 const renderedChangelog = computed(() => {
   if (!programState.programChangelog.value) return '';
   // Since marked.parse can return a Promise if async is enabled, await it or cast it.
   // In default synchronous usage it returns a string.
-  return marked.parse(programState.programChangelog.value) as string;
+  return marked.parse(programState.programChangelog.value, { renderer: changelogRenderer }) as string;
 });
 
 const handlePreReleaseToggleWrapper = async () => {
@@ -84,22 +97,27 @@ const handleQuitChoice = async () => {
 };
 
 onMounted(async () => {
-  const data = await Backend.GetInitData();
+  // Listen for traffic updates
+  unsubscribeTraffic = EventsOn('traffic-update', (data: TrafficUpdateDto) => {
+    uploadSpeed.value = data.upload;
+    downloadSpeed.value = data.download;
+  });
+  unsubscribeWindowClose = EventsOn('window-close-requested', requestQuit);
+  await Backend.waitForEventsReady();
+  const data = await Backend.getInitData();
   profilesState.profiles.value = data.profiles || [];
   profilesState.activeProfile.value = data.activeProfile || null;
   kernelState.localVer.value = data.localVersion;
 
-  // Listen for traffic updates
-  EventsOn('traffic-update', (data: { upload: number; download: number }) => {
-    uploadSpeed.value = data.upload;
-    downloadSpeed.value = data.download;
-  });
   // Silent background check for program update
   programState.checkProgramUpdate();
 });
 
 onUnmounted(() => {
-  EventsOff('traffic-update');
+  unsubscribeTraffic?.();
+  unsubscribeTraffic = null;
+  unsubscribeWindowClose?.();
+  unsubscribeWindowClose = null;
 });
 
 const handleToggle = async (target: 'tun' | 'proxy') => {
@@ -137,22 +155,29 @@ const handleSaveUWPExemptions = async () => {
 };
 
 const handleRestartCore = async () => {
+  if (appState.isProcessing.value) return;
+  appState.isProcessing.value = true;
   const result = await Backend.RestartCore();
   if (result !== "Success") {
+    appState.msg.value = "Error";
+    appState.errorLog.value = result;
     appState.errorAlertMessage.value = result;
     appState.showErrorAlert.value = true;
+    appState.isProcessing.value = false;
   }
 };
 </script>
 
 <template>
   <div class="h-screen w-screen relative bg-transparent text-white select-none overflow-hidden font-sans flex flex-col">
-    <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative" style="--wails-draggable: drag">
-      <div class="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2.5">
-        <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
-        WinBox
+    <div class="h-12 shrink-0 flex justify-between items-center px-4 bg-transparent z-60 relative">
+      <div data-tauri-drag-region class="h-full flex-1 flex items-center min-w-0">
+        <div class="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2.5">
+          <img :src="TrayIconUrl" class="w-4 h-4 opacity-90" alt="WinBox" />
+          WinBox
+        </div>
       </div>
-      <div class="flex" style="--wails-draggable: no-drag">
+      <div class="flex shrink-0">
         <button 
           @click="toggleSettings(!showSettings)" 
           class="text-gray-500 dark:text-[#888] w-12 h-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-800 dark:hover:text-white transition-all duration-200 relative"

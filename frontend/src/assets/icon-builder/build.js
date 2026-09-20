@@ -5,8 +5,8 @@ const path = require('path');
 
 const srcDir = path.join(__dirname, 'src');
 const frontendIconDir = path.resolve(__dirname, '..', '..', '..', 'icon');
-const buildDir = path.resolve(__dirname, '..', '..', '..', '..', 'build');
-const buildWindowsDir = path.join(buildDir, 'windows');
+const repoDir = path.resolve(__dirname, '..', '..', '..', '..');
+const tauriIconDir = path.join(repoDir, 'src-tauri', 'icons');
 
 const icons = ['tray', 'tray_tun', 'tray_proxy', 'tray_mixed'];
 const sizes = [256, 64, 32, 16];
@@ -14,7 +14,7 @@ const sizes = [256, 64, 32, 16];
 async function main() {
     // Ensure directories exist
     if (!fs.existsSync(frontendIconDir)) fs.mkdirSync(frontendIconDir, { recursive: true });
-    if (!fs.existsSync(buildWindowsDir)) fs.mkdirSync(buildWindowsDir, { recursive: true });
+    if (!fs.existsSync(tauriIconDir)) fs.mkdirSync(tauriIconDir, { recursive: true });
 
     for (const name of icons) {
         const svgPath = path.join(srcDir, `${name}.svg`);
@@ -42,23 +42,18 @@ async function main() {
         const icoBuffer = await pngToIco(buffers);
         fs.writeFileSync(icoPathDest, icoBuffer);
         
-        // If this is the main tray icon, also copy it to Wails build folders
+        // Keep the main icon in the Tauri bundle input directory.
         if (name === 'tray') {
-            const mainIcoDest = path.join(buildWindowsDir, 'icon.ico');
-            const mainPngDest = path.join(buildDir, 'appicon.png');
+            const mainIcoDest = path.join(tauriIconDir, 'icon.ico');
             
             fs.writeFileSync(mainIcoDest, icoBuffer);
-            // Wails uses 1024x1024 for appicon.png for Mac/Linux usually, but 256x256 is fine for Windows
-            await sharp(svgBuffer, { density: 300 }).resize(1024, 1024, {
-                kernel: sharp.kernel.lanczos3
-            }).png().toFile(mainPngDest);
             
-            console.log(`Updated build/windows/icon.ico and build/appicon.png`);
+            console.log(`Updated src-tauri/icons/icon.ico`);
         }
 
         console.log(`[OK] Successfully built ${name}.ico`);
     }
-    console.log('\nAll icons compiled successfully! You can now run `wails build`.');
+    console.log('\nAll icons compiled successfully! You can now run `cargo tauri build`.');
 }
 
 main().catch(console.error);

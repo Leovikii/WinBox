@@ -1,12 +1,13 @@
-import { ref } from 'vue'
-import * as Backend from '../../wailsjs/go/internal/App'
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import { ref, onMounted, onUnmounted } from 'vue'
+import * as Backend from '../api/backend'
+import { EventsOn, waitForEventsReady } from '../api/backend'
 
 const appLogContent = ref("")
 const showLogModal = ref(false)
 const copyState = ref("Copy")
 
-let isInitialized = false
+let mountedUsers = 0
+let unsubscribeLog: (() => void) | null = null
 
 export function useAppLogs() {
   const loadAppLog = async () => {
@@ -52,12 +53,23 @@ export function useAppLogs() {
   }
 
   const initLogs = () => {
-    if (!isInitialized) {
-      isInitialized = true
-      loadAppLog()
-      EventsOn("onAppLog", handleNewLog)
+    if (!unsubscribeLog) {
+      unsubscribeLog = EventsOn("onAppLog", handleNewLog)
+      void waitForEventsReady().then(loadAppLog)
     }
   }
+
+  onMounted(() => {
+    mountedUsers += 1
+  })
+
+  onUnmounted(() => {
+    mountedUsers = Math.max(0, mountedUsers - 1)
+    if (mountedUsers === 0) {
+      unsubscribeLog?.()
+      unsubscribeLog = null
+    }
+  })
 
   return {
     appLogContent, showLogModal, copyState,

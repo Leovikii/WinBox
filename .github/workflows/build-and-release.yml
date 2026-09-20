@@ -17,19 +17,14 @@ on:
       - 'test/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-and-release:
+  build:
+    name: Build Windows x64 NSIS
     runs-on: windows-latest
-    env:
-      VERSION: ''
-      CHANGELOG: ''
-      IS_PRERELEASE: 'false'
-      MAKE_LATEST: 'true'
-    defaults:
-      run:
-        shell: bash
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -41,64 +36,144 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: '1.25.x'
+          targets: x86_64-pc-windows-msvc
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
 
-      - name: Build WinBox
-        run: wails build -clean -ldflags "-s -w" -trimpath
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version 2.11.4 --locked
 
-      - name: Get Version
-        if: github.event_name == 'push'
-        id: version
-        run: echo "VERSION=v$(node -p "require('./wails.json').info.productVersion")" >> $GITHUB_ENV
+      - name: Build unsigned NSIS installer for pull request
+        if: github.event_name == 'pull_request'
+        run: cargo tauri build --ci --target x86_64-pc-windows-msvc --bundles nsis --no-sign -- --locked
 
-      - name: Generate Changelog
-        if: github.event_name == 'push'
-        id: changelog
+      - name: Build signed NSIS installer for main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: pwsh
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$PREV_TAG" ]; then
-            LOGS=$(git log --pretty=format:"- %s" --no-merges)
-          else
-            LOGS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
-          fi
-          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "$LOGS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY is not configured'
+          }
+          cargo tauri build --ci --target x86_64-pc-windows-msvc --bundles nsis -- --locked
 
-      - name: Package Release
-        if: github.event_name == 'push'
+      - name: Validate x64 NSIS output
+        shell: pwsh
         run: |
-          mkdir WinBox
-          cp build/bin/WinBox.exe WinBox/
-          7z a -tzip "WinBox-${{ env.VERSION }}-windows-amd64.zip" WinBox/
+          $bundle = Join-Path $PWD 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis'
+          if (-not (Test-Path $bundle)) { throw "NSIS output directory is missing: $bundle" }
+          $files = @(Get-ChildItem -LiteralPath $bundle -File)
+          $installer = @($files | Where-Object { $_.Name -like '*-setup.exe' })
+          if ($installer.Count -ne 1) { throw "Expected exactly one NSIS installer, found $($installer.Count)" }
+          $signature = @($files | Where-Object { $_.Name -like '*-setup.exe.sig' })
+          $expectedSignatures = if ($env:GITHUB_EVENT_NAME -eq 'push') { 1 } else { 0 }
+          if ($signature.Count -ne $expectedSignatures) {
+            throw "Expected $expectedSignatures updater signatures, found $($signature.Count)"
+          }
+          if (@($files | Where-Object { $_.Extension -eq '.msi' }).Count -ne 0) {
+            throw 'MSI output is outside the release scope'
+          }
+          if (@($files | Where-Object { $_.Extension -eq '.zip' }).Count -ne 0) {
+            throw 'Updater ZIP output is not used by the Tauri v2 Windows updater'
+          }
+          if (@($files | Where-Object { $_.Name -match 'arm64|aarch64|portable|WinBox-updater' }).Count -ne 0) {
+            throw 'Unexpected ARM64, portable or custom updater output found'
+          }
+          Get-ChildItem -LiteralPath $bundle -File | Select-Object Name, Length
 
-      - name: Check Prerelease Status
-        if: github.event_name == 'push'
-        id: prerelease_check
+      - name: Upload unsigned installer artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: winbox-nsis-x64-pr
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+
+      - name: Upload signed release assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: winbox-nsis-x64-release
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*
+          if-no-files-found: error
+
+  release:
+    name: Publish Windows x64 release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download signed release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: winbox-nsis-x64-release
+          path: release-assets
+
+      - name: Generate updater metadata
+        shell: pwsh
         run: |
-          if [[ "${{ env.VERSION }}" == *"-"* ]]; then
-            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
-            echo "MAKE_LATEST=false" >> $GITHUB_ENV
-          else
-            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
-            echo "MAKE_LATEST=true" >> $GITHUB_ENV
-          fi
+          $config = Get-Content -Raw 'src-tauri/tauri.conf.json' | ConvertFrom-Json
+          $version = [string]$config.version
+          $tag = "v$version"
+          $assets = @(Get-ChildItem -LiteralPath 'release-assets' -File)
+          $installer = @($assets | Where-Object { $_.Name -like '*-setup.exe' })
+          $signature = @($assets | Where-Object { $_.Name -like '*-setup.exe.sig' })
+          if ($installer.Count -ne 1 -or $signature.Count -ne 1) {
+            throw "Expected one NSIS installer and signature; got $($installer.Count) and $($signature.Count)"
+          }
+          $signatureText = (Get-Content -Raw $signature[0].FullName).Trim()
+          if ([string]::IsNullOrWhiteSpace($signatureText)) { throw 'Updater signature is empty' }
 
-      - name: Create Release
-        if: github.event_name == 'push'
+          $previousTag = git describe --tags --abbrev=0 2>$null
+          if ([string]::IsNullOrWhiteSpace($previousTag)) {
+            $changes = git log --pretty=format:'- %s' --no-merges
+          } else {
+            $changes = git log "$previousTag..HEAD" --pretty=format:'- %s' --no-merges
+          }
+          $notes = @('### Changes', '', $changes) -join [Environment]::NewLine
+          Set-Content -LiteralPath 'RELEASE_NOTES.md' -Value $notes -Encoding utf8NoBOM
+
+          $metadata = [ordered]@{
+            version = $version
+            notes = $notes
+            pub_date = (Get-Date).ToUniversalTime().ToString('o')
+            platforms = [ordered]@{
+              'windows-x86_64-nsis' = [ordered]@{
+                signature = $signatureText
+                url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$($installer[0].Name)"
+              }
+            }
+          }
+          $metadata | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath 'release-assets/latest.json' -Encoding utf8NoBOM
+          $checked = Get-Content -Raw 'release-assets/latest.json' | ConvertFrom-Json
+          if ($checked.platforms.'windows-x86_64-nsis'.url -notlike '*-setup.exe') {
+            throw 'Updater metadata does not point to the NSIS installer'
+          }
+          "VERSION=$version" | Add-Content $env:GITHUB_ENV
+          "TAG=$tag" | Add-Content $env:GITHUB_ENV
+          "IS_PRERELEASE=$($version.Contains('-').ToString().ToLowerInvariant())" | Add-Content $env:GITHUB_ENV
+          Get-ChildItem -LiteralPath 'release-assets' -File | Select-Object Name, Length
+          Get-Content -Raw 'release-assets/latest.json'
+
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ env.VERSION }}
-          name: WinBox ${{ env.VERSION }}
-          body: |
-            ### Changes
-            ${{ env.CHANGELOG }}
-          files: WinBox-${{ env.VERSION }}-windows-amd64.zip
-          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
-          make_latest: ${{ env.MAKE_LATEST }}
+          tag_name: ${{ env.TAG }}
+          name: WinBox ${{ env.TAG }}
+          body_path: RELEASE_NOTES.md
+          files: release-assets/*
+          prerelease: ${{ env.IS_PRERELEASE }}
+          make_latest: ${{ env.IS_PRERELEASE != 'true' }}
