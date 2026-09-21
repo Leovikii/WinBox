@@ -2,7 +2,7 @@
 
 目标版本：`3.0.0-alpha.2`。2026-09-21 用户指定：保留后端人工测试，先进入前端迁移；Vue 3 迁移为 React，通用组件替换为微软 Fluent 官方组件，保留并尽可能优化当前视觉、动画与交互。本版完成 Windows AMD64/x64，Linux 在下个版本开发。
 
-本轮交付计划和建议，不修改应用版本或运行代码。前端进度唯一来源为 [tracker.md](tracker.md)，依赖候选、来源及限制见 [decisions.md](decisions.md)。后端未完成人工测试继续在 [原台账](../tauri-migration/tracker.md) 与 [验收清单](../tauri-migration/validation.md#待补人工验收2026-09-21) 保留，不作为前端启动的整体前置门槛。
+本文件先定义交付计划，实施已在当前 `dev` 工作区推进到前端 review 阶段。前端进度唯一来源为 [tracker.md](tracker.md)，依赖候选、来源及限制见 [decisions.md](decisions.md)。后端未完成人工测试继续在 [原台账](../tauri-migration/tracker.md) 与 [验收清单](../tauri-migration/validation.md#待补人工验收2026-09-21) 保留，不作为前端启动的整体前置门槛，也不因前端构建通过而自动关闭。
 
 ## 1. 推荐方案
 
@@ -30,7 +30,7 @@
 
 ## 2. 现状与迁移风险
 
-源码基线为已发布 alpha.1 的 `d0a199346f383f9a2e42c211979fb88b74b4bcf0`；本轮工作区仅有前序文档更新。
+源码基线为已发布 alpha.1 的 `d0a199346f383f9a2e42c211979fb88b74b4bcf0`；当前工作区已完成 React/Fluent alpha.2 迁移，以下表格保留为迁移风险和对照基线。
 
 | 当前实现 | 迁移重点 |
 | --- | --- |
@@ -61,11 +61,11 @@
 | 更新下载进度、加载状态 | ProgressBar / Spinner | 保留原有按钮附近/内部位置、百分比与失败状态，不改变页面结构 |
 | WSpeedChart | `@fluentui/react-charts` v9 | 优先官方面积/折线能力；双曲线渐变与30点滑动、无多余轴/图例/交互需原型证明 |
 
-图表是选型门槛：v9 组件的填充、过渡、尺寸和体积必须实测。若官方组件无法满足，不默认改回手写图表，也不引入 v8；先提供差异和方案让用户判断。标准控件不保留一套手写替代品。
+图表是选型门槛：当前已使用 v9 `AreaChart` 承载双曲线、30 点滚动、最低纵轴和无图例/Tooltip 的产品需求，并以浏览器构建和窄视口回归验证。真实流量压力与 Tauri WebView 仍属于人工验收；标准控件不保留一套手写替代品。
 
 ## 4. 视觉与动效保留
 
-先记录 alpha.1 的实际录屏，再以源码数值作为初始参照。CSS 存在 transition 声明不等于浏览器真的实现了流畅插值，尤其是 SVG path。
+alpha.1 源码数值作为初始参照，当前已用生产预览截图和交互回归校准；CSS 存在 transition 声明不等于浏览器真的实现了流畅插值，尤其是 SVG path，真实窗口录屏仍待人工验收。
 
 | 场景 | 当前源码基线 | React 迁移要求 |
 | --- | --- | --- |
@@ -134,9 +134,9 @@ UWP 页面与 Windows 专属动作保持独立业务组合，共享页面只负�
 | P4 / FE-007 | 设置、更新、UWP、颜色、关闭询问及剩余弹窗 | 页面内手写交互控件全部盘点替换；无被遗忘功能或视觉降级 |
 | P5 / FE-008 | 删除 Vue 与无用依赖/样式；完整回归与 x64 NSIS 测试包 | 构建和 Windows 实机证据齐全；后端遗留清单继续保留，不把 alpha.2 发布准备等同后端全验收 |
 
-迁移放在独立开发分支，以可回退的小提交推进。React 原型可以是开发专用入口，生产入口不长期同时加载 Vue/React，也不建立跨框架同步桥；切换前完成目标功能对等。Tailwind 可在迁移中暂留以避免同时重写布局，最终删除失去调用的工具类/构建插件；不让 Tailwind reset 与 Fluent 样式长期争夺控件外观。
+迁移放在独立开发分支，以可回退的小提交推进。当前生产入口已切换为 React，未长期并存 Vue/React，也未建立跨框架同步桥；Tailwind 入口、旧 Vue 页面、W* 基础控件和 Font Awesome CDN 已移除，保留 OverlayScrollbars 作为已有日志/列表滚动能力。
 
-版本在 FE-004 同步：`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 与 Cargo.lock 的本包版本、`frontend/package.json` 与 package-lock 顶层/根包版本均为 `3.0.0-alpha.2`；运行时版本仍由 Tauri metadata 提供。alpha.1 作为历史版本不得全仓字符串替换。现有 main workflow 会触发发布，因此本轮不改版本、不合并 main、不创建 Release；后续发布遵循明确授权。
+版本已在 FE-004 同步：`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 与 Cargo.lock 的本包版本、`frontend/package.json` 与 package-lock 顶层/根包版本均为 `3.0.0-alpha.2`；运行时版本仍由 Tauri metadata 提供。alpha.1 作为历史版本未全仓字符串替换。本轮只生成本机 unsigned x64 NSIS 测试包，不合并 main、不创建 Release；后续发布遵循明确授权。
 
 ## 8. 验证和完成定义
 
@@ -149,3 +149,15 @@ UWP 页面与 Windows 专属动作保持独立业务组合，共享页面只负�
 7. **遗留分离**：后端原先未执行的人工场景不自动变 pass，也不要求先全做完才写前端；遇到迁移新引入的行为回归必须修复。可复用本轮产生的同场景证据，避免重复测试。
 
 建议第一个实际实现切片集中在“Fluent 主题 + 主界面核心控制 + 一个 Dialog + 网速图”。先证明最重要的视觉和动效可以保留，再迁移全部设置表单，返工风险最低。
+
+## 9. 当前实现交接（2026-09-22）
+
+- 组件映射已落地：`Button`/Fluent Icons、`Input`/`Textarea`、`Switch`/`Checkbox`、`Dropdown`/`Option`、`Dialog`/`DialogSurface`/`DialogBody`/`DialogContent`/`DialogActions`、`MessageBar`、`RadioGroup`、`TabList`、`SwatchPicker`、`ProgressBar`/`Spinner`、v9 `AreaChart`；业务状态集中在 React `AppContext`，桌面调用集中在 `api/backend.ts`。
+- 保留并优化：Mica 透明层次、8px 卡片圆角、状态色、Proxy/Tun/Mixed 选中滑块、页面/弹窗/列表动效、自动隐藏滚动条、日志跟随、焦点轮廓、reduced-motion 和 forced-colors 分支。`ProductDialog` 使用 Fluent 官方 anatomy 和 `DialogTrigger`；移除每个弹窗的全局事件监听，只保留受控 `open` 场景所需的最小焦点恢复桥接，并为编辑器保留明确的 Surface 高度/内容边界。
+- 删除内容：旧 Vue 页面/composables、WButton/WInput/WSelect/WModal 等手写基础控件、Tailwind/PostCSS 配置、Font Awesome CDN 和旧入口；没有恢复 Wails 双后端或建立空 Linux 实现。
+- WinUI 依据：微软 Design and UI principles、Geometry、Typography、Iconography、Color、Motion 白皮书/规范；当前采用内容层级、紧凑密度、4/8 间距、16px 常规图标、12px 控件文字、轻量边界、品牌色焦点和单一动效所有者。
+- 已执行：`npm run build`、`npx tsc --noEmit`、`npm audit --audit-level=high`（0 vulnerabilities）、`git diff --check`；x64 `cargo fmt --check`、`cargo test --locked --offline`（33/33）、`cargo clippy --locked --offline -- -D warnings`；`cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign` 通过。
+- 视觉/交互证据：生产预览覆盖 400×720 基线与本轮窄视口；设置页 Dropdown 展开、定位、选择和 Escape；主题、日志、退出、Manage Profiles、UWP 空状态、编辑器弹窗；标题栏 hover 连续截图稳定。生产构建控制台无错误；开发环境仅保留 Fluent Keyborg/React StrictMode 相关警告。
+- 2026-09-22 回归修复：应用更新比较在取得本机版本后再执行，`Unknown` 不再被当作可比较版本；增加检查中的并发保护。Dropdown 根控件与内部 combobox 只绘制一层 WinUI 边界，Portal 菜单改为不透明主题面、轻边框和选中背景，移除默认亮色焦点框；通过 Fluent `Option` 的公开 `checkIcon={null}` slot 完全移除左侧勾选节点和自定义竖条。弹窗表面改为不透出底层文字，编辑器 DialogBody/内容区/footer 已在窄视口填满；`ProductDialog` 用 `useLayoutEffect` 在 Fluent 自动聚焦前记录触发控件，Escape/关闭按钮退出后焦点恢复到原控件。浅色/深色主题、Dropdown、Manage Profiles、主题颜色和编辑器弹窗已用最新生产预览复核。
+- 当前 x64 测试产物：[NSIS 安装器](../../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-alpha.2_x64-setup.exe)，主程序 PE `0x8664`、版本 `3.0.0-alpha.2`、大小 `18,959,872` bytes、SHA-256 `68AD0FC5282F19CE0837759751B744F8407848E16F00B08BBDF781A96C1264C7`；安装器大小 `4,775,180` bytes、SHA-256 `57B104D8FBFB007E4B5A571E4E430B5888DB4F57C18AD01147E80EDEF2BCF264`。只生成 NSIS，不生成 ARM64/MSI/portable。
+- 未完成/阻塞：真实 Tauri WebView/NSIS 安装后人工验收，真实 profile/运行态/流量图表/日志压力、启停/模式/更新/UWP/主题材质/窗口按钮、DPI 100/125/150/200% 和旧数据边界。原生清单要求 `requireAdministrator`，当前非管理员启动返回 `0xc0000142`/`os error 740`；WebView2 `153.0.4234.48` 已安装，必须由用户以管理员权限启动并继续人工验收。浏览器预览中出现的 `invoke` 错误是没有 Tauri runtime 的预期限制，不记为前端视觉通过或后端失败修复。

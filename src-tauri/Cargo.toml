@@ -1,6 +1,6 @@
 [package]
 name = "winbox-tauri"
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 description = "WinBox backend core"
 authors = ["WinBox contributors"]
 edition = "2021"
