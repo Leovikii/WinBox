@@ -29,10 +29,10 @@
 | V12 | UWP 列表、选择增删、已有其他豁免、读取失败、部分操作失败、非法 SID | 差异更新准确；不把失败当空列表；保留非目标条目并报告部分失败 | 系统状态前后对比 | 注册表枚举、CheckNetIsolation 差异更新和 SID 校验已实现；真实系统状态前后对比仍未执行 |
 | V13 | 内核稳定/预发布 x64、镜像、断流/校验错/解压错/被占用/替换后启动失败 | x64 资产准确；有效旧核心/配置可恢复；下载不先切断所依赖代理；用户状态真实 | 测试资产与故障注入 | 官方 sing-box `v1.14.1` x64 资产 digest 校验、`version`、最小配置 `check` 已执行；暂存核心在无活动配置时改为要求 `sing-box version` 成功，有活动配置时仍执行 `sing-box check`；回归测试通过，真实核心更新/文件占用/故障注入仍待用户复测 |
 | V14 | NSIS 一键首次安装/升级/卸载、默认路径无选择页、自动启动、错误签名、离线、下载中断、安装前清理、重启和数据保留 | 官方 updater 真实更新链可用，安装目录只含程序文件，签名错误被拒绝，用户数据保留，失败可恢复；旧单 EXE 只按发行说明手动转换，不宣称自动兼容 | 测试发布源、真实产物、Windows x64 设备 | GitHub 旧 Release 当前仅含 portable ZIP，尚无 updater `latest.json`；无 metadata 时后端返回当前版本，现有 UI 的同版本路径显示 `Latest`；真实 NSIS 安装/签名更新仍需新 main Release 和 Windows x64 复测 |
-| V15 | CI、NSIS 文件清单、WebView2、x64 产物、更新元数据和 Release | x64 构建和实机结果分别记录；NSIS `*-setup.exe`、同名 `.sig`、`latest.json`、版本和 Release 对应；安装目录/数据目录边界正确，应用内更新完成 | CI 日志 + x64 设备 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20` 已登记；旧 Release 不具 updater 资产，需 PR 到 main 后由 workflow 产出并验证签名 metadata 与跨版本更新 |
+| V15 | CI、NSIS 文件清单、WebView2、x64 产物、更新元数据和 Release | x64 构建和实机结果分别记录；NSIS `*-setup.exe`、同名 `.sig`、`latest.json`、版本和 Release 对应；安装目录/数据目录边界正确，应用内更新完成 | CI 日志 + x64 设备 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；Actions 版本、缓存和签名预检已更新并通过本地静态断言，真实 GitHub PR/main workflow、签名 Release 与跨版本更新仍待验收 |
 | V16 | 受控 IPC/URL/路径、远程 Markdown；启动/空闲/后台/日志压力性能 | 非授权命令/路径被拒绝；内容无高权限执行入口；对照 P0 指标无未解释回归 | 边界用例、同环境测量 | URL、profile ID、override、archive、SID、helper 路径和 command 错误边界已覆盖；性能/远程内容实机仍未执行 |
 | V17 | 去除旧栈、临时桥、双版本源与无用依赖 | 活动构建/代码不依赖 Go/Wails；文档历史引用可保留；新环境独立构建成功 | rg、锁文件、构建 | Go/Wails 源码、生成目录、旧配置和旧构建资源已删除；活动代码无旧栈引用；最终 x64 Tauri bundle 已成功生成 |
-| V18 | 文档/实现/台账一致性 | 命令/文件/依赖与实际一致，所有完成项有证据，阻断清零或有明确批准例外 | 文档复核 | `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-043-MODE-PERSISTENCE-2026-09-21`；本轮代码和自动检查通过，真实桌面/Release 验收仍待执行 |
+| V18 | 文档/实现/台账一致性 | 命令/文件/依赖与实际一致，所有完成项有证据，阻断清零或有明确批准例外 | 文档复核 | `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-043-MODE-PERSISTENCE-2026-09-21`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；本轮代码和自动检查通过，真实桌面/Release 验收仍待执行 |
 | V19 | 最终发行收尾：一键 NSIS、官方 updater、目录精简、手动数据说明和预更新检查 | 默认路径无选择页且安装完成自动启动；安装目录与 appLocalDataDir 分离且只保留必要文件；旧单 EXE 的人工处理说明准确；官方签名更新前统一退出；既有 `pre_release` 设置正确选择稳定/预发布；main Release 资产可用 | 自动检查 + 文档复核 + Windows x64 人工 + GitHub Action | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`；无 metadata 的无更新 UI 路径已实现并自动验证；真实内核/应用更新、NSIS 桌面和 main Release 尚未验收 |
 
 ## 推荐命令
@@ -634,3 +634,12 @@ OS、架构、权限、WebView2、工具链、sing-box、数据模式：
 - 测试包：主程序 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`（18,771,456 bytes，SHA-256 `8C2A10B86621F58B87C46B003366311854F71ACDE9D4641656794953947B7280`）；安装器 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-alpha.1_x64-setup.exe`（4,585,218 bytes，SHA-256 `5F98913B2A614A646C58B718F0F6A07394DA2472B469DDE8F97F659443DB17BD`）。只用于本机测试，不作为 Release 输入。
 - 用户实测记录（2026-09-21）：用户确认 BUG-009 模式复位问题已解决；未提供具体操作步骤或日志，因此不据此扩大 V07/V09 阶段验收范围。
 - 结果/限制：自动验证通过，BUG-009 标记 `resolved`。此前已写成 `false/false` 的数据无法反推出原模式，需由用户重新选择目标模式。MIG-009/MIG-042 其他实机验收保持原状态；未生成 ARM64 产物。
+
+### MIG-044-WORKFLOW-ACTIONS-2026-09-21 — GitHub Actions 运行时与发布构建耗时
+
+- 诊断：`logs_96185740082.zip` 显示 PR unsigned 构建和 main signed 发布是分支步骤；main job 的 `TAURI_SIGNING_PRIVATE_KEY` 为空，故在签名构建前主动失败。旧顺序先完整编译 `tauri-cli 2.11.4`，约 10 分钟后才发现空密钥。
+- 官方版本核对（2026-09-21）：`actions/checkout v7.0.1`、`actions/setup-node v7.0.0`、`actions/upload-artifact v7.0.1`、`actions/download-artifact v8.0.1`、`softprops/action-gh-release v3.0.3`、`actions/cache v6.1.0`；对应官方 release 页面见 `decisions.md`。升级后的 actions 使用 Node 24 runtime。`setup-node` 的项目 `node-version: 20` 是独立构建运行时，本次未因 action runtime 警告改动。
+- 修改：将 main-only 签名密钥预检放在 checkout 后、依赖安装前；仅缓存 `~/.cargo/bin/cargo-tauri.exe`，缓存键为 runner OS/架构与 CLI 版本，命中时跳过安装。PR unsigned 构建不读取密钥；main 不会降级为 unsigned 发布。
+- 自动验证：PowerShell 静态断言确认精确 action 版本、预检/缓存/安装次序、缓存键与路径、PR unsigned 构建参数和旧版本引用清理；`git diff --check` 通过。当前环境未安装 `actionlint`，因此未声称通过完整 workflow linter。
+- 公钥验证（2026-09-21）：维护者提供的 `winbox-updater.key.pub` 与 `src-tauri/tauri.conf.json` 中 updater `pubkey` 完全匹配，fingerprint `2D84AD16F9BD9AC5`；Base64 内容可解码为 minisign public key，JSON 解析与 `git diff --check` 通过。此项不验证私钥配对或 GitHub secret 注入。
+- 限制/下一步：本地不能验证 GitHub cache 命中或 secret 注入。维护者仍需配置与该公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`；加密密钥另配 password。推送后的 PR Action 验证 unsigned NSIS；只有 secret 可用且发布 tag/version 已确认后，合并 `main` 才会触发 signed NSIS 与 Release。MIG-014/MIG-042 继续保持 `review`。
