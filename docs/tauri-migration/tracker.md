@@ -405,4 +405,5 @@ BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户�
 - 根因：附件日志中的 `Build signed NSIS installer for main` 只会在 `push` 到 `main` 时运行；该 job 实际收到空的 `TAURI_SIGNING_PRIVATE_KEY`。PR 使用 unsigned 构建通过并不验证发布密钥。旧 workflow 在签名预检前编译 Tauri CLI，单次约 10 分钟。
 - 修改：Actions 升级到 2026-09-21 官方最新 release tags；main 专用签名预检移到 checkout 后、Node/Rust/CLI 安装前；用 `actions/cache` 只缓存按 OS/架构/CLI 版本键控的 `cargo-tauri.exe`，命中时跳过 `cargo install`。签名缺失仍快速失败，PR unsigned 与 main signed 触发边界、x64 NSIS 产物契约均不变。
 - 验证：结果记录在 `MIG-044-WORKFLOW-ACTIONS-2026-09-21`。真实缓存命中、main signed build、Release 和 updater 跨版本安装需在推送后由 GitHub Actions 及 Windows x64 实机验收。
-- 下一步：维护者在 GitHub 仓库 Actions secrets 中配置与 updater 公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`；如私钥设有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。不得提交或在对话中传输私钥。确保发布版本/tag 与预期一致后再合并到 `main`。
+- 公钥配置（2026-09-21）：维护者提供的 `winbox-updater.key.pub` 已写入 `src-tauri/tauri.conf.json`；fingerprint 为 `2D84AD16F9BD9AC5`。配置值与 `.pub` 文件一致，Tauri config JSON 解析及 `git diff --check` 通过。
+- 下一步：维护者在 GitHub 仓库 Actions secrets 中配置与该公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`；如私钥设有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。本机未验证 GitHub secrets 状态；不得提交或在对话中传输私钥。确保发布版本/tag 与预期一致后再合并到 `main`。
