@@ -1,6 +1,6 @@
 # 验收矩阵与验证记录
 
-本文件定义检查标准并登记证据。迁移实现已完成，最终发行收尾由 MIG-042 单独跟踪；局部 Rust core 检查的通过不等于 NSIS/updater 验收通过。本版只支持 Windows AMD64/x64；ARM64 研究记录若保留，仅用于历史上下文，不是构建、发布、阻塞或验收条件。测试环境使用脱敏配置和独立数据目录；会修改系统代理、自启或 UWP 的检查，保存原状态并在结束后恢复。
+本文件定义检查标准并登记证据。迁移实现与 alpha.1 首次发布已完成，整体验收收尾由 MIG-042 跟踪；局部 Rust core 检查的通过不等于 NSIS/updater 验收通过。本版只支持 Windows AMD64/x64；ARM64 研究记录若保留，仅用于历史上下文，不是构建、发布、阻塞或验收条件。测试环境使用脱敏配置和独立数据目录；会修改系统代理、自启或 UWP 的检查，保存原状态并在结束后恢复。
 
 ## 执行与证据规则
 
@@ -10,6 +10,26 @@
 - 同一任务可关联多次证据；原型通过不等于最终集成通过，发布前对最终产物重跑对应关键检查。
 - 前端视觉修改使用同机器、系统主题、窗口尺寸、DPI、数据和应用状态比较。先在 P0 建立真实截图基线，README 展示图不能替代。
 - 初期优先 Rust 内置测试与已有前端构建检查；确有复杂交互需要才引入测试工具，不预设大型测试框架。
+
+## 待补人工验收（2026-09-21）
+
+以下只列尚缺结果的场景，不代表已发现故障。可在同一次 Windows x64 测试中合并执行；已确认的 BUG 修复不要求仅为补文档而重复测试。测试使用备份或独立测试账户，记录版本、环境、操作与结果；故障注入后恢复系统状态。
+
+**已通过**：用户确认卸载和数据清理功能人工测试通过（本轮对话）；main 签名构建与 alpha.1 发布资产检查通过（MIG-045）。卸载不再是待办；用户未提供具体清理选项、文件清单和日志，因此不推断所有数据保留分支都经过测试。
+
+| 关联 | 尚需操作 | 通过时记录 |
+| --- | --- | --- |
+| BUG-003；V02/V03/V04 | 已发布 NSIS 上检查居中、标题栏拖动、按钮不误拖、最小化/托盘、单实例、关闭三策略、隐藏启动、浅/深/系统主题和 100/125/150/200% DPI；反复打开/关闭页面及失败交互 | 截图/操作结果；无裁剪、错误材质、重复监听或永久忙碌；可直接作为前端重构基线 |
+| BUG-007；V13 | 无活动配置时下载安装真实 sing-box；已有活动配置时更新；覆盖稳定/预发布与镜像 | 无配置时不再报 No active configuration selected；有配置继续 check；版本及原运行状态正确 |
+| BUG-008；V14/V19 | 预更新开关开/关检查；所选 Release 无 metadata 时显示 Latest；有 metadata 时正常检查 | 选择符合稳定/预发布设置；无更新不报错；记录实际 Release/tag |
+| V14/V15/V19 | 首次安装默认路径、无选择页、自动启动；在隔离环境验证缺少 WebView2 时联网安装与离线失败；核对安装/数据目录和人工复制旧数据说明 | 安装目录仅程序/运行/卸载文件，用户数据在 appLocalDataDir；不自动迁移旧数据；升级保留已有配置 |
+| V14/V19 | 受控签名旧→新版本应用内更新；错误签名、下载中断/离线、安装前清理失败、更新后重启 | 成功更新且数据保留；错误签名被拒绝；失败不伪报成功；更新前 sing-box/流量停止且本应用代理恢复。需要两个可比较版本，不能以同版本重装替代；本轮不创建测试 Release |
+| V07/V09/V10 | 三模式启停/重启、运行中切配置、快速点击与托盘并发；核心崩溃、应用强制结束、启动/退出超时、其他代理/内核并存；off/smart/always、断网/慢网及取消 | 唯一所属核心、失败解锁、退出/重启恢复代理、不误杀或覆盖其他软件；无无限重试。BUG-009 模式持久化已确认，不重复作为未修复问题 |
+| V11/V12 | UAC 拒绝/允许；自启开关、注销登录、旧任务路径更新、空格路径/电池状态；UWP 增删、既有豁免和读取/部分操作失败 | 延迟/最高权限/最小化与关闭自启正确；UWP 差异准确，不误清其他条目；恢复测试前状态 |
+| V05/V06/V13；DEFER-004 | 损坏/只读/占用/中文空格路径及跨文件写入中断；其余订阅/override/IPv6/日志设置；更新校验/解压失败、占用和新核心启动失败 | 写入失败可见，无效候选不破坏有效配置；旧核心/配置可恢复；据跨文件恢复结果决定是否需 journal，不预先引入 |
+| V08/V16 | 日志压力、隐藏/恢复流量、退出取消；远程 Markdown/外链交互；同环境启动/空闲/托盘 CPU 与内存测量 | 日志/监听有界、恢复不重复；远程内容无高权限入口；提供实测数字，不将宣传文案当性能证据 |
+
+整体关闭前逐项关联矩阵证据，或登记用户明确批准的具体范围例外；不能因为 alpha 已发布而批量标 pass。前端准备可以先做，正式改动前保留最终 alpha 的视觉与交互基线。
 
 ## 验收矩阵
 
@@ -28,12 +48,12 @@
 | V11 | 提权拒绝/允许、自启开关、注销登录、任务旧路径更新、带空格路径、电池状态 | 最高权限、延迟、最小化语义保持；失败不保存成功状态；无重复任务，关闭自启有效 | Windows 登录实测 | manifest、任务 XML、创建后查询/删除后查询和固定系统工具路径已实现；管理员/UAC/登录实测仍未执行 |
 | V12 | UWP 列表、选择增删、已有其他豁免、读取失败、部分操作失败、非法 SID | 差异更新准确；不把失败当空列表；保留非目标条目并报告部分失败 | 系统状态前后对比 | 注册表枚举、CheckNetIsolation 差异更新和 SID 校验已实现；真实系统状态前后对比仍未执行 |
 | V13 | 内核稳定/预发布 x64、镜像、断流/校验错/解压错/被占用/替换后启动失败 | x64 资产准确；有效旧核心/配置可恢复；下载不先切断所依赖代理；用户状态真实 | 测试资产与故障注入 | 官方 sing-box `v1.14.1` x64 资产 digest 校验、`version`、最小配置 `check` 已执行；暂存核心在无活动配置时改为要求 `sing-box version` 成功，有活动配置时仍执行 `sing-box check`；回归测试通过，真实核心更新/文件占用/故障注入仍待用户复测 |
-| V14 | NSIS 一键首次安装/升级/卸载、默认路径无选择页、自动启动、错误签名、离线、下载中断、安装前清理、重启和数据保留 | 官方 updater 真实更新链可用，安装目录只含程序文件，签名错误被拒绝，用户数据保留，失败可恢复；旧单 EXE 只按发行说明手动转换，不宣称自动兼容 | 测试发布源、真实产物、Windows x64 设备 | GitHub 旧 Release 当前仅含 portable ZIP，尚无 updater `latest.json`；无 metadata 时后端返回当前版本，现有 UI 的同版本路径显示 `Latest`；真实 NSIS 安装/签名更新仍需新 main Release 和 Windows x64 复测 |
-| V15 | CI、NSIS 文件清单、WebView2、x64 产物、更新元数据和 Release | x64 构建和实机结果分别记录；NSIS `*-setup.exe`、同名 `.sig`、`latest.json`、版本和 Release 对应；安装目录/数据目录边界正确，应用内更新完成 | CI 日志 + x64 设备 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；Actions 版本、缓存和签名预检已更新并通过本地静态断言，真实 GitHub PR/main workflow、签名 Release 与跨版本更新仍待验收 |
+| V14 | NSIS 一键首次安装/升级/卸载、默认路径无选择页、自动启动、错误签名、离线、下载中断、安装前清理、重启和数据保留 | 官方 updater 真实更新链可用，安装目录只含程序文件，签名错误被拒绝，用户数据保留，失败可恢复；旧单 EXE 只按发行说明手动转换，不宣称自动兼容 | 测试发布源、真实产物、Windows x64 设备 | `MIG-045-RELEASE-AUDIT-2026-09-21`：alpha.1 已发布；卸载/数据清理用户实测通过。首次安装其余分支、升级数据保留、签名拒绝和跨版本应用内更新仍待实机 |
+| V15 | CI、NSIS 文件清单、WebView2、x64 产物、更新元数据和 Release | x64 构建和实机结果分别记录；NSIS `*-setup.exe`、同名 `.sig`、`latest.json`、版本和 Release 对应；安装目录/数据目录边界正确，应用内更新完成 | CI 日志 + x64 设备 | `MIG-045-RELEASE-AUDIT-2026-09-21`：main signed build 与 Release 成功；3 个 x64 资产、metadata 版本/目标/URL 和签名文本一致性通过；设备运行、WebView2 与跨版本更新仍待验收 |
 | V16 | 受控 IPC/URL/路径、远程 Markdown；启动/空闲/后台/日志压力性能 | 非授权命令/路径被拒绝；内容无高权限执行入口；对照 P0 指标无未解释回归 | 边界用例、同环境测量 | URL、profile ID、override、archive、SID、helper 路径和 command 错误边界已覆盖；性能/远程内容实机仍未执行 |
 | V17 | 去除旧栈、临时桥、双版本源与无用依赖 | 活动构建/代码不依赖 Go/Wails；文档历史引用可保留；新环境独立构建成功 | rg、锁文件、构建 | Go/Wails 源码、生成目录、旧配置和旧构建资源已删除；活动代码无旧栈引用；最终 x64 Tauri bundle 已成功生成 |
-| V18 | 文档/实现/台账一致性 | 命令/文件/依赖与实际一致，所有完成项有证据，阻断清零或有明确批准例外 | 文档复核 | `MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-043-MODE-PERSISTENCE-2026-09-21`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；本轮代码和自动检查通过，真实桌面/Release 验收仍待执行 |
-| V19 | 最终发行收尾：一键 NSIS、官方 updater、目录精简、手动数据说明和预更新检查 | 默认路径无选择页且安装完成自动启动；安装目录与 appLocalDataDir 分离且只保留必要文件；旧单 EXE 的人工处理说明准确；官方签名更新前统一退出；既有 `pre_release` 设置正确选择稳定/预发布；main Release 资产可用 | 自动检查 + 文档复核 + Windows x64 人工 + GitHub Action | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`；无 metadata 的无更新 UI 路径已实现并自动验证；真实内核/应用更新、NSIS 桌面和 main Release 尚未验收 |
+| V18 | 文档/实现/台账一致性 | 命令/文件/依赖与实际一致，所有完成项有证据，阻断清零或有明确批准例外 | 文档复核 | `MIG-045-RELEASE-AUDIT-2026-09-21`、`DOC-002`：发布后文档清理；整体验收仍 review，不扩大发布或用户测试的证明范围 |
+| V19 | 最终发行收尾：一键 NSIS、官方 updater、目录精简、手动数据说明和预更新检查 | 默认路径无选择页且安装完成自动启动；安装目录与 appLocalDataDir 分离且只保留必要文件；旧单 EXE 的人工处理说明准确；官方签名更新前统一退出；既有 `pre_release` 设置正确选择稳定/预发布；main Release 资产可用 | 自动检查 + 文档复核 + Windows x64 人工 + GitHub Action | `MIG-045-RELEASE-AUDIT-2026-09-21`：发布资产通过，卸载/数据清理用户实测通过；首次安装其余分支、目录清单、预更新 UI、核心及跨版本更新仍待验收 |
 
 ## 推荐命令
 
@@ -643,3 +663,14 @@ OS、架构、权限、WebView2、工具链、sing-box、数据模式：
 - 自动验证：PowerShell 静态断言确认精确 action 版本、预检/缓存/安装次序、缓存键与路径、PR unsigned 构建参数和旧版本引用清理；`git diff --check` 通过。当前环境未安装 `actionlint`，因此未声称通过完整 workflow linter。
 - 公钥验证（2026-09-21）：维护者提供的 `winbox-updater.key.pub` 与 `src-tauri/tauri.conf.json` 中 updater `pubkey` 完全匹配，fingerprint `2D84AD16F9BD9AC5`；Base64 内容可解码为 minisign public key，JSON 解析与 `git diff --check` 通过。此项不验证私钥配对或 GitHub secret 注入。
 - 限制/下一步：本地不能验证 GitHub cache 命中或 secret 注入。维护者仍需配置与该公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`；加密密钥另配 password。推送后的 PR Action 验证 unsigned NSIS；只有 secret 可用且发布 tag/version 已确认后，合并 `main` 才会触发 signed NSIS 与 Release。MIG-014/MIG-042 继续保持 `review`。
+
+### MIG-045-RELEASE-AUDIT-2026-09-21 — alpha.1 发布与人工结果核对
+
+- 来源：本轮用户确认后端实现完成并已发布首个 alpha；另外明确“卸载和数据清理功能已通过人工测试”。仅把该具体人工结果登记通过，不推断未报告场景。
+- 只读远端检查：[Release v3.0.0-alpha.1](https://github.com/Leovikii/WinBox/releases/tag/v3.0.0-alpha.1)，`prerelease=true`；[Actions run 35592153483](https://github.com/Leovikii/WinBox/actions/runs/35592153483)，提交 `d0a199346f383f9a2e42c211979fb88b74b4bcf0`，`completed/success`。
+- `Build Windows x64 NSIS` 与 `Publish Windows x64 release` 均 success；密钥预检、main signed build、签名资产上传、Release 创建均 success。缓存步骤成功且 Install Tauri CLI 仍执行，未证明缓存命中/实际提速。
+- 资产：`WinBox_3.0.0-alpha.1_x64-setup.exe`（4,583,617 bytes）、同名 `.sig`（428 bytes）、`latest.json`（765 bytes）；Release 未列出 portable/MSI/ARM64 资产。
+- 下载读取 metadata 和 `.sig`：版本 `3.0.0-alpha.1`，唯一平台 `windows-x86_64-nsis`，URL 指向同一 Release 的 NSIS；metadata 内签名与 `.sig` 去除首尾空白后完全一致。这是元数据一致性检查，不是本轮执行安装包密码学验签或错误签名拒绝实测。
+- 方法：PowerShell `Invoke-RestMethod` 查询 GitHub Release/Actions/jobs，`Invoke-WebRequest` 读取公开签名；只读检查成功。沙箱内首次请求因本机 TLS 凭据错误失败，之后通过只读提权命令成功核对；没有访问私钥或修改远端状态。
+- 结论：消除旧发布密钥/main Release 阻塞，关闭 BUG-010；保留 BUG-003/007/008 的复测状态及剩余矩阵。卸载/数据清理人工结果通过；其他实机检查未在本轮执行。
+- DOC-002：本轮仅文档清理与前端准备，11 份 Markdown、32 个本地链接/锚点、22 个唯一任务 ID 检查通过；源码路径/导出/配置核对及 `git diff --check` 通过；不重复运行与文档无关的 Rust/前端构建。

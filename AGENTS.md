@@ -2,18 +2,25 @@
 
 ## 当前任务入口
 
-Wails → Tauri 迁移方案已于 2026-09-16 获用户批准。完整入口：[迁移开发文档](docs/tauri-migration/README.md)。文档完成不代表迁移实现完成；实际进度只看 [tracker.md](docs/tauri-migration/tracker.md)。
+Wails → Tauri 后端迁移实现已完成，`3.0.0-alpha.1` 已发布。整体验收仍以 [tracker.md](docs/tauri-migration/tracker.md) 为准；待补人工场景见 [validation.md](docs/tauri-migration/validation.md)。用户已指定前端迁移到 React + 微软 Fluent UI，目标 `3.0.0-alpha.2`；先完成 [开发计划](docs/frontend-refactor/README.md)，前端状态看 [前端台账](docs/frontend-refactor/tracker.md)。后端人工测试保留，允许前端先行；不能把已发布等同于所有实机验收通过。
 
-开始迁移工作前依次阅读 README、tracker、architecture、contracts、plan、decisions、validation；之后每次任务先检查 tracker 和相关决策。先核对工作区与源码，保留其他人的未提交修改。
+后端迁移工作阅读其 README、tracker、architecture、contracts、plan、decisions、validation；前端工作先读前端 README、tracker、decisions 及相关后端契约；之后每次任务先检查对应 tracker 和相关决策。先核对工作区与源码，保留其他人的未提交修改。
 
 ## 已批准边界
 
-- 目标为 Tauri 2 + Rust 后端 + Vue 3 + 独立 sing-box 进程。本版实现 Windows，Linux 下个大版本实现。
+- 后端保持 Tauri 2 + Rust + 独立 sing-box；alpha.2 前端从 Vue 3 迁移到 React，采用微软 Fluent UI 官方组件。当前只实现 Windows x64；前端需考虑 Linux 字体/材质/布局降级，Linux 实现在下个版本。
 - 本版只兼容 Windows AMD64（x64）；不得构建、发布或验收 ARM64 产物。
-- **前端允许修改、优化和简化；必须保持现有样式、视觉效果和用户交互逻辑。** 可以重构 imports、composables、状态管理、事件订阅与错误处理。不要永久模拟 Wails 来限制新后端；兼容桥仅在分阶段迁移确有需要时保留。
-- 迁移期间保留 Go/Wails 作为参考，验收通过后移除。不建立长期 Go sidecar。
-- 保留便携使用、旧数据、现有 Windows 能力；不得以插件限制为由静默删功能。发行形式、权限行为、视觉或交互的实质变化需说明影响并取得用户确认。
+- **前端允许修改、优化和简化；必须保持现有样式、视觉效果和用户交互逻辑。** 允许重构框架、状态管理、事件订阅与错误处理；通用控件使用 Fluent 官方组件，通过主题/slots 和最少必要产品样式保留并优化动效，不能以组件库默认外观为由劣化效果。不要永久模拟 Wails 来限制新后端；兼容桥仅在分阶段迁移确有需要时保留。
+- Go/Wails 活动代码已移除，旧实现从 Git 历史查阅；不恢复双后端或长期 Go sidecar。
+- 最终发行形态已批准为 x64 NSIS + 官方 updater，数据使用 `appLocalDataDir()`；不发行 portable/MSI，不自动迁移旧便携数据，保留人工备份/复制说明与现有 Windows 能力。不得以插件限制为由静默删功能。发行形式、权限行为、视觉或交互的实质变化需说明影响并取得用户确认。
 - 一般实现选择、修复、依赖验证和已授权范围内的重构自行推进，不反复请求确认。
+
+## 前端迁移执行规则
+
+- 旧前端是 WinUI 风格的手写控件；本次用 Fluent 官方组件承接其视觉与行为，组件替换和效果保留同一切片完成，不先交付缩水界面。执行 [前端计划中的 agent 约束](docs/frontend-refactor/README.md#后续-agent-的执行约束)。
+- 官方组件实际负责交互、键盘与焦点；优先主题/token、公开 props/slots/motion，仅为产品布局和缺少的特有效果补最小样式。不复制整套旧控件/CSS，不依赖私有 DOM，不创建无实际用途的通用代理组件库。
+- 适当解耦纯数据逻辑、业务 hooks、展示与桌面接入；窗口材质与 Fluent 主题计算分离。平台判断集中在边界，Windows API 留在 Rust platform；当前保留 Windows 功能，Linux 下版接真实能力，不预建空实现或分叉整套页面。
+- 每个切片交接必须列出组件映射、保留效果、删除内容、验证和未执行项；正常等价替换自行推进，实质视觉/交互变化才确认。只编译不算视觉与动态验收通过。
 
 ## 最小实现原则（ponytail）
 

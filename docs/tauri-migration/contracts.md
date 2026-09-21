@@ -1,6 +1,8 @@
 # 行为契约与迁移映射
 
-基线：`3b5eef88a252206cf82db4752999a6e0054c0795`。以下旧契约来自源码阅读；尚未执行运行验证。新 command 名为建议值，P0 盘点全部调用者后锁定；改名不需额外用户审批，但须同步本文和全部调用者。
+当前源码基线为 alpha.1（`d0a1993`）；旧 Wails 行为参考基线为 `3b5eef88a252206cf82db4752999a6e0054c0795`。优先阅读下方“当前实现契约”和“最终发行与数据契约”。P0/P1 原型段落及变更记录仅作历史追溯，不再要求恢复 Wails、portable 或自定义 updater。
+
+实际命令注册见 `src-tauri/src/lib.rs`，前端入口与 DTO 见 `frontend/src/api/backend.ts`；修改时同步所有调用者。本文不将源码检查等同于实机验收。
 
 ## 迁移原则
 
@@ -13,7 +15,7 @@
 
 表中 `string` 表示旧返回，通常成功为 `Success`、失败为 `Error: ...`；特例见后文。所有新业务调用均经受控 Rust 入口，窗口等可直接使用 Tauri 官方 API。
 
-| 旧入口（Go App） | 参数 | 旧结果 | 新入口建议/责任 |
+| 旧入口（Go App） | 参数 | 旧结果 | 当前入口/责任 |
 | --- | --- | --- | --- |
 | GetInitData | 无 | 对象 | `get_init_data`：初始化快照 |
 | AddProfile | name, url | string | `add_profile` |
@@ -25,26 +27,26 @@
 | GetDefaultOverride | name | JSON 文本 | `get_default_override` |
 | SaveOverride | name, content | string | `save_override` |
 | ResetOverride | name | string | `reset_override` |
-| SaveSettings | mirror, enabled | string | `set_mirror`，不是保存全部设置 |
+| SaveSettings | mirror, enabled | string | `save_settings`，不是保存全部设置 |
 | SetStartOnBoot | enabled | string | `set_start_on_boot` |
 | SetAutoConnect | state | string | `set_auto_connect` |
 | SaveTheme | mode, accentColor | string | `save_theme` |
 | SaveMode | tunMode, sysProxy | string | `save_mode`：仅保存选择 |
-| ToggleIPv6 | enabled | string | `set_ipv6_enabled` |
+| ToggleIPv6 | enabled | string | `toggle_ipv6` |
 | SetLogConfig | level, toFile | string | `set_log_config` |
 | SetPreRelease | enabled | string | `set_pre_release` |
 | SetCloseBehavior | behavior | string | `set_close_behavior` |
 | ApplyState | targetTun, targetProxy | string | `apply_state`：实际启停/模式变更 |
-| ToggleService | 无 | string | 盘点调用后决定删除或内部化 |
+| ToggleService | 无 | string | `toggle_service`：已注册 |
 | RestartCore | 无 | string | `restart_core` |
 | GetAppLog | 无 | 文本，至多 5000 行 | `get_app_log` |
 | GetKernelLog | 无 | 内存日志文本 | `get_kernel_log` |
-| GetLogFile | 无 | 内核日志文件内容 | 盘点后合并或保留，不能误当路径 |
+| GetLogFile | 无 | 内核日志文件内容 | `get_log_file`：日志内容，非路径 |
 | ClearAppLog | 无 | string | `clear_app_log` |
 | ClearKernelLog | 无 | string | `clear_kernel_log` |
 | OpenDashboard | 无 | void | 后端解析地址 + opener；旧地址 `http://127.0.0.1:9090/ui` |
-| GetLocalVersion | 无 | 内核版本文本 | `get_kernel_version` |
-| CheckUpdate | 无 | 内核版本或错误文本 | `check_kernel_update` |
+| GetLocalVersion | 无 | 内核版本文本 | 初始化快照 `localVersion` |
+| CheckUpdate | 无 | 内核版本或错误文本 | `check_update` |
 | UpdateKernel | mirrorUrl | string | `update_kernel` |
 | GetProgramVersion | 无 | 编译版本 | Tauri 应用元数据，避免重复源 |
 | CheckProgramUpdate | 无 | `{version,changelog}` 或 `{error}` | `check_program_update`/updater 受控封装 |
@@ -57,7 +59,7 @@
 | （新增）`set_window_theme` | `mode`：`light`/`dark`/`system` | void | Rust 同步设置 WebView 主题和 Windows Mica 材质 |
 | Quit | 无 | void | 统一有序退出入口 |
 
-`Startup`、`OnShutdown`、`StartTray`、`UpdateTrayIcon`、`UpdateTrayMenu` 为生命周期或内部辅助，不生成前端命令。P0 对比所有导出和调用者，确认不存在动态调用遗漏。
+`Startup`、`OnShutdown` 由 Tauri 生命周期接管。当前仍注册 `start_tray`、`update_tray_icon`、`update_tray_menu`，前端 API 也有对应封装；后续是否移除须先检查调用者，不将早期“内部化”建议写成已完成事实。
 
 ### 旧返回特例
 
@@ -140,14 +142,14 @@
 - 视觉、交互、状态来源和旧 command 名称本阶段不变；Tauri command/event 实现必须在后续同一变更中同步 Rust、DTO、全部 callers、错误映射和订阅释放，再删除适配层。
 - 适配层删除条件：Rust/Tauri command、事件初始化/卸载、错误和快照顺序通过 V04，且前端不再有 `wailsjs`/`@wails` 活动引用。
 
-### P1 初始化只读 command 契约（MIG-005）
+### P1 初始化只读 command 契约（MIG-005，历史记录）
 
 - Rust command 名为 `get_init_data`，返回 `Result<InitDataDto, AppError>`；`AppError` 至少含稳定 `code` 和不包含用户路径/订阅内容的 `message`。
 - `InitDataDto` 使用 camelCase 序列化；`activeProfile` 在 `active_id` 找不到匹配配置时为 `null`，不返回旧 Wails 的零值对象。
 - 当前只读切片从 EXE 同级 `data/` 加载现有 JSON；`coreExists` 只检查 `core/sing-box.exe` 文件，未接入内核生命周期时 `running=false`，已有核心的 `localVersion` 暂为 `Unknown`。这些是明确的阶段限制，不是运行状态 mock，待 MIG-009 接入真实协调器后替换。
 - `frontend/src/api/backend.ts` 的 Tauri `listen` 适配必须在注册完成前也支持卸载；调用者保存并调用各自的返回函数，不互相移除订阅。Rust 尚未发送这些旧事件，因此本切片不宣称 V04/V07 事件验收通过。
 
-### P1 受控 override 读写 command 契约（MIG-005）
+### P1 受控 override 读写 command 契约（MIG-005，历史记录）
 
 - Rust command 为 `get_override(name)` 和 `get_default_override(name)`，均返回 `Result<String, AppError>`；`name` 只接受 `tun` 或 `mixed`。
 - `get_override` 复用现有 `Storage::load()`，分别返回 `config/overrides/tun.json` 或 `mixed.json` 的有效 JSON 文本；文件缺失时返回已有产品默认配置，不写回磁盘。
@@ -157,7 +159,7 @@
 - 无效 JSON 返回 `code=invalid_override_json`；写入 I/O 失败返回 `code=storage_write_failed`；两者消息均不包含路径或原始内容。
 - `frontend/src/api/backend.ts` 暴露 `getOverride`/`getDefaultOverride`/`saveOverride`/`resetOverride`；Tauri 使用 `invoke` 对象参数 `{ name }`（保存还包含 `{ content }`），非 Tauri 才调用旧 Wails 并把旧字符串错误转换为异常。编辑器读写 command 已迁移，但真实 Tauri WebView 和完整 UI 验收仍未完成。
 
-### 当前实现契约（2026-09-19）
+### 当前实现契约（alpha.1，2026-09-21 复核）
 
 - `frontend/src/api/backend.ts` 现在是纯 Tauri 边界：业务调用统一使用 `invoke` 和 `listen`；窗口最小化、隐藏、显示、聚焦及主题通过受控 Rust command 进入，拖动仅使用 Tauri `start-dragging` capability。Wails 生成目录、Go backend 和兼容回退已删除。事件订阅返回独立卸载函数，按事件名维护，不会用一次卸载误删其他事件。
 - 初始化顺序契约：`App` 与 `useAppState` 先注册各自事件，再等待 `EventsOn` 的 Tauri listener 注册完成，之后才读取 `get_init_data`；这样启动期间到达的状态/流量事件不会被初始化快照覆盖。卸载时逐个调用保存的卸载函数，重复挂载不会留下监听。
@@ -182,7 +184,7 @@
 - **CI/Release**：PR 到 `main` 只构建和验证 x64 NSIS；合并 `main` 后由 GitHub Actions 使用 secrets 生成并发布 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`。Tauri v2 Windows updater 不额外生成 `.nsis.zip`；生产私钥不入库，本机测试产物不作为 Release 输入。
 - **卸载/升级**：升级只替换程序文件；卸载默认保留用户数据。NSIS、手动数据说明、错误签名、断网、清理失败和跨版本应用内更新均需 Windows x64 证据后才能标记发布可用。
 
-默认值参考 `internal/storage.go` 和 `internal/models.go`：smart 自动连接、system 主题、`#0090FF` 强调色、IPv6 开、文件日志开、镜像默认配置等。必须通过旧样本锁定缺失字段处理，避免把反序列化零值当产品默认值。不自动“修复”用户自定义覆盖为默认内容。
+当前默认值见 `src-tauri/src/models.rs` 和 `storage.rs`；旧 `internal/storage.go`/`internal/models.go` 仅从基线 Git 历史查阅：smart 自动连接、system 主题、`#0090FF` 强调色、IPv6 开、文件日志开、镜像默认配置等。必须通过旧样本锁定缺失字段处理，避免把反序列化零值当产品默认值。不自动“修复”用户自定义覆盖为默认内容。
 
 ## 事件迁移
 
@@ -199,7 +201,7 @@
 | traffic-update | `{upload:number,download:number}` | 速率，UI 按 B/s 格式化；停止归零 |
 | download-progress | integer 0–100 | 旧端应用/内核更新共用 |
 
-目标建议：将前六项和状态提示收敛为类型化运行快照事件，日志只做日志；应用与内核更新用带 `kind`/操作标识的进度事件区分，防止相互覆盖。具体命名与字段在 P1 实现前补入本文，不需要为保留旧事件名制造多层适配。订阅初始化、卸载、重复进入页面、显示/隐藏窗口、重启和失败都要验证。
+当前实现仍使用上述事件名，前端仍有状态文字和字符串结果兼容处理；类型化运行快照、带 kind 的更新进度是后续重构候选，不是已实现契约。前端准备阶段先盘点全部调用者，再决定是否收敛，变更时同步 Rust 与 TypeScript 并验证初始化、卸载、隐藏/显示、重启和失败路径。
 
 ## UI 行为基线
 

@@ -8,18 +8,18 @@
 
 | ID | 决策 | 理由与边界 | 状态 |
 | --- | --- | --- | --- |
-| ADR-001 | Tauri 2 + Rust + Vue 3 + 独立 sing-box | 迁移框架和业务后端，复用网络内核；不长期保留 Go sidecar | accepted |
+| ADR-001 | Tauri 2 + Rust + 独立 sing-box；alpha.1 使用 Vue 3 | 后端方向不变；2026-09-21 用户指定 alpha.2 前端迁移到 React + Fluent UI，详见前端决策 | accepted；前端演进见 FE-ADR-001 |
 | ADR-002 | 本版 Windows，下版 Linux | 通过模块/cfg 隔离真实平台差异，不实现空 Linux 能力 | accepted |
 | ADR-003 | 前端视觉/交互保留，内部允许优化简化 | 2026-09-16 用户补充；可直接迁移新协议，临时桥不成为永久约束 | accepted |
 | ADR-004 | 内置/官方插件/成熟组件优先 | 不重复实现已有基础能力，也不为插件数量增加复杂度 | accepted |
 | ADR-005 | 本版维持既有管理员行为 | 基线 requireAdministrator + 最高权限任务计划；暂不扩展为常驻服务 | accepted |
-| ADR-006 | 数据备份、校验、失败恢复优先 | 保留便携体验；不将框架迁移变成无必要的数据库迁移 | accepted |
-| ADR-007 | 两类更新分离，应用 updater 优先 | 便携/旧客户端兼容须前置验证，不能削减既有功能 | accepted |
+| ADR-006 | 数据备份、校验、失败恢复优先 | 最终数据根为 appLocalDataDir；旧便携仅提供人工复制说明，不引入无必要数据库 | accepted |
+| ADR-007 | 两类更新分离，应用 updater 优先 | 最终采用官方 NSIS updater；旧客户端手动过渡，sing-box 更新独立 | accepted |
 | ADR-008 | 一套状态来源，小模块，按阶段验收 | 不建通用工厂/总线，复杂度由实际需求支撑 | accepted |
 
 ## 依赖选型台账
 
-以下均为候选方向，尚未锁定版本或完成项目适配验证。实施时为每项补：准确版本/commit、最近维护证据、许可证及分发义务、支持平台、实测限制、锁文件位置、替代方案、验证日期。没有理由的候选可以删除，不是必装清单。
+下表含最终采用的依赖与未采用的候选；准确解析版本以锁文件为准，早期原型限制以日期识别。实施时为每项补：准确版本/commit、最近维护证据、许可证及分发义务、支持平台、实测限制、锁文件位置、替代方案、验证日期。没有理由的候选可以删除，不是必装清单。
 
 | ID | 能力/候选 | 来源 | 选择依据与需验证点 |
 | --- | --- | --- | --- |
@@ -28,8 +28,8 @@
 | D03 | updater；必要时 process | [updater 文档](https://v2.tauri.app/plugin/updater/)、[插件源码](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/updater) | 锁定 `tauri-plugin-updater 2.11.0`（crates.io，稳定版；`3.0.0-alpha.0` 不选）。本版只发布签名 Windows x64 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`；Tauri v2 Windows updater 直接消费签名安装器，不生成或依赖 `.nsis.zip`。plain portable binary 不作为官方 updater 路径。许可证：MIT 或 MIT/Apache-2.0。 |
 | D04 | autostart 或任务计划薄适配 | [autostart 源码](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/autostart/src/lib.rs) | 不选官方 autostart 作为既有语义的替代；保留 Windows Task Scheduler 薄适配，复用 `schtasks.exe` 参数/结果检查，保持 `WinBoxAutostart`、登录触发、30 秒延迟、HighestAvailable、`-minimized`。候选插件没有证明这些语义等价。 |
 | D05 | shell；不足时 tokio::process | [shell](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/shell)、[tokio](https://github.com/tokio-rs/tokio) | 不向前端暴露通用 shell；原型锁定 `tokio 1.53.1`（crates.io/upstream Tokio，MIT；已由 Tauri 锁入，项目持续维护），只启用 `io-util`、`process`、`rt`、`time`，在平台边界实现隐藏窗口、优雅停止、超时和进程归属检查。shell 插件暂不引入，避免新增高权限 IPC；最终日志/状态协调待 MIG-009。 |
-| D06 | reqwest | [reqwest](https://github.com/seanmonstar/reqwest) | 候选 `reqwest 0.13.5`（crates.io，2026-09-08 更新，MIT OR Apache-2.0）；后端统一 HTTP/下载、代理、TLS、超时与取消，不同时安装前端 HTTP 插件。实现时写入 Cargo.lock，并以真实镜像/断网检查锁定 feature。 |
-| D07 | tokio-tungstenite | [项目](https://github.com/snapview/tokio-tungstenite) | 候选 `tokio-tungstenite 0.30.0`（crates.io，2026-07-11 更新，MIT）；仅用于既有流量 WebSocket，复用同一 Tokio runtime，不启动第二套 runtime。到流量阶段再加入，先不把未使用依赖写入锁文件。 |
+| D06 | reqwest | [reqwest](https://github.com/seanmonstar/reqwest) | 已采用并锁定 `reqwest 0.13.5`（crates.io，2026-09-08 更新，MIT OR Apache-2.0）；后端统一 HTTP/下载、代理、TLS、超时与取消，不同时安装前端 HTTP 插件。已写入 Cargo.lock，使用 json/rustls/stream；真实镜像/断网仍按 V13 验收。 |
+| D07 | tokio-tungstenite | [项目](https://github.com/snapview/tokio-tungstenite) | 已采用并锁定 `tokio-tungstenite 0.30.0`（crates.io，2026-07-11 更新，MIT）；仅用于既有流量 WebSocket，复用同一 Tokio runtime，不启动第二套 runtime。已用于流量链并写入 Cargo.lock。 |
 | D08 | serde、serde_json、zip | [serde](https://github.com/serde-rs/serde)、[json](https://github.com/serde-rs/json)、[zip](https://github.com/zip-rs/zip2) | `serde/serde_json` 已锁定；更新/解压锁定 `zip 4.6.1`（MIT，crates.io，`deflate-flate2-zlib-rs` feature），不选当前 9.0.0-pre3。只允许受控条目、文件大小和路径边界，先写临时位置并执行内核 check，再替换有效核心；本阶段只实现校验与暂存，不接下载或替换。 |
 | D09 | windows-rs | [Microsoft 项目](https://github.com/microsoft/windows-rs) | 候选 `windows-sys 0.60.2`（MIT OR Apache-2.0）用于明确的 Win32/注册表/系统 API；只启用需要的 features。若标准库、`schtasks.exe` 或 Tauri API 已覆盖能力，不直接增加该依赖。 |
 | D10 | GitHub Actions + Tauri CLI | [Tauri CLI](https://v2.tauri.app/reference/cli/)、[GitHub Actions](https://docs.github.com/actions) | CI 直接安装并锁定 `tauri-cli 2.11.4`（crates.io，MIT/Apache-2.0），配合官方 Actions 完成 x64 构建、artifact 和 Release；不额外引入 `tauri-action`，以保留对 NSIS/签名资产的最小显式校验。PR 只构建，签名密钥只进 CI secrets，不在仓库中生成或保存。 |
@@ -52,7 +52,7 @@
 | Q05 | 内核下载真实性校验 | 核查上游签名/checksum 可得性、可信来源和镜像影响；明确验证边界 | MIG-004 |
 | Q06 | 新 DTO/事件与生成类型需求 | 手写薄类型是否足够；如采用代码生成，记录收益，避免引入完整框架 | MIG-005 |
 
-Q01、Q02、Q04 已由 MIG-042 锁定最终发行方向，但在代码、签名、NSIS 和 Windows x64 实机证据完成前不得将应用更新标为可发行。Q03、Q05 的历史验证边界仍适用；Q06 可在 P1 内完成，不要求用户逐项批准命名。
+Q01、Q02、Q04 已由 MIG-042 锁定最终发行方向，代码及 alpha.1 签名发布已完成；Windows x64 跨版本应用更新仍需实机证据。Q03、Q05 的历史验证边界仍适用；Q06 已采用 backend.ts 手写 DTO，无类型生成框架；后续契约收敛在前端准备中评估。
 
 ### 2026-09-17 P0 观察（不是问题结论）
 
@@ -236,6 +236,13 @@ Q01、Q02、Q04 已由 MIG-042 锁定最终发行方向，但在代码、签名�
 - **CLI 缓存**：使用 GitHub 维护的 [`actions/cache`](https://github.com/actions/cache/releases/tag/v6.1.0) `v6.1.0`（MIT；官方 `action.yml` 使用 Node 24），只缓存 `~/.cargo/bin/cargo-tauri.exe`，键包含 runner OS、架构与 `tauri-cli 2.11.4` 版本；命中时跳过 `cargo install`。不缓存整个 Cargo registry/target，也不新增构建框架。
 - **Actions 版本**：2026-09-21 核对官方最新 release：[`checkout v7.0.1`](https://github.com/actions/checkout/releases/tag/v7.0.1)、[`setup-node v7.0.0`](https://github.com/actions/setup-node/releases/tag/v7.0.0)、[`upload-artifact v7.0.1`](https://github.com/actions/upload-artifact/releases/tag/v7.0.1)、[`download-artifact v8.0.1`](https://github.com/actions/download-artifact/releases/tag/v8.0.1)、[`action-gh-release v3.0.3`](https://github.com/softprops/action-gh-release/releases/tag/v3.0.3)。升级后的 Actions 声明 Node 24 runtime；`setup-node` 的 `node-version: 20` 是项目构建运行时，保持独立，不因 action runtime 警告自动更改。
 - **影响/边界**：只改 GitHub Actions workflow，不改应用依赖、Rust 锁文件、发行格式或 PR/main 触发契约。GitHub Actions 没有适用于这些 `uses:` 引用的 Cargo/npm 锁文件，workflow 固定到经核实的精确 release tag。密钥仍需由仓库维护者配置为 repository/organization Actions secret；若使用 Environment secret，则 job 必须绑定对应 environment。真实签名构建和 Release 仍待该配置后的 GitHub 验收。
+
+### 2026-09-21 发布后文档与阶段边界 — MIG-045
+
+- alpha.1 实现及首次发布完成；卸载和数据清理用户实测通过。旧密钥/main Release 阻塞已消除，证据见 validation 的 MIG-045。
+- 尚无结果的系统、更新、桌面场景保留原验收归属，不以发布事件自动关闭，也不将后端欠缺证据转嫁给前端重构。
+- 本次发布审计时前端仍为 Vue 3；随后用户明确指定 alpha.2 迁移到 React + Fluent UI，当前前端方向以 [前端决策](../frontend-refactor/decisions.md) 为准，单一 API 边界与视觉/交互保留约束延续。
+- 下方及上方带日期的旧方案仅作历史，不恢复便携资产、旧同级 data 或 Wails 兼容层；未引入依赖。
 
 ## 风险台账
 

@@ -1,4 +1,6 @@
-# 分阶段开发计划
+# 后端迁移阶段与关闭门槛
+
+2026-09-21：实现和 alpha.1 首次发布已完成。P0–P5 以下内容保留为实施范围与验收门槛，不是重新实施清单；尚缺证据的人工场景已统一收敛到 [validation.md](validation.md#待补人工验收2026-09-21)。前端准备见 [独立入口](../frontend-refactor/README.md)。
 
 工作量不使用未经验证的工期承诺。以下阶段门槛优先于进度百分比；实际状态见 [tracker.md](tracker.md)。所有阶段遵循 [architecture.md](architecture.md) 的前端可优化边界。
 
@@ -80,7 +82,7 @@
 
 ## P5.1 — 最终发行收尾（MIG-042）
 
-这是当前重构计划的最后一个执行切片。方案已批准并完成代码/自动化实现；未执行的签名 Release、真实安装器和跨版本更新仍不伪记为完成。
+这是当前重构计划的最后一个执行切片。方案已批准并完成代码/自动化实现；签名 Release 已核对通过，卸载/数据清理已由用户实测通过；其他安装器分支与跨版本更新仍不伪记为完成。
 
 ### 目标
 
@@ -101,7 +103,7 @@
 4. 已接入 updater 安装前清理 hook，复用统一退出清理；不在安装调用时持有生命周期锁，避免 hook 死锁。
 5. 已将 GitHub Actions 改为 x64 NSIS：PR 只构建验证，合并 `main` 后使用 secrets 签名并发布 NSIS `*-setup.exe`、同名 `.sig` 和 `latest.json`；Tauri v2 Windows updater 不额外生成 `.nsis.zip`。
 6. 已更新 README、contracts、decisions、tracker、validation；`.gitignore`、版本号、x64 目标和产物命名已完成静态复核。
-7. Rust/前端、unsigned/signed NSIS、签名匹配和发布元数据模拟均已通过；NSIS 安装/升级/卸载、错误签名、真实退出清理、预更新检查和 main Release 资产仍待 Windows x64/GitHub Action 验收。
+7. Rust/前端、unsigned/signed NSIS、签名匹配和发布元数据模拟均已通过；main Release 资产已核对，卸载/数据清理已实测通过；首次安装其余分支、升级、错误签名、真实退出清理与预更新 UI 仍待 Windows x64 验收。
 
 ### 外部前置条件
 

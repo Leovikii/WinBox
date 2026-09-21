@@ -2,27 +2,30 @@
 
 ## 结构与依赖方向
 
-单个 Rust 应用工程，按职责分模块；以下为逻辑布局，不要求预先创建所有文件或拆成多个 crates。
+当前是单个 Rust 应用工程；以下为 alpha.1 的实际模块，不要求拆 crate 或补建早期设想的 desktop/profiles/settings 模块。
 
 ```text
 frontend/src/
-  api/             Tauri 调用、DTO、事件入口（按实际规模合并）
-  composables/     界面状态与交互；复用现有 Vue 组件和样式
+  api/backend.ts   唯一 Tauri 调用、DTO、事件入口
+  composables/     界面状态与交互
+  components/      Vue 组件与既有视觉
 src-tauri/src/
-  lib.rs           组装、插件注册、生命周期
-  commands.rs      输入校验、DTO/错误映射
-  desktop.rs       窗口、托盘、主题、事件转发
-  core/            sing-box 生命周期、配置生成、流量
-  profiles.rs      订阅与配置选择
-  settings.rs      用户设置
-  storage.rs       文件布局、读写、数据导入
-  updates.rs       sing-box 内核更新的业务编排；应用更新由官方 updater 插件负责
+  lib.rs           组装、插件、窗口/托盘、生命周期
+  main.rs          应用入口
+  commands.rs      command、输入校验、设置/订阅/更新编排
+  runtime.rs       运行状态、操作锁、日志、流量和代理协调
+  core.rs          sing-box 进程生命周期
+  storage.rs       文件读写、配置和默认值
+  paths.rs         appLocalDataDir 与受控路径
+  models.rs        持久化模型
+  startup.rs       启动参数
+  updates.rs       内核资产、digest、归档校验与暂存
   platform/
-    mod.rs         有实际需求的平台入口
-    windows.rs     权限、自启、进程操作、代理恢复、UWP
+    mod.rs         平台入口
+    windows.rs     权限、自启、进程操作、代理与 UWP
 ```
 
-调用方向：Vue → Tauri 接入 → 业务模块 → 通用组件/平台模块。窗口与托盘调用同一业务入口。业务模块不依赖 Webview、注册表或 Windows 句柄；通过已有通道或小型事件类型向桌面层传递结果，不建立通用消息总线。
+调用方向：Vue → Tauri 接入 → 业务模块 → 通用组件/平台模块。窗口与托盘调用同一业务入口。当前 commands/runtime 直接参与 Tauri 编排，Windows API 隔离在 platform 边界；按实际需求改善职责，不为了符合早期示意图新建通用消息总线。
 
 以 `cfg` 和目标平台依赖隔离 Windows 实现；优先模块函数、具体类型，存在真实替换需求后再引入 trait。Linux 版本新增实际实现与能力声明，本版不创建空实现。UWP 为 Windows 专有能力，不强制 Linux 提供同名功能。
 
@@ -44,7 +47,7 @@ src-tauri/src/
 
 进程启动等待明确就绪或超时失败；stdout/stderr 持续消费，日志有界；停止先优雅退出，再超时强制结束，并统一回收句柄/任务。只管理本应用启动或经路径/身份核对属于本应用的进程。不能按 `sing-box.exe` 名称批量杀进程。
 
-优先验证 shell 插件；动态下载的内核不自动等同于 Tauri 打包 sidecar。若插件不能覆盖隐藏窗口、CTRL_BREAK/退出与进程树回收，采用 `tokio::process` 加最小 Windows 适配，记录证据。Windows Job Object 等机制按实际生命周期需求采用，不同时叠加多套进程框架。
+当前使用 `tokio::process` 加最小 Windows 适配，未引入 shell 插件；动态下载的内核不等同于 Tauri 打包 sidecar。Windows Job Object 等机制按实际生命周期需求采用，不同时叠加多套进程框架。
 
 ## Windows 权限与系统能力
 

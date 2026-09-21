@@ -1,6 +1,6 @@
 # 迁移进度与交接台账
 
-唯一进度来源。初始化日期：2026-09-16。迁移实现已覆盖 Rust/Tauri 后端、Vue API、Windows 平台边界和核心生命周期；本版只支持 Windows AMD64/x64，ARM64 已排除，不构建、不发布、不作为阻塞或验收条件。MIG-042 的 NSIS/updater 最终发行收尾已实施；BUG-009 模式持久化问题已由用户实测确认解决，MIG-009 与 MIG-042 的其他阶段验收仍待完成。`MIG-044` 已更新 GitHub Actions 版本、Tauri CLI 缓存与签名预检；真实 main 签名构建仍等仓库 secret 配置。`review` 项不能以编译替代实机验收。
+后端迁移唯一进度来源；前端 alpha.2 独立使用 [前端台账](../frontend-refactor/tracker.md)。2026-09-21 核对：后端迁移实现完成，`v3.0.0-alpha.1` 已发布，main 签名构建与发布成功；卸载和数据清理由用户人工确认通过。整体计划仍为 `review`，剩余人工验收见 [validation.md](validation.md#待补人工验收2026-09-21)。用户允许保留后端人工测试并先行推进 React + Fluent UI 前端迁移，不将无证据的后端验收项批量标记 done。本版仅 Windows AMD64/x64。
 
 ## 状态规则
 
@@ -10,9 +10,10 @@
 
 | ID | 阶段/任务 | 依赖 | 状态 | 负责人 | 验收条件/证据要求 | 提交/阻塞 |
 | --- | --- | --- | --- | --- | --- | --- |
+| DOC-002 | alpha.1 发布后文档清理与关闭条件审计 | 已发布 alpha.1 | done | Codex / 2026-09-21 | 已核对远端发布、用户人工结果、源码与文档入口 | MIG-045；11 份 Markdown、32 个本地链接/锚点、22 个任务 ID 检查通过，git diff --check 通过；仅文档，不代替整体验收 |
 | DOC-001 | 建立批准后的完整文档与 agent 规则 | 用户批准 | done | 本次文档 agent | 含前端补充要求、计划/契约/决策/台账/验收；DOC-V1 | 未提交工作区 |
 | MIG-001 | P0 环境、行为、数据与视觉基线 | DOC-001 | review | Codex / 2026-09-17 | V01、V02；全调用盘点和脱敏 fixture 索引 | `MIG-001-BL-2026-09-17`；代码/构建基线已记录，V02 截图与实机行为待复核 |
-| MIG-002 | P0 插件/依赖与发行路径选型 | MIG-001 | review | Codex / 2026-09-17 | D01–D10 有版本/来源/许可与验证记录；Q01–Q04 明确 | `MIG-002P0-2026-09-17`、`MIG-018-FINAL-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终方向为 x64 NSIS + 官方 updater，Tauri CLI/签名资产自动验证通过，GitHub Action/Release 仍待外部验收 |
+| MIG-002 | P0 插件/依赖与发行路径选型 | MIG-001 | review | Codex / 2026-09-17 | D01–D10 有版本/来源/许可与验证记录；Q01–Q04 明确 | `MIG-002P0-2026-09-17`、`MIG-018-FINAL-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终方向为 x64 NSIS + 官方 updater，Tauri CLI/签名资产自动验证通过，GitHub Action/Release 已核对通过（MIG-045）；桌面验收仍待完成 |
 | MIG-002-a | P0 Tauri 2 核心/官方插件编译原型 | MIG-001（环境与源码盘点已具备；V02 视觉基线不影响本编译原型） | done | Codex / 2026-09-17 | D01/D02 精确版本、来源/许可和锁文件；最小壳 cargo check/test/clippy | `MIG-002A-2026-09-17`；仅完成 x64 编译原型，运行时、前端接入、发行配置和其余 P0 选型仍待验证 |
 | MIG-003 | P0 Windows 权限/自启/进程原型 | MIG-001, MIG-002 | done | Codex / 2026-09-17 | V03、V07、V09、V11 原型证据，限制明确 | `MIG-003-PROT-2026-09-17`；原型验收完成；管理员实机与真实 sing-box 行为转 V11/V09 实机复核 |
 | MIG-004 | P0 数据/更新兼容原型与阶段结论 | MIG-002, MIG-003 | done | Codex / 2026-09-17 | Q01–Q05 结论；V05、V13、V14 原型证据；P0 门槛满足 | `MIG-004-PROT-2026-09-17`；原型验收完成；真实下载/签名/替换回滚/升级链转 MIG-012–014，ARM64 已排除 |
@@ -26,24 +27,19 @@
 | MIG-011 | P3 系统代理、自启、权限、UWP | MIG-009, MIG-010 | review | Codex / 2026-09-18 | V09、V11、V12 实机证据 | `MIG-011-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`；平台命令、manifest、任务计划和 UWP 差异更新已实现，管理员系统状态待实机 |
 | MIG-012 | P4 内核更新 | MIG-011 | review | Codex / 2026-09-18 | V13；失败恢复二进制/配置/状态 | `MIG-012-KERNEL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；解压预算问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V13 外部验收仍保持 review |
 | MIG-013 | P4 应用更新与旧客户端过渡 | MIG-012 | review | Codex / 2026-09-18 | V14；NSIS 行为、手动数据说明、签名、恢复实证 | `MIG-013-FINAL-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；旧 portable helper 方案已被 MIG-042 替代，官方 updater/NSIS 代码与签名构建已完成，桌面跨版本验收待执行 |
-| MIG-014 | P4 CI 与发行产物演练 | MIG-013 | review | Codex / 2026-09-18 | V15；x64 NSIS 构建/运行分别记录 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；workflow 已更新到经官方核对的 Actions 版本，缓存 CLI 并提前检查签名密钥；GitHub Action/Release 仍待仓库配置 secret 后外部验收 |
+| MIG-014 | P4 CI 与发行产物演练 | MIG-013 | review | Codex / 2026-09-18 | V15；x64 NSIS 构建/运行分别记录 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；workflow 已更新到经官方核对的 Actions 版本，缓存 CLI 并提前检查签名密钥；GitHub Action/Release 已核对通过（MIG-045）；设备验收仍待完成 |
 | MIG-015 | P5 视觉/交互/性能/故障全量回归 | MIG-014 | review | Codex / 2026-09-18 | V01–V16；无发布阻断风险 | `MIG-015-FINAL-2026-09-18`、`MIG-041-RELEASE-PREP-2026-09-19`；自动检查和远程 changelog 安全边界通过，真实 WebView/管理员/网络/发布更新仍待复核 |
 | MIG-016 | P5 移除旧栈与临时适配 | MIG-015 | review | Codex / 2026-09-18 | V17；新环境可独立构建，无活动 Wails 或自定义应用 updater 依赖 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；Go/Wails、自定义应用 updater 和旧 helper 活动代码已删除，静态扫描通过 |
-| MIG-017 | P5 最终文档、台账和交接 | MIG-016 | review | Codex / 2026-09-18 | V18；文档与最终 NSIS/updater 代码一致，总体验收满足 | `MIG-018-FINAL-2026-09-18`、`MIG-019-BUNDLE-2026-09-18`、`MIG-020-BUNDLE-2026-09-18`、`MIG-021-INIT-ORDER-2026-09-18`、`MIG-023-X64-TEST-2026-09-18`、`MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-026-FINAL-AUDIT-2026-09-18`、`MIG-027-VERSION-TEST-2026-09-18`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终文档与自动验证完成，真实桌面/Release 证据待外部验收 |
-| MIG-042 | P5 最终发行收尾：NSIS、官方 updater 与安装数据 | MIG-017 | review | Codex / 2026-09-20 | V05、V14、V15、V19；x64 一键 NSIS 安装/升级/卸载、默认路径无选择页、安装目录最小清单、数据目录隔离、人工数据说明、官方签名更新、统一退出清理和 main Release 证据 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；代码和自动检查通过，workflow 已提前校验签名 secret 并缓存 CLI；真实安装/升级/卸载、secret 配置、main Release 和官方应用内跨版本更新仍需外部验收 |
+| MIG-017 | P5 最终文档、台账和交接 | MIG-016 | review | Codex / 2026-09-18 | V18；文档与最终 NSIS/updater 代码一致，总体验收满足 | `MIG-018-FINAL-2026-09-18`、`MIG-019-BUNDLE-2026-09-18`、`MIG-020-BUNDLE-2026-09-18`、`MIG-021-INIT-ORDER-2026-09-18`、`MIG-023-X64-TEST-2026-09-18`、`MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-026-FINAL-AUDIT-2026-09-18`、`MIG-027-VERSION-TEST-2026-09-18`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终文档与自动验证完成，Release 证据见 MIG-045，其余真实桌面验收待完成 |
+| MIG-042 | P5 最终发行收尾：NSIS、官方 updater 与安装数据 | MIG-017 | review | Codex / 2026-09-20 | V05、V14、V15、V19；x64 一键 NSIS 安装/升级/卸载、默认路径无选择页、安装目录最小清单、数据目录隔离、人工数据说明、官方签名更新、统一退出清理和 main Release 证据 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；代码和自动检查通过，workflow 已提前校验签名 secret 并缓存 CLI；main Release 与签名资产已核对通过，卸载/数据清理已由用户确认；首次安装细节、升级和官方应用内跨版本更新仍需验收（MIG-045） |
 
 依赖代表阶段门槛；同阶段若实际可独立工作，可在解释依赖后细分任务，不必建立新的管理系统。子任务使用 `MIG-xxx-a`，不得将未验证项隐藏在父任务 done 下。
 
 ## 当前阻塞
 
-当前没有迁移代码实施阻塞；MIG-042 的代码与自动验证已完成，进入外部 review。当前最终配置只使用 x64 NSIS 和官方 updater，MIG-041 portable-only 内容仅保留为历史记录。私钥不得入库，GitHub Actions secrets、main Release、真实安装/升级/卸载和应用内更新仍需外部验收；Linux/ARM64 不属于本版范围。未完成外部验收不等于 blocked。
+没有迁移代码实施阻塞。此前“密钥缺失、仅旧 portable Release、尚未合并 main”的发布阻塞已由成功的 [Actions run 35592153483](https://github.com/Leovikii/WinBox/actions/runs/35592153483) 和 [alpha.1 Release](https://github.com/Leovikii/WinBox/releases/tag/v3.0.0-alpha.1) 消除，不再要求重复配置 secret 或重新发布。
 
-| 日期 | 任务 | 实际阻塞 | 恢复条件 | 可继续工作 |
-| --- | --- | --- | --- | --- |
-| 2026-09-18 | MIG-006/011–015 | Computer Use 当前仅返回浏览器、没有可绑定的原生窗口；管理员 Tauri WebView、真实 sing-box 和 x64 桌面实机证据仍缺 | 在 x64 桌面启动最终 NSIS 产物并保存窗口、系统状态、核心和更新证据 | 用户手动测试最终 NSIS；MIG-042 完成后合并 PR 到 `main` |
-| 2026-09-19 | MIG-042 | 尚未配置 updater public key/private key；当前 workflow 和代码仍是旧 portable 草案，不能执行正式签名 Release | 实施官方 updater、配置 GitHub Actions secrets，并完成 Windows x64 NSIS/应用内更新验收 | 用户提供/配置签名材料后继续；预更新选择复用既有 `pre_release`，不需要新增 channel；旧数据由用户按发行说明自行处理 |
-| 2026-09-20 | MIG-042 | 当前 GitHub Release 仍只有旧 portable ZIP，稳定版及旧预发布版均无 `latest.json`；本机不能替代 GitHub secrets/main Release 及真实安装/升级/卸载桌面证据 | 合并 dev PR 到 `main`，由 workflow 生成 NSIS、签名和 `latest.json`；之后在 Windows x64 验收安装器、更新、退出清理和数据目录 | 当前无 metadata 应显示 `Latest`；正式 updater 跨版本链仍等待 main Release；不提交私钥、不在本机发布 Release |
-| 2026-09-21 | MIG-014/MIG-042 | 附件 main push 日志显示 job 收到的 `TAURI_SIGNING_PRIVATE_KEY` 为空；可能是 secret 缺失、名称/可见范围不符，或只配置在未绑定的 Environment。旧流程已先编译约 10 分钟 CLI 才失败 | 将 main 专用预检前移并缓存 CLI；仓库维护者配置精确名称的 Actions secret，之后再验证 main 签名构建与 Release | PR unsigned 构建不需要密钥；优先配置 Repository/Organization secret。若用 Environment secret，需让 job 绑定对应 environment；PR 合并前确认版本/tag 与发布意图 |
+剩余条件为最终 x64 安装包的人工验收证据；详见 validation 待补清单。跨版本应用更新需要受控的旧→新签名版本组合；仅安装/重装同一 alpha.1 不证明跨版本更新。可先开展前端盘点与基线准备。历史日志中的当时阻塞只保留追溯意义。
 
 ## 问题台账
 
@@ -56,11 +52,11 @@
 | BUG-005 / MIG-008 | 配置下载 UA 与失败日志缺失 | `resolved` | 迁移后的共享 `reqwest` 客户端发送 `WinBox/2.8`，远端配置下发服务要求 `sing-box`，导致添加/更新配置失败；`add_profile`、`update_active_profile`、程序更新和版本检查的失败早退没有统一写入 `app.log`，非 2xx 状态也被丢弃。现已统一使用 `sing-box`，远程操作失败写入 `RuntimeState` app log，保留 HTTP 状态码并对配置校验错误脱敏。用户已在 Windows AMD64/x64 测试 EXE 上确认配置更新通过。 | `MIG-038-CONFIG-HTTP-FIX-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-008 的整体 V06 验收覆盖回归；不记录 URL、响应正文或配置内容。 |
 | BUG-006 / MIG-039 | 时间格式、启动日志清理与日志轮转遗漏 | `resolved` | 迁移后应用日志和 `Profile.updated` 写入 Unix 秒数；Tauri 启动未清空 `app.log`/`core/box.log`，缺少旧版启动/退出记录，应用日志也没有 10 MiB/5 归档轮转。Rust 现已使用跨平台本地时间格式化，启动在异步自动连接前清空当前日志并写入启动记录，正常退出写入退出记录，恢复轮转；前端兼容迁移期间已写入的 Unix 秒/毫秒值和旧日期字符串。用户已在 Windows AMD64/x64 测试 EXE 上确认重启后日志清理、日志时间和配置更新时间显示正常。 | `MIG-039-LOG-TIME-2026-09-19`、`MIG-040-ISSUE-RETEST-2026-09-19`；问题关闭，继续由 MIG-008 的整体 V06/V08 验收覆盖回归；Linux 不在本版构建/验收范围。 |
 | BUG-007 / MIG-012 | 无活动配置时内核更新暂存失败 | `fixed-awaiting-retest` | `check_staged_core` 原先无条件要求活动 profile，所以没有选择配置时在执行核心检查前报 `No active configuration selected`。现在无活动 ID 时验证暂存核心 `sing-box version` 成功；已有选择时仍生成运行配置并执行 `sing-box check`，损坏/缺失配置仍拒绝更新。 | `MIG-042-UPDATE-CHECK-2026-09-20`；Rust 回归检查通过，等待用户在 Windows x64 无活动配置状态下复测内核更新。 |
-| BUG-008 / MIG-013 | 旧 Release 缺少 updater metadata 导致应用更新检查报错 | `fixed-awaiting-retest` | 只读 GitHub Release 查询确认当前 `v2.8.0` 与旧预发布资产只有 portable ZIP，没有 `latest.json`；代码也曾将预发布列表第一项（稳定版）误作预发布。现按 `prerelease=true` 筛选，并检查所选 Release 的 `latest.json`；缺少时返回本机版本，不调用 updater，前端现有同版本分支显示 `Latest`。 | `MIG-042-UPDATE-CHECK-2026-09-20`；当前无 metadata 情况已自动覆盖，等待用户验证 UI；正式签名跨版本更新要等 main workflow 发布带 metadata 的 Release。 |
+| BUG-008 / MIG-013 | 旧 Release 缺少 updater metadata 导致应用更新检查报错 | `fixed-awaiting-retest` | 2026-09-20 只读查询确认当时 `v2.8.0` 与旧预发布资产只有 portable ZIP，没有 `latest.json`；代码也曾将预发布列表第一项（稳定版）误作预发布。现按 `prerelease=true` 筛选，并检查所选 Release 的 `latest.json`；缺少时返回本机版本，不调用 updater，前端现有同版本分支显示 `Latest`。 | `MIG-042-UPDATE-CHECK-2026-09-20`；当前无 metadata 情况已自动覆盖，等待用户验证 UI；alpha.1 已有 metadata；仍需复测通道选择、无 metadata 的 UI 与跨版本更新。 |
 | BUG-009 / MIG-009 | 停止服务后启动模式复位为默认 Proxy | `resolved` | 共享 `apply_state(false,false)` 成功停止后将 `tun_mode`、`sys_proxy` 一并写成 false；前端将空状态解释成默认 Proxy。现停止路径只停止核心并同步保留模式；离线模式选择与默认 Proxy 持久化改为等待结果，失败可见并回滚选择。用户已确认实测问题解决。此前被旧路径清成 `false/false` 的记录无法反推出历史模式，需由用户重新选择。 | `MIG-043-MODE-PERSISTENCE-2026-09-21`；自动验证及用户实测均通过；BUG-009 关闭，MIG-009 其他 V07/V09 验收仍保持 review。 |
-| BUG-010 / MIG-014/MIG-042 | main 签名构建拿不到 updater 私钥且 CLI 重复编译 | `fixed-awaiting-user-action` | PR 使用 unsigned 构建而成功；`main` push 才执行签名构建。附件日志确认 main job 中 `TAURI_SIGNING_PRIVATE_KEY` 为空，旧预检发生在约 10 分钟的 CLI 编译之后。现已将预检提前，并缓存精确版本的 Tauri CLI；没有绕过签名或发布。 | `MIG-044-WORKFLOW-ACTIONS-2026-09-21`；维护者配置与 `tauri.conf.json` 公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`（加密密钥另配 password），再由 GitHub Actions 验证 signed NSIS、`.sig`、`latest.json` 和 Release。 |
+| BUG-010 / MIG-014/MIG-042 | main 签名构建缺私钥且 CLI 重复编译 | `resolved` | 签名预检前移与 CLI 缓存已实施；main 签名构建和发布均成功，旧密钥阻塞消除。 | `MIG-045-RELEASE-AUDIT-2026-09-21`；缓存步骤成功，但本次仍执行 Install Tauri CLI，不据此声称缓存命中或耗时改善已验证。 |
 
-BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户实测确认解决；BUG-003、BUG-007、BUG-008 仍等待对应桌面复测；BUG-004 已通过删除失效的应用重启入口关闭。BUG-010 的 workflow 改善已推送到 `dev`，签名 secret 与 main Release 仍待维护者操作。核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
+BUG-001/002/004/005/006/009/010 已关闭；BUG-003（窗口/主题）、BUG-007（无配置核心更新）、BUG-008（更新检查 UI）仍缺对应人工复测记录。阶段 review 还包含 validation 中的其他实机场景。
 
 ## 交接日志
 
@@ -407,3 +403,16 @@ BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户�
 - 验证：结果记录在 `MIG-044-WORKFLOW-ACTIONS-2026-09-21`。真实缓存命中、main signed build、Release 和 updater 跨版本安装需在推送后由 GitHub Actions 及 Windows x64 实机验收。
 - 公钥配置（2026-09-21）：维护者提供的 `winbox-updater.key.pub` 已写入 `src-tauri/tauri.conf.json`；fingerprint 为 `2D84AD16F9BD9AC5`。配置值与 `.pub` 文件一致，Tauri config JSON 解析及 `git diff --check` 通过。
 - 下一步：维护者在 GitHub 仓库 Actions secrets 中配置与该公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`；如私钥设有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。本机未验证 GitHub secrets 状态；不得提交或在对话中传输私钥。确保发布版本/tag 与预期一致后再合并到 `main`。
+
+### 2026-09-21 — MIG-045 发布后审计与前端准备
+
+- 基线：`d0a199346f383f9a2e42c211979fb88b74b4bcf0`；开始时工作区干净。本轮仅修改文档。
+- 已核对 alpha.1 Release、main 成功运行、x64 安装包/签名/metadata，清除过时发布阻塞并关闭 BUG-010；证据见 `MIG-045-RELEASE-AUDIT-2026-09-21`。
+- 用户明确确认卸载和数据清理人工测试通过；没有据此扩大到升级数据保留、首次安装所有分支或跨版本更新。
+- 清理入口重复说明、过时便携要求、虚拟模块布局和旧 UI 组件示例；保留历史证据，收敛待补人工场景，增加前端准备入口。
+- 结论：实现与首发完成，整体验收仍为 review。下一项可执行工作是 validation 待补清单中的 BUG-003/007/008 复测，以及前端调用链盘点和 alpha.1 视觉基线采集；不在本轮发布新版本或修改应用代码。
+
+### 2026-09-21 — 前端 alpha.2 计划独立启动
+
+- 用户要求保留后端人工测试，先进入 React + 微软 Fluent UI 前端迁移，目标 `3.0.0-alpha.2`；本轮先交付计划和建议。
+- 后端 MIG/BUG/验证状态不变，不作为前端整体开工门槛。前端任务与建议见独立 README/tracker/decisions；本轮没有改应用代码、版本或发布资产。
