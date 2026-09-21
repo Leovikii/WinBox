@@ -1,6 +1,6 @@
 # 迁移进度与交接台账
 
-唯一进度来源。初始化日期：2026-09-16。迁移实现已覆盖 Rust/Tauri 后端、Vue API、Windows 平台边界和核心生命周期；本版只支持 Windows AMD64/x64，ARM64 已排除，不构建、不发布、不作为阻塞或验收条件。MIG-042 的 NSIS/updater 最终发行收尾已实施；BUG-009 模式持久化问题已由用户实测确认解决，MIG-009 与 MIG-042 的其他阶段验收仍待完成。`review` 项不能以编译替代实机验收。
+唯一进度来源。初始化日期：2026-09-16。迁移实现已覆盖 Rust/Tauri 后端、Vue API、Windows 平台边界和核心生命周期；本版只支持 Windows AMD64/x64，ARM64 已排除，不构建、不发布、不作为阻塞或验收条件。MIG-042 的 NSIS/updater 最终发行收尾已实施；BUG-009 模式持久化问题已由用户实测确认解决，MIG-009 与 MIG-042 的其他阶段验收仍待完成。`MIG-044` 已更新 GitHub Actions 版本、Tauri CLI 缓存与签名预检；真实 main 签名构建仍等仓库 secret 配置。`review` 项不能以编译替代实机验收。
 
 ## 状态规则
 
@@ -26,11 +26,11 @@
 | MIG-011 | P3 系统代理、自启、权限、UWP | MIG-009, MIG-010 | review | Codex / 2026-09-18 | V09、V11、V12 实机证据 | `MIG-011-FINAL-2026-09-18`、`MIG-020-LIFECYCLE-2026-09-18`；平台命令、manifest、任务计划和 UWP 差异更新已实现，管理员系统状态待实机 |
 | MIG-012 | P4 内核更新 | MIG-011 | review | Codex / 2026-09-18 | V13；失败恢复二进制/配置/状态 | `MIG-012-KERNEL-2026-09-18`、`MIG-028-ISSUE-DIAG-2026-09-19`、`MIG-029-ISSUE-FIX-2026-09-19`、`MIG-030-ISSUE-FIX-2026-09-19`、`MIG-031-ISSUE-RETEST-2026-09-19`；解压预算问题已由用户在 x64 单 EXE 上复测通过，阶段其余 V13 外部验收仍保持 review |
 | MIG-013 | P4 应用更新与旧客户端过渡 | MIG-012 | review | Codex / 2026-09-18 | V14；NSIS 行为、手动数据说明、签名、恢复实证 | `MIG-013-FINAL-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；旧 portable helper 方案已被 MIG-042 替代，官方 updater/NSIS 代码与签名构建已完成，桌面跨版本验收待执行 |
-| MIG-014 | P4 CI 与发行产物演练 | MIG-013 | review | Codex / 2026-09-18 | V15；x64 NSIS 构建/运行分别记录 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；workflow 已改为 x64 NSIS，unsigned/signed 本地构建与资产模拟通过，GitHub Action/Release 待外部验收 |
+| MIG-014 | P4 CI 与发行产物演练 | MIG-013 | review | Codex / 2026-09-18 | V15；x64 NSIS 构建/运行分别记录 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；workflow 已更新到经官方核对的 Actions 版本，缓存 CLI 并提前检查签名密钥；GitHub Action/Release 仍待仓库配置 secret 后外部验收 |
 | MIG-015 | P5 视觉/交互/性能/故障全量回归 | MIG-014 | review | Codex / 2026-09-18 | V01–V16；无发布阻断风险 | `MIG-015-FINAL-2026-09-18`、`MIG-041-RELEASE-PREP-2026-09-19`；自动检查和远程 changelog 安全边界通过，真实 WebView/管理员/网络/发布更新仍待复核 |
 | MIG-016 | P5 移除旧栈与临时适配 | MIG-015 | review | Codex / 2026-09-18 | V17；新环境可独立构建，无活动 Wails 或自定义应用 updater 依赖 | `MIG-014-BUNDLE-2026-09-18`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；Go/Wails、自定义应用 updater 和旧 helper 活动代码已删除，静态扫描通过 |
 | MIG-017 | P5 最终文档、台账和交接 | MIG-016 | review | Codex / 2026-09-18 | V18；文档与最终 NSIS/updater 代码一致，总体验收满足 | `MIG-018-FINAL-2026-09-18`、`MIG-019-BUNDLE-2026-09-18`、`MIG-020-BUNDLE-2026-09-18`、`MIG-021-INIT-ORDER-2026-09-18`、`MIG-023-X64-TEST-2026-09-18`、`MIG-024-DEPENDENCY-2026-09-18`、`MIG-025-X64-GATE-2026-09-18`、`MIG-026-FINAL-AUDIT-2026-09-18`、`MIG-027-VERSION-TEST-2026-09-18`、`MIG-040-ISSUE-RETEST-2026-09-19`、`MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-IMPLEMENTATION-2026-09-20`；最终文档与自动验证完成，真实桌面/Release 证据待外部验收 |
-| MIG-042 | P5 最终发行收尾：NSIS、官方 updater 与安装数据 | MIG-017 | review | Codex / 2026-09-20 | V05、V14、V15、V19；x64 一键 NSIS 安装/升级/卸载、默认路径无选择页、安装目录最小清单、数据目录隔离、人工数据说明、官方签名更新、统一退出清理和 main Release 证据 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`；代码、NSIS、workflow 和自动检查通过；真实安装/升级/卸载、CI secrets/main Release、官方应用内跨版本更新仍需外部验收 |
+| MIG-042 | P5 最终发行收尾：NSIS、官方 updater 与安装数据 | MIG-017 | review | Codex / 2026-09-20 | V05、V14、V15、V19；x64 一键 NSIS 安装/升级/卸载、默认路径无选择页、安装目录最小清单、数据目录隔离、人工数据说明、官方签名更新、统一退出清理和 main Release 证据 | `MIG-042-RELEASE-PLAN-2026-09-19`、`MIG-042-INSTALL-DATA-SCOPE-2026-09-20`、`MIG-042-IMPLEMENTATION-2026-09-20`、`MIG-042-UPDATE-CHECK-2026-09-20`、`MIG-044-WORKFLOW-ACTIONS-2026-09-21`；代码和自动检查通过，workflow 已提前校验签名 secret 并缓存 CLI；真实安装/升级/卸载、secret 配置、main Release 和官方应用内跨版本更新仍需外部验收 |
 
 依赖代表阶段门槛；同阶段若实际可独立工作，可在解释依赖后细分任务，不必建立新的管理系统。子任务使用 `MIG-xxx-a`，不得将未验证项隐藏在父任务 done 下。
 
@@ -43,6 +43,7 @@
 | 2026-09-18 | MIG-006/011–015 | Computer Use 当前仅返回浏览器、没有可绑定的原生窗口；管理员 Tauri WebView、真实 sing-box 和 x64 桌面实机证据仍缺 | 在 x64 桌面启动最终 NSIS 产物并保存窗口、系统状态、核心和更新证据 | 用户手动测试最终 NSIS；MIG-042 完成后合并 PR 到 `main` |
 | 2026-09-19 | MIG-042 | 尚未配置 updater public key/private key；当前 workflow 和代码仍是旧 portable 草案，不能执行正式签名 Release | 实施官方 updater、配置 GitHub Actions secrets，并完成 Windows x64 NSIS/应用内更新验收 | 用户提供/配置签名材料后继续；预更新选择复用既有 `pre_release`，不需要新增 channel；旧数据由用户按发行说明自行处理 |
 | 2026-09-20 | MIG-042 | 当前 GitHub Release 仍只有旧 portable ZIP，稳定版及旧预发布版均无 `latest.json`；本机不能替代 GitHub secrets/main Release 及真实安装/升级/卸载桌面证据 | 合并 dev PR 到 `main`，由 workflow 生成 NSIS、签名和 `latest.json`；之后在 Windows x64 验收安装器、更新、退出清理和数据目录 | 当前无 metadata 应显示 `Latest`；正式 updater 跨版本链仍等待 main Release；不提交私钥、不在本机发布 Release |
+| 2026-09-21 | MIG-014/MIG-042 | 附件 main push 日志显示 job 收到的 `TAURI_SIGNING_PRIVATE_KEY` 为空；可能是 secret 缺失、名称/可见范围不符，或只配置在未绑定的 Environment。旧流程已先编译约 10 分钟 CLI 才失败 | 将 main 专用预检前移并缓存 CLI；仓库维护者配置精确名称的 Actions secret，之后再验证 main 签名构建与 Release | PR unsigned 构建不需要密钥；优先配置 Repository/Organization secret。若用 Environment secret，需让 job 绑定对应 environment；PR 合并前确认版本/tag 与发布意图 |
 
 ## 问题台账
 
@@ -57,8 +58,9 @@
 | BUG-007 / MIG-012 | 无活动配置时内核更新暂存失败 | `fixed-awaiting-retest` | `check_staged_core` 原先无条件要求活动 profile，所以没有选择配置时在执行核心检查前报 `No active configuration selected`。现在无活动 ID 时验证暂存核心 `sing-box version` 成功；已有选择时仍生成运行配置并执行 `sing-box check`，损坏/缺失配置仍拒绝更新。 | `MIG-042-UPDATE-CHECK-2026-09-20`；Rust 回归检查通过，等待用户在 Windows x64 无活动配置状态下复测内核更新。 |
 | BUG-008 / MIG-013 | 旧 Release 缺少 updater metadata 导致应用更新检查报错 | `fixed-awaiting-retest` | 只读 GitHub Release 查询确认当前 `v2.8.0` 与旧预发布资产只有 portable ZIP，没有 `latest.json`；代码也曾将预发布列表第一项（稳定版）误作预发布。现按 `prerelease=true` 筛选，并检查所选 Release 的 `latest.json`；缺少时返回本机版本，不调用 updater，前端现有同版本分支显示 `Latest`。 | `MIG-042-UPDATE-CHECK-2026-09-20`；当前无 metadata 情况已自动覆盖，等待用户验证 UI；正式签名跨版本更新要等 main workflow 发布带 metadata 的 Release。 |
 | BUG-009 / MIG-009 | 停止服务后启动模式复位为默认 Proxy | `resolved` | 共享 `apply_state(false,false)` 成功停止后将 `tun_mode`、`sys_proxy` 一并写成 false；前端将空状态解释成默认 Proxy。现停止路径只停止核心并同步保留模式；离线模式选择与默认 Proxy 持久化改为等待结果，失败可见并回滚选择。用户已确认实测问题解决。此前被旧路径清成 `false/false` 的记录无法反推出历史模式，需由用户重新选择。 | `MIG-043-MODE-PERSISTENCE-2026-09-21`；自动验证及用户实测均通过；BUG-009 关闭，MIG-009 其他 V07/V09 验收仍保持 review。 |
+| BUG-010 / MIG-014/MIG-042 | main 签名构建拿不到 updater 私钥且 CLI 重复编译 | `fixed-awaiting-user-action` | PR 使用 unsigned 构建而成功；`main` push 才执行签名构建。附件日志确认 main job 中 `TAURI_SIGNING_PRIVATE_KEY` 为空，旧预检发生在约 10 分钟的 CLI 编译之后。现已将预检提前，并缓存精确版本的 Tauri CLI；没有绕过签名或发布。 | `MIG-044-WORKFLOW-ACTIONS-2026-09-21`；维护者配置与 `tauri.conf.json` 公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`（加密密钥另配 password），再由 GitHub Actions 验证 signed NSIS、`.sig`、`latest.json` 和 Release。 |
 
-BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户实测确认解决；BUG-003、BUG-007、BUG-008 仍等待对应桌面复测；BUG-004 已通过删除失效的应用重启入口关闭。核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
+BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户实测确认解决；BUG-003、BUG-007、BUG-008 仍等待对应桌面复测；BUG-004 已通过删除失效的应用重启入口关闭。BUG-010 的 workflow 改善已推送到 `dev`，签名 secret 与 main Release 仍待维护者操作。核心重启的生命周期回归继续由 MIG-036、MIG-037 和 MIG-009 覆盖；MIG-006/MIG-009/MIG-010/MIG-012 仍保持 `review`，因为阶段级验收还包含其他桌面与生命周期条件。
 
 ## 交接日志
 
@@ -397,3 +399,10 @@ BUG-001/BUG-002/BUG-005/BUG-006 已由用户确认解决；BUG-009 已由用户�
 - 自动验证：Windows x64 `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`、`cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --locked --offline`（33/33、0 doctest）、`cargo clippy --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --all-targets --locked --offline -- -D warnings`、`npm --prefix frontend run build`、`git diff --check` 均通过。新增停止请求与模式选择区分的 Rust 回归测试。
 - 本机 unsigned x64 测试产物：`src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，18,771,456 bytes，版本 `3.0.0-alpha.1`，SHA-256 `8C2A10B86621F58B87C46B003366311854F71ACDE9D4641656794953947B7280`；安装器 `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-alpha.1_x64-setup.exe`，4,585,218 bytes，SHA-256 `5F98913B2A614A646C58B718F0F6A07394DA2472B469DDE8F97F659443DB17BD`。Tauri 输出 `Target: x64`；unsigned 包无 updater 签名，仅供本机人工测试，不作为 Release 输入。不构建 ARM64。
 - 结果/限制：BUG-009 为 `fixed-awaiting-retest`；当前环境不能启动/操作原生 Tauri 窗口。已被旧路径清成 `false/false` 的记录无法恢复历史模式，复测应先重新选择目标模式，再在 Windows AMD64/x64 测试包上验证界面 Stop、托盘 Stop、退出后重启，以及 TUN/Mixed/Proxy 选择在停止和离线保存后的持久性。MIG-009/MIG-042 的其他实机验收保持原状态。
+
+### 2026-09-21 — MIG-044 / BUG-010 GitHub Actions 发布工作流收尾
+
+- 根因：附件日志中的 `Build signed NSIS installer for main` 只会在 `push` 到 `main` 时运行；该 job 实际收到空的 `TAURI_SIGNING_PRIVATE_KEY`。PR 使用 unsigned 构建通过并不验证发布密钥。旧 workflow 在签名预检前编译 Tauri CLI，单次约 10 分钟。
+- 修改：Actions 升级到 2026-09-21 官方最新 release tags；main 专用签名预检移到 checkout 后、Node/Rust/CLI 安装前；用 `actions/cache` 只缓存按 OS/架构/CLI 版本键控的 `cargo-tauri.exe`，命中时跳过 `cargo install`。签名缺失仍快速失败，PR unsigned 与 main signed 触发边界、x64 NSIS 产物契约均不变。
+- 验证：结果记录在 `MIG-044-WORKFLOW-ACTIONS-2026-09-21`。真实缓存命中、main signed build、Release 和 updater 跨版本安装需在推送后由 GitHub Actions 及 Windows x64 实机验收。
+- 下一步：维护者在 GitHub 仓库 Actions secrets 中配置与 updater 公钥匹配的 `TAURI_SIGNING_PRIVATE_KEY`；如私钥设有密码，再配置 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。不得提交或在对话中传输私钥。确保发布版本/tag 与预期一致后再合并到 `main`。

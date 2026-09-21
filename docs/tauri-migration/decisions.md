@@ -229,6 +229,14 @@ Q01、Q02、Q04 已由 MIG-042 锁定最终发行方向，但在代码、签名�
 - **同类路径审计**：托盘 Stop 复用同一停止入口；`toggle_service`、正常退出、核心重启、配置切换和核心更新均未清除已保存模式，不需增加第二套状态或生命周期实现。
 - **影响/证据**：不改 JSON 格式、command/DTO、视觉或模式选择交互，不新增依赖；Rust 回归测试、前端构建及 x64 NSIS 自动验证见 `MIG-043-MODE-PERSISTENCE-2026-09-21`，用户已确认实测问题解决；MIG-009 其他阶段验收仍待完成。
 
+### 2026-09-21 GitHub Actions 运行时升级与 Tauri CLI 缓存 — MIG-044（accepted）
+
+- **问题**：PR 的 unsigned 构建不需要 updater 密钥；合并后 `main` 的签名构建需要 `TAURI_SIGNING_PRIVATE_KEY`。最新日志显示密钥环境变量为空，且 workflow 在发现问题前已花约 10 分钟编译 Tauri CLI。
+- **方案**：签名密钥预检移至 checkout 后、Node/Rust/CLI 安装前，仅在 `push` 到 `main` 时执行；PR 仍不要求密钥。签名密钥缺失时继续失败，不允许 main 静默退回 unsigned 或跳过 Release。
+- **CLI 缓存**：使用 GitHub 维护的 [`actions/cache`](https://github.com/actions/cache/releases/tag/v6.1.0) `v6.1.0`（MIT；官方 `action.yml` 使用 Node 24），只缓存 `~/.cargo/bin/cargo-tauri.exe`，键包含 runner OS、架构与 `tauri-cli 2.11.4` 版本；命中时跳过 `cargo install`。不缓存整个 Cargo registry/target，也不新增构建框架。
+- **Actions 版本**：2026-09-21 核对官方最新 release：[`checkout v7.0.1`](https://github.com/actions/checkout/releases/tag/v7.0.1)、[`setup-node v7.0.0`](https://github.com/actions/setup-node/releases/tag/v7.0.0)、[`upload-artifact v7.0.1`](https://github.com/actions/upload-artifact/releases/tag/v7.0.1)、[`download-artifact v8.0.1`](https://github.com/actions/download-artifact/releases/tag/v8.0.1)、[`action-gh-release v3.0.3`](https://github.com/softprops/action-gh-release/releases/tag/v3.0.3)。升级后的 Actions 声明 Node 24 runtime；`setup-node` 的 `node-version: 20` 是项目构建运行时，保持独立，不因 action runtime 警告自动更改。
+- **影响/边界**：只改 GitHub Actions workflow，不改应用依赖、Rust 锁文件、发行格式或 PR/main 触发契约。GitHub Actions 没有适用于这些 `uses:` 引用的 Cargo/npm 锁文件，workflow 固定到经核实的精确 release tag。密钥仍需由仓库维护者配置为 repository/organization Actions secret；若使用 Environment secret，则 job 必须绑定对应 environment。真实签名构建和 Release 仍待该配置后的 GitHub 验收。
+
 ## 风险台账
 
 | ID | 风险/级别 | 触发与影响 | 控制/证据 | 责任任务 |
