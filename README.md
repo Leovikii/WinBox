@@ -18,10 +18,17 @@ WinBox is designed to provide a seamless and professional proxy management exper
 * **Smart Auto-Connect**: Intelligent state management that automatically detects system network connectivity. The proxy kernel seamlessly connects and disconnects based on your actual network availability, ensuring a truly hands-free experience.
 * **Zero-Configuration Kernel**: Fully automated provisioning for Windows AMD64/x64. WinBox downloads, installs, and updates the matching Sing-box core without manual intervention.
 * **UWP Loopback Manager**: Includes a built-in exemption manager to grant Windows UWP applications (e.g., Microsoft Store apps) local loopback access, effortlessly bypassing Windows AppContainer isolation.
-* **High-Performance Architecture**: Features a zero-overhead, event-driven logging system that streams core outputs to the frontend without polling delays or memory leaks. The application is compiled with advanced optimization flags for a drastically reduced binary footprint.
+* **High-Performance Architecture**: Batches event-driven logs and isolates traffic rendering to keep the dashboard responsive. The application is compiled with advanced optimization flags for a drastically reduced binary footprint.
 * **Modern Design System**: Crafted following WinUI 3 principles. It features an adaptive Light/Dark mode and utilizes a premium, high-contrast color palette inspired by Radix UI, delivering a professional and native Windows 11 aesthetic.
 * **Dual Routing Modes**: Seamlessly toggle between TUN Mode (Virtual Network Interface) and System Proxy Mode to suit varying network requirements.
 * **Silent Execution**: Optimized background process handling allows for a completely silent, window-free startup alongside Windows boot.
+
+## 3.0.0-alpha.3
+
+- Fix mode-switch flicker and Windows startup registration.
+- Share application and kernel update dialogs with GitHub release notes.
+- Reduce update metadata requests and separate check/download timeouts.
+- Validate a new kernel against the current configuration before replacing the installed version.
 
 ## Installation
 
@@ -87,9 +94,9 @@ The in-app updater uses the existing pre-release setting when checking release
 metadata; no separate update channel is created.
 
 The backend and React + Fluent UI migrations are complete. After manual testing,
-the maintainer closed the refactor phase on 2026-09-22. Version `3.0.0-alpha.2`
-is ready for the maintainer's `dev` → `main` pull request; publication follows the
-existing signed release workflow.
+the maintainer closed the refactor phase on 2026-09-22. Development continues in `3.0.0-alpha.3`, addressing mode-switch rendering and
+Windows startup tasks. Publication follows the maintainer's `dev` → `main` pull
+request and the existing signed release workflow.
 
 Development guides: [Architecture](docs/architecture.md),
 [Frontend design](docs/frontend.md), [Backend contracts](docs/backend.md),

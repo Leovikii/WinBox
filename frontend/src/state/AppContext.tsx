@@ -12,7 +12,7 @@ import * as Backend from '../api/backend'
 import { EventsOn } from '../api/backend'
 import type { InitDataDto, ProfileDto, StateSyncDto, TrafficUpdateDto, UWPAppDto } from '../api/backend'
 import { appendTraffic, emptyTrafficHistory, type SpeedPoint } from '../utils/trafficHistory'
-import { cleanLog } from '../utils/logUtils'
+import { appendLog, cleanLog } from '../utils/logUtils'
 import { getModeColor } from '../utils/modeColors'
 import { isNewerVersion, isVersion } from '../utils/versionCompare'
 
@@ -33,10 +33,10 @@ interface AppContextValue {
   tunMode: boolean
   sysProxy: boolean
   isProcessing: boolean
+  isModeSaving: boolean
   errorLog: string
   showErrorAlert: boolean
   errorAlertMessage: string
-  startOnBoot: boolean
   autoConnectState: string
   mirrorUrl: string
   mirrorEnabled: boolean
@@ -56,7 +56,6 @@ interface AppContextValue {
   handleSwitchMode: (target: { tunMode: boolean; sysProxy: boolean }) => Promise<{ error: string } | undefined>
   handleRestartCore: () => Promise<void>
   handleMirrorToggle: () => Promise<void>
-  handleStartOnBootToggle: () => Promise<void>
   handleAutoConnectChange: (state: string) => Promise<void>
   handleIPv6Toggle: () => Promise<void>
   handlePreReleaseToggle: () => Promise<void>
@@ -84,6 +83,7 @@ interface AppContextValue {
   openManageProfiles: () => void
 
   localVer: string
+  kernelChangelog: string
   remoteVer: string
   updateState: UpdateState
   downloadProgress: number
@@ -112,7 +112,7 @@ interface AppContextValue {
   programChangelog: string
   checkProgramUpdate: () => Promise<void>
   performProgramUpdate: () => Promise<void>
-  resetUpdateStates: () => void
+  isChangingUpdateChannel: boolean
 
   accentColor: string
   themeMode: string
@@ -134,10 +134,13 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
-interface LiveContextValue {
+interface TrafficContextValue {
   trafficHistory: SpeedPoint[]
   uploadSpeed: number
   downloadSpeed: number
+}
+
+interface LogContextValue {
   appLogContent: string
   showLogModal: boolean
   setShowLogModal: (open: boolean) => void
@@ -146,7 +149,9 @@ interface LiveContextValue {
   copyAppLog: () => Promise<void>
 }
 
-const LiveContext = createContext<LiveContextValue | null>(null)
+const TrafficContext = createContext<TrafficContextValue | null>(null)
+const LogContext = createContext<LogContextValue | null>(null)
+const ThemeContext = createContext<{ isDark: boolean; accentColor: string } | null>(null)
 
 const initialTheme = typeof window === 'undefined' ? 'system' : localStorage.getItem('themeMode') || 'system'
 
@@ -159,13 +164,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tunMode, setTunMode] = useState(false)
   const [sysProxy, setSysProxy] = useState(false)
   const [localProcessing, setIsProcessing] = useState(false)
+  const [isModeSaving, setIsModeSaving] = useState(false)
+  const modeSaveInFlight = useRef(false)
   const [coreBusy, setCoreBusy] = useState(false)
   const [coreLocked, setCoreLocked] = useState(false)
   const isProcessing = localProcessing || coreBusy || coreLocked
   const [errorLog, setErrorLog] = useState('')
   const [showErrorAlert, setShowErrorAlert] = useState(false)
   const [errorAlertMessage, setErrorAlertMessage] = useState('')
-  const [startOnBoot, setStartOnBoot] = useState(false)
   const [autoConnectState, setAutoConnectState] = useState('smart')
   const [mirrorUrl, setMirrorUrl] = useState('')
   const [mirrorEnabled, setMirrorEnabled] = useState(false)
@@ -187,12 +193,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [manageProfilesError, setManageProfilesError] = useState('')
 
   const [appLogContent, setAppLogContent] = useState('')
+  const pendingLog = useRef('')
+  const logTimer = useRef<number | undefined>(undefined)
+  const logRevision = useRef(0)
   const [showLogModal, setShowLogModal] = useState(false)
   const [copyState, setCopyState] = useState('Copy')
 
   const [localVer, setLocalVer] = useState('Unknown')
+  const [kernelChangelog, setKernelChangelog] = useState('')
   const [remoteVer, setRemoteVer] = useState('Unknown')
-  const [updateState, setUpdateState] = useState<UpdateState>('idle')
+  const [updateState, setUpdateStateValue] = useState<UpdateState>('idle')
   const [downloadProgress, setDownloadProgress] = useState(0)
   const [showEditor, setShowEditor] = useState(false)
   const [editingType, setEditingType] = useState<EditingType>('tun')
@@ -205,7 +215,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [programLocalVer, setProgramLocalVer] = useState('Unknown')
   const [programRemoteVer, setProgramRemoteVer] = useState('Unknown')
-  const [programUpdateState, setProgramUpdateState] = useState<UpdateState>('idle')
+  const [programUpdateState, setProgramUpdateStateValue] = useState<UpdateState>('idle')
   const [programDownloadProgress, setProgramDownloadProgress] = useState(0)
   const [programChangelog, setProgramChangelog] = useState('')
 
@@ -222,12 +232,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateStateRef = useRef(updateState)
   const programUpdateStateRef = useRef(programUpdateState)
   const programUpdateCheckInFlight = useRef(false)
+  const kernelUpdateInFlight = useRef(false)
+  const updateChannelChanging = useRef(false)
+  const [isChangingUpdateChannel, setIsChangingUpdateChannel] = useState(false)
   const timeoutRefs = useRef<number[]>([])
 
-  useEffect(() => {
-    updateStateRef.current = updateState
-    programUpdateStateRef.current = programUpdateState
-  }, [programUpdateState, updateState])
+  // Progress can arrive before React commits the corresponding request state.
+  const setUpdateState = useCallback((state: UpdateState) => {
+    updateStateRef.current = state
+    setUpdateStateValue(state)
+  }, [])
+  const setProgramUpdateState = useCallback((state: UpdateState) => {
+    programUpdateStateRef.current = state
+    setProgramUpdateStateValue(state)
+  }, [])
 
   const setErrorAlert = useCallback((message: string) => {
     const cleaned = cleanLog(message)
@@ -269,7 +287,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLocalVer(data.localVersion || 'Unknown')
     setProfiles(data.profiles || [])
     setActiveProfile(data.activeProfile || null)
-    setStartOnBoot(data.startOnBoot)
     setAutoConnectState(data.autoConnectState)
     setMirrorUrl(data.mirror)
     setMirrorEnabled(data.mirrorEnabled)
@@ -288,6 +305,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await applyInitData(data, revision)
     return data
   }, [applyInitData])
+
+  const applyLogSnapshot = useCallback((content: string, revision: number) => {
+    if (revision !== logRevision.current) return
+    window.clearTimeout(logTimer.current)
+    logTimer.current = undefined
+    pendingLog.current = ''
+    setAppLogContent(appendLog('', content))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -348,12 +373,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (programUpdateStateRef.current === 'updating') setProgramDownloadProgress(progress)
       }),
       EventsOn<string>('onAppLog', (line) => {
-        setAppLogContent((previous) => {
-          const next = previous + line
-          if (next.length <= 600000) return next
-          const sliceIndex = next.indexOf('\n', 100000)
-          return sliceIndex === -1 ? next.slice(-500000) : next.slice(sliceIndex + 1)
-        })
+        logRevision.current++
+        pendingLog.current = appendLog(pendingLog.current, line)
+        if (logTimer.current !== undefined) return
+        logTimer.current = window.setTimeout(() => {
+          const batch = pendingLog.current
+          pendingLog.current = ''
+          logTimer.current = undefined
+          setAppLogContent(previous => appendLog(previous, batch))
+        }, 100)
       }),
     ]
 
@@ -367,8 +395,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await applyInitData(data, revision)
           setInitialized(true)
         }
+        const logVersion = logRevision.current
         const log = await Backend.GetAppLog()
-        if (!cancelled) setAppLogContent(log)
+        if (!cancelled) applyLogSnapshot(log, logVersion)
       } catch (error) {
         if (!cancelled) {
           setMsg('Error')
@@ -379,10 +408,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true
+      window.clearTimeout(logTimer.current)
+      logTimer.current = undefined
+      pendingLog.current = ''
       unlisten.forEach((remove) => remove())
       timeoutRefs.current.splice(0).forEach((timeout) => window.clearTimeout(timeout))
     }
-  }, [applyInitData, persistMode])
+  }, [applyInitData, applyLogSnapshot, persistMode])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
@@ -404,7 +436,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [initialized, themeMode])
 
   const handleServiceToggle = useCallback(async () => {
-    if (isProcessing) return undefined
+    if (isProcessing || modeSaveInFlight.current) return undefined
     if (!coreExists) {
       setMsg('KERNEL MISSING!')
       return { error: 'kernel-missing' }
@@ -433,7 +465,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [coreExists, isProcessing, running, setErrorAlert, sysProxy, tunMode])
 
   const handleToggle = useCallback(async (target: 'tun' | 'proxy') => {
-    if (isProcessing) return undefined
+    if (isProcessing || modeSaveInFlight.current) return undefined
     if (!coreExists) {
       setMsg('KERNEL MISSING!')
       return { error: 'kernel-missing' }
@@ -466,17 +498,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [coreExists, isProcessing, setErrorAlert, sysProxy, tunMode])
 
   const handleSwitchMode = useCallback(async (target: { tunMode: boolean; sysProxy: boolean }) => {
-    if (isProcessing) return undefined
+    if (isProcessing || modeSaveInFlight.current) return undefined
+    if (target.tunMode === tunMode && target.sysProxy === sysProxy) return undefined
     if (!coreExists) {
       setMsg('KERNEL MISSING!')
       return { error: 'kernel-missing' }
     }
     const previous = { tun: tunMode, proxy: sysProxy }
-    setIsProcessing(true)
+    modeSaveInFlight.current = true
+    if (running) setIsProcessing(true)
+    else setIsModeSaving(true)
     try {
       if (!running) {
+        const revision = lifecycleRevision.current
         const saved = await persistMode(target.tunMode, target.sysProxy)
-        if (saved) {
+        if (saved && revision === lifecycleRevision.current) {
           setTunMode(target.tunMode)
           setSysProxy(target.sysProxy)
         }
@@ -500,12 +536,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setErrorAlert(message)
       return undefined
     } finally {
+      modeSaveInFlight.current = false
+      setIsModeSaving(false)
       setIsProcessing(false)
     }
   }, [coreExists, isProcessing, persistMode, running, setErrorAlert, sysProxy, tunMode])
 
   const handleRestartCore = useCallback(async () => {
-    if (isProcessing) return
+    if (isProcessing || modeSaveInFlight.current) return
     setIsProcessing(true)
     setMsg('Restarting...')
     try {
@@ -532,21 +570,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     else setErrorAlert(result)
   }, [mirrorEnabled, mirrorUrl, setErrorAlert])
 
-  const handleStartOnBootToggle = useCallback(async () => {
-    const next = !startOnBoot
-    const result = await Backend.SetStartOnBoot(next)
-    if (result !== 'Success') {
-      setErrorAlert(result)
-      return
-    }
-    setStartOnBoot(next)
-    if (next && autoConnectState === 'off') {
-      const autoResult = await Backend.SetAutoConnect('smart')
-      if (autoResult === 'Success') setAutoConnectState('smart')
-      else setErrorAlert(autoResult)
-    }
-  }, [autoConnectState, setErrorAlert, startOnBoot])
-
   const handleAutoConnectChange = useCallback(async (state: string) => {
     const result = await Backend.SetAutoConnect(state)
     if (result === 'Success') setAutoConnectState(state)
@@ -561,11 +584,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [ipv6Enabled, setErrorAlert])
 
   const handlePreReleaseToggle = useCallback(async () => {
-    const next = !preRelease
-    const result = await Backend.SetPreRelease(next)
-    if (result === 'Success') setPreRelease(next)
-    else setErrorAlert(result)
-  }, [preRelease, setErrorAlert])
+    if (updateChannelChanging.current || kernelUpdateInFlight.current || programUpdateCheckInFlight.current || programUpdateStateRef.current === 'updating') return
+    updateChannelChanging.current = true
+    setIsChangingUpdateChannel(true)
+    try {
+      const next = !preRelease
+      const result = await Backend.SetPreRelease(next)
+      if (result !== 'Success') throw new Error(result)
+      setPreRelease(next)
+      setUpdateState('idle')
+      setProgramUpdateState('idle')
+    } catch (error) {
+      setErrorAlert(error instanceof Error ? error.message : String(error))
+    } finally {
+      updateChannelChanging.current = false
+      setIsChangingUpdateChannel(false)
+    }
+  }, [preRelease, setErrorAlert, setProgramUpdateState, setUpdateState])
 
   const handleLogLevelChange = useCallback(async (level: string) => {
     const result = await Backend.SetLogConfig(level, logToFile)
@@ -587,7 +622,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [setErrorAlert])
 
   const switchProfile = useCallback(async (id: string) => {
-    if (activeProfile?.id === id || isProcessing) return
+    if (activeProfile?.id === id || isProcessing || modeSaveInFlight.current) return
     setIsProcessing(true)
     try {
       const result = await Backend.SelectProfile(id)
@@ -609,7 +644,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [activeProfile?.id, isProcessing, refreshData, setErrorAlert])
 
   const updateActiveProfile = useCallback(async () => {
-    if (isUpdatingProfile || isProcessing) return
+    if (isUpdatingProfile || isProcessing || modeSaveInFlight.current) return
     setIsUpdatingProfile(true)
     setIsProcessing(true)
     setMsg('Updating...')
@@ -704,15 +739,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadAppLog = useCallback(async () => {
     try {
-      setAppLogContent(await Backend.GetAppLog())
+      const revision = logRevision.current
+      const content = await Backend.GetAppLog()
+      applyLogSnapshot(content, revision)
     } catch {
-      setAppLogContent('> Failed to load app log')
+      setErrorAlert('Failed to load app log')
     }
-  }, [])
+  }, [applyLogSnapshot, setErrorAlert])
 
   const clearAppLog = useCallback(async () => {
     const result = await Backend.ClearAppLog()
     if (result === 'Success') {
+      logRevision.current++
+      pendingLog.current = ''
+      window.clearTimeout(logTimer.current)
+      logTimer.current = undefined
       setAppLogContent('')
       await loadAppLog()
     } else setErrorAlert(result)
@@ -730,35 +771,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [appLogContent, setErrorAlert])
 
   const checkUpdate = useCallback(async () => {
+    if (kernelUpdateInFlight.current || updateChannelChanging.current || programUpdateStateRef.current === 'updating') return
+    kernelUpdateInFlight.current = true
     setUpdateState('checking')
-    const version = await Backend.CheckUpdate()
-    if (version.includes('Error') || version.includes('Failed') || version.includes('No tag')) {
+    setErrorAlert('')
+    try {
+      const release = await Backend.CheckUpdate()
+      const version = release.version.trim()
+      setKernelChangelog(release.changelog)
+      if (!isVersion(version)) throw new Error('The release service returned an invalid kernel version')
+      setRemoteVer(version)
+      setUpdateState(!coreExists || !isVersion(localVer) || isNewerVersion(version, localVer) ? 'available' : 'latest')
+    } catch (error) {
+      const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Check Failed')
-      setErrorLog(version)
+      setErrorLog(message)
+      setErrorAlert(message)
       setUpdateState('error')
-      return
+    } finally {
+      kernelUpdateInFlight.current = false
     }
-    setRemoteVer(version)
-    setUpdateState(isVersion(version) && (!coreExists || isNewerVersion(version, localVer)) ? 'available' : 'latest')
-  }, [coreExists, localVer])
+  }, [coreExists, localVer, setErrorAlert, setUpdateState])
 
   const performUpdate = useCallback(async () => {
+    if (kernelUpdateInFlight.current || updateChannelChanging.current || programUpdateStateRef.current === 'updating') return
+    kernelUpdateInFlight.current = true
     setUpdateState('updating')
     setDownloadProgress(0)
+    setErrorAlert('')
     setMsg('Init Download...')
-    const result = await Backend.UpdateKernel(mirrorEnabled ? mirrorUrl : '')
-    if (result === 'Success') {
-      setCoreExists(true)
+    try {
+      // update_kernel already resolves the release, verifies and installs it.
+      const result = await Backend.UpdateKernel(mirrorEnabled ? mirrorUrl : '', coreExists ? remoteVer : null)
+      if (result !== 'Success') throw new Error(result)
+      const data = await refreshData()
+      if (!data.coreExists || !isVersion(data.localVersion)) throw new Error('Could not verify the installed kernel version')
       setMsg('Updated!')
-      setLocalVer(remoteVer.replace(/^v/, ''))
       setUpdateState('success')
-      timeoutRefs.current.push(window.setTimeout(() => setUpdateState('idle'), 2000))
-    } else {
-      setMsg('Failed')
-      setErrorLog(cleanLog(result))
+      timeoutRefs.current.push(window.setTimeout(() => {
+        if (updateStateRef.current === 'success') setUpdateState('idle')
+      }, 2000))
+    } catch (error) {
+      const message = cleanLog(error instanceof Error ? error.message : String(error))
+      setMsg('Update Failed')
+      setErrorLog(message)
+      setErrorAlert(message)
       setUpdateState('error')
+    } finally {
+      kernelUpdateInFlight.current = false
     }
-  }, [mirrorEnabled, mirrorUrl, remoteVer])
+  }, [coreExists, remoteVer, mirrorEnabled, mirrorUrl, refreshData, setErrorAlert, setUpdateState])
 
   const loadOverrideEditor = useCallback(async (type: 'tun' | 'mixed') => {
     try {
@@ -836,53 +898,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [loadOverrideEditor])
 
   const checkProgramUpdate = useCallback(async () => {
-    if (programUpdateCheckInFlight.current || programUpdateStateRef.current === 'updating') return
+    if (programUpdateCheckInFlight.current || updateChannelChanging.current || programUpdateStateRef.current === 'updating') return
     programUpdateCheckInFlight.current = true
     setProgramUpdateState('checking')
     try {
       let localVersion = programLocalVer
-      if (localVersion === 'Unknown') {
-        try {
-          localVersion = await Backend.getProductVersion()
-          setProgramLocalVer(localVersion)
-        } catch {
-          // Keep the safe Unknown state and never claim an update without a local version.
-        }
+      if (!isVersion(localVersion)) {
+        localVersion = await Backend.getProductVersion()
+        if (!isVersion(localVersion)) throw new Error('Could not read the application version')
+        setProgramLocalVer(localVersion)
       }
-
       const result = await Backend.CheckProgramUpdate()
-      if ('error' in result) {
-        setMsg('Update Check Failed')
-        setErrorLog(result.error)
-        setProgramUpdateState('error')
-        timeoutRefs.current.push(window.setTimeout(() => setProgramUpdateState('idle'), 3000))
-        return
-      }
+      if (!isVersion(result.version)) throw new Error('The release service returned an invalid application version')
       setProgramRemoteVer(result.version)
       setProgramChangelog(result.changelog || 'No changelog provided.')
-      setProgramUpdateState(localVersion !== 'Unknown' && isNewerVersion(result.version, localVersion) ? 'available' : 'latest')
+      setProgramUpdateState(isNewerVersion(result.version, localVersion) ? 'available' : 'latest')
+    } catch (error) {
+      const message = cleanLog(error instanceof Error ? error.message : String(error))
+      setMsg('Update Check Failed')
+      setErrorLog(message)
+      setErrorAlert(message)
+      setProgramUpdateState('error')
     } finally {
       programUpdateCheckInFlight.current = false
     }
-  }, [programLocalVer])
+  }, [programLocalVer, setErrorAlert, setProgramUpdateState])
 
   const performProgramUpdate = useCallback(async () => {
+    if (programUpdateCheckInFlight.current || updateChannelChanging.current || updateStateRef.current === 'updating' || programUpdateStateRef.current === 'updating') return
     setProgramUpdateState('updating')
     setProgramDownloadProgress(0)
-    const result = await Backend.UpdateProgram(mirrorEnabled ? mirrorUrl : '')
-    if (result === 'Success') setProgramUpdateState('success')
-    else {
+    setErrorAlert('')
+    try {
+      const result = await Backend.UpdateProgram(mirrorEnabled ? mirrorUrl : '', programRemoteVer)
+      if (result !== 'Success') throw new Error(result)
+      setProgramUpdateState('success')
+    } catch (error) {
+      const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Update Failed')
-      setErrorLog(result)
+      setErrorLog(message)
+      setErrorAlert(message)
       setProgramUpdateState('error')
-      timeoutRefs.current.push(window.setTimeout(() => setProgramUpdateState('idle'), 3000))
     }
-  }, [mirrorEnabled, mirrorUrl])
-
-  const resetUpdateStates = useCallback(() => {
-    setUpdateState('idle')
-    setProgramUpdateState('idle')
-  }, [])
+  }, [programRemoteVer, mirrorEnabled, mirrorUrl, setErrorAlert, setProgramUpdateState])
 
   const setThemeColor = useCallback(async (color: string) => {
     setAccentColor(color)
@@ -965,36 +1023,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const controlColor = useMemo(() => getModeColor(tunMode, sysProxy, msg === 'Error' || !coreExists || msg === 'Net Timeout', running).hex, [coreExists, msg, running, sysProxy, tunMode])
   const isEditorChanged = editorContent !== editorOriginalContent
-  const isManageProfilesChanged = JSON.stringify(profiles) !== JSON.stringify(manageProfilesList)
+  const isManageProfilesChanged = useMemo(() => JSON.stringify(profiles) !== JSON.stringify(manageProfilesList), [profiles, manageProfilesList])
 
   const value = useMemo<AppContextValue>(() => ({
-    initialized, running, coreExists, msg, tunMode, sysProxy, isProcessing, errorLog, showErrorAlert, errorAlertMessage,
-    startOnBoot, autoConnectState, mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile, closeBehavior,
+    initialized, running, coreExists, msg, tunMode, sysProxy, isProcessing, isModeSaving, errorLog, showErrorAlert, errorAlertMessage,
+    autoConnectState, mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile, closeBehavior,
     windowCloseRequested, setWindowCloseRequested, statusText, statusColor, controlColor,
-    refreshData, handleServiceToggle, handleToggle, handleSwitchMode, handleRestartCore, handleMirrorToggle, handleStartOnBootToggle,
+    refreshData, handleServiceToggle, handleToggle, handleSwitchMode, handleRestartCore, handleMirrorToggle,
     handleAutoConnectChange, handleIPv6Toggle, handlePreReleaseToggle, handleLogLevelChange, handleLogToFileToggle,
     handleCloseBehaviorChange, setErrorAlert,
     profiles, activeProfile, switchProfile, updateActiveProfile, isUpdatingProfile, showManageProfilesModal,
     setShowManageProfilesModal, manageProfilesList, setManageProfilesList, removeProfileFromManageList, addNewDraftProfile, saveManageProfiles,
     isSavingProfiles, isManageProfilesChanged, manageProfilesError, setManageProfilesError, openManageProfiles,
-    localVer, remoteVer, updateState, downloadProgress, checkUpdate, performUpdate, showEditor, setShowEditor,
+    localVer, remoteVer, kernelChangelog, updateState, downloadProgress, checkUpdate, performUpdate, showEditor, setShowEditor,
     editingType, editorContent, setEditorContent, editorDefaultContent, isEditorChanged, saveBtnText, showResetConfirm,
     setShowResetConfirm, editorError, switchEditorTab, openEditor, saveEditor, confirmReset,
     programLocalVer, programRemoteVer, programUpdateState, programDownloadProgress, programChangelog, checkProgramUpdate,
-    performProgramUpdate, resetUpdateStates, accentColor, themeMode, isDark, setThemeColor, setThemeMode,
+    performProgramUpdate, isChangingUpdateChannel, accentColor, themeMode, isDark, setThemeColor, setThemeMode,
     uwpApps, uwpSelectedSIDs, uwpLoading, uwpSaving, uwpHasChanges, loadUwpApps, toggleUwpApp, selectAllUwp,
     deselectAllUwp, saveExemptions,
   }), [
     accentColor, activeProfile, autoConnectState, closeBehavior, controlColor,
     coreExists, downloadProgress, editorContent, editorDefaultContent, editorError,
     handleAutoConnectChange, handleCloseBehaviorChange, handleIPv6Toggle, handleLogLevelChange, handleLogToFileToggle,
-    handleMirrorToggle, handlePreReleaseToggle, handleServiceToggle, handleStartOnBootToggle, handleSwitchMode, handleRestartCore,
-    handleToggle, initialized, isDark, isEditorChanged, isManageProfilesChanged, isProcessing, isSavingProfiles,
+    handleMirrorToggle, handlePreReleaseToggle, handleServiceToggle, handleSwitchMode, handleRestartCore,
+    handleToggle, initialized, isDark, isEditorChanged, isManageProfilesChanged, isProcessing, isModeSaving, isSavingProfiles,
     isUpdatingProfile, loadUwpApps, localVer, manageProfilesError, manageProfilesList, mirrorEnabled,
     mirrorUrl, msg, openEditor, openManageProfiles, performProgramUpdate, performUpdate, preRelease, profiles,
     programChangelog, programDownloadProgress, programLocalVer, programRemoteVer, programUpdateState, refreshData,
-    remoteVer, removeProfileFromManageList, resetUpdateStates, saveBtnText, saveEditor, saveExemptions, setEditorContent,
-    setErrorAlert, showEditor, showErrorAlert, showManageProfilesModal, showResetConfirm, startOnBoot,
+    remoteVer, kernelChangelog, removeProfileFromManageList, isChangingUpdateChannel, saveBtnText, saveEditor, saveExemptions, setEditorContent,
+    setErrorAlert, showEditor, showErrorAlert, showManageProfilesModal, showResetConfirm,
     statusColor, statusText, switchEditorTab, switchProfile, sysProxy, themeMode, tunMode, updateActiveProfile,
     updateState, uwpApps, uwpHasChanges, uwpLoading, uwpSaving, uwpSelectedSIDs, windowCloseRequested,
     ipv6Enabled, logLevel, logToFile, errorAlertMessage, errorLog, setShowManageProfilesModal,
@@ -1002,22 +1060,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deselectAllUwp, selectAllUwp, toggleUwpApp, confirmReset,
   ])
 
-  const liveValue = useMemo<LiveContextValue>(() => ({
-    trafficHistory,
-    uploadSpeed,
-    downloadSpeed,
-    appLogContent,
-    showLogModal,
-    setShowLogModal,
-    copyState,
-    clearAppLog,
-    copyAppLog,
-  }), [appLogContent, clearAppLog, copyAppLog, copyState, downloadSpeed, showLogModal, uploadSpeed, trafficHistory])
+  const themeValue = useMemo(() => ({ isDark, accentColor }), [isDark, accentColor])
+  const trafficValue = useMemo(() => ({ trafficHistory, uploadSpeed, downloadSpeed }), [trafficHistory, uploadSpeed, downloadSpeed])
+  const logValue = useMemo<LogContextValue>(() => ({
+    appLogContent, showLogModal, setShowLogModal, copyState, clearAppLog, copyAppLog,
+  }), [appLogContent, clearAppLog, copyAppLog, copyState, showLogModal])
 
   return (
-    <AppContext.Provider value={value}>
-      <LiveContext.Provider value={liveValue}>{children}</LiveContext.Provider>
-    </AppContext.Provider>
+    <ThemeContext.Provider value={themeValue}>
+      <AppContext.Provider value={value}>
+        <TrafficContext.Provider value={trafficValue}>
+          <LogContext.Provider value={logValue}>{children}</LogContext.Provider>
+        </TrafficContext.Provider>
+      </AppContext.Provider>
+    </ThemeContext.Provider>
   )
 }
 
@@ -1027,9 +1083,21 @@ export function useApp() {
   return value
 }
 
-export function useLive() {
-  const value = useContext(LiveContext)
-  if (!value) throw new Error('useLive must be used inside AppProvider')
+export function useTraffic() {
+  const value = useContext(TrafficContext)
+  if (!value) throw new Error('useTraffic must be used inside AppProvider')
+  return value
+}
+
+export function useLogs() {
+  const value = useContext(LogContext)
+  if (!value) throw new Error('useLogs must be used inside AppProvider')
+  return value
+}
+
+export function useTheme() {
+  const value = useContext(ThemeContext)
+  if (!value) throw new Error('useTheme must be used inside AppProvider')
   return value
 }
 

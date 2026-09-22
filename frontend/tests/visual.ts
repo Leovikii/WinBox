@@ -15,10 +15,17 @@ const state = {
 }
 const scenario = new URLSearchParams(location.search).get('scenario')
 if (scenario === 'empty' || scenario === 'missing') { state.profiles = []; state.activeProfile = null as any }
-if (scenario === 'missing') state.coreExists = false
+if (scenario === 'missing') { state.coreExists = false; state.localVersion = 'Not Installed' }
+if (scenario === 'unknown-kernel') state.localVersion = 'Unknown'
 const calls: string[] = []
 let failure = ''
-let heldCommand = scenario === 'slow-init' ? 'get_init_data' : ''
+let failureMessage = 'Fixture: requested operation failed'
+let kernelRelease = '1.13.0'
+let kernelChangelog = '## :memo: sing-box release notes\n\nKernel improvements.'
+let programRelease = '3.0.0-alpha.4'
+let programVersion = scenario === 'unknown-program' ? 'Unknown' : '3.0.0-alpha.3'
+let programChangelog = '## Updates\nVisual regression fixture.'
+let heldCommand = scenario === 'slow-init' ? 'get_init_data' : scenario === 'slow-log' ? 'get_app_log' : ''
 let release: (() => void) | undefined
 let lifecyclePhase = ''
 let heldPhase = ''
@@ -79,14 +86,18 @@ mockIPC(async (command, args: any) => {
     heldCommand = ''
     await new Promise<void>(resolve => { release = resolve })
   }
-  if (failure === command) { failure = ''; throw new Error('Fixture: requested operation failed') }
+  if (failure === command) { failure = ''; throw { code: 'fixture_failure', message: failureMessage } }
   switch (command) {
     case 'get_init_data': return initSnapshot
-    case 'get_product_version': return '3.0.0-alpha.2'
+    case 'get_start_on_boot': return state.startOnBoot
+    case 'set_start_on_boot': state.startOnBoot = args.enabled; return state.startOnBoot
+    case 'get_product_version': return programVersion
     case 'get_app_log': return '[10:00:00] Ready\n[10:00:01] Profile loaded\n'
     case 'get_kernel_log': case 'get_log_file': return 'Kernel log fixture\n'
-    case 'check_program_update': return { version: '3.0.0-alpha.3', changelog: '## Updates\nVisual regression fixture.' }
-    case 'check_update': return '1.13.0'
+    case 'check_program_update': return { version: programRelease, changelog: programChangelog }
+    case 'check_update': return { version: kernelRelease, changelog: kernelChangelog }
+    case 'update_kernel': if (args.expectedVersion && args.expectedVersion !== kernelRelease) throw { message: 'The available release changed. Check for updates and confirm again.' }; state.coreExists = true; state.localVersion = kernelRelease; return 'Success'
+    case 'set_pre_release': state.preRelease = args.enabled; return 'Success'
     case 'apply_state': return applyLifecycle(args.targetTun, args.targetProxy)
     case 'restart_core': return applyLifecycle(state.tunMode, state.sysProxy, true)
     case 'select_profile': state.activeProfile = profiles.find(profile => profile.id === args.id) || state.activeProfile; return 'Success'
@@ -107,4 +118,7 @@ Object.assign(window, { visualTest: { state, calls, emit,
   failStop: () => { failStop = true },
   failStartup: () => { failStartup = true },
   exitBeforeReturn: () => { exitBeforeReturn = true },
-  failNext: (command: string) => { failure = command }, holdNext: (command: string) => { heldCommand = command }, release: () => { release?.(); release = undefined } } })
+  setKernelRelease: (version: string, changelog = kernelChangelog) => { kernelRelease = version; kernelChangelog = changelog },
+  setProgramRelease: (version: string, changelog = programChangelog) => { programRelease = version; programChangelog = changelog },
+  setProgramVersion: (version: string) => { programVersion = version },
+  failNext: (command: string, message = 'Fixture: requested operation failed') => { failure = command; failureMessage = message }, holdNext: (command: string) => { heldCommand = command }, release: () => { release?.(); release = undefined } } })

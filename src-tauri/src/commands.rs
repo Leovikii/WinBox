@@ -2,8 +2,9 @@ use crate::core::CoreProcess;
 use crate::models::{DataSnapshot, Profile, DEFAULT_MIXED_CONFIG, DEFAULT_TUN_CONFIG};
 use crate::paths::AppPaths;
 use crate::platform::windows::{
-    configure_hidden_command, get_uwp_apps as platform_get_uwp_apps, read_system_proxy,
-    replace_file_with_backup, restore_system_proxy, set_autostart, set_loopback_exemptions,
+    configure_hidden_command, get_uwp_apps as platform_get_uwp_apps, query_autostart,
+    read_system_proxy, replace_file_with_backup, restore_system_proxy, set_autostart,
+    set_loopback_exemptions,
 };
 use crate::runtime::RuntimeState;
 use crate::storage::{Storage, StorageError};
@@ -164,7 +165,6 @@ pub struct InitDataDto {
     pub active_profile: Option<Profile>,
     pub mirror: String,
     pub mirror_enabled: bool,
-    pub start_on_boot: bool,
     pub auto_connect_state: String,
     pub theme_mode: String,
     pub accent_color: String,
@@ -178,6 +178,8 @@ pub struct InitDataDto {
 #[derive(Debug, Deserialize)]
 struct ReleaseInfo {
     tag_name: String,
+    #[serde(default)]
+    body: Option<String>,
     #[serde(default)]
     prerelease: bool,
     #[serde(default)]
@@ -194,7 +196,7 @@ struct ReleaseAsset {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProgramUpdateDto {
+pub struct ReleaseUpdateDto {
     pub version: String,
     pub changelog: String,
 }
@@ -238,7 +240,6 @@ async fn init_data_from_snapshot(
         active_profile,
         mirror: snapshot.settings.mirror,
         mirror_enabled: snapshot.settings.mirror_enabled,
-        start_on_boot: snapshot.settings.start_on_boot,
         auto_connect_state: snapshot.settings.auto_connect_state,
         theme_mode: snapshot.settings.theme_mode,
         accent_color: snapshot.settings.accent_color,
@@ -345,13 +346,46 @@ pub fn save_settings(
 }
 
 #[tauri::command]
-pub fn set_start_on_boot(enabled: bool, storage: State<'_, Storage>) -> Result<String, AppError> {
-    let executable = std::env::current_exe().map_err(|_| AppError::operation_failed())?;
-    set_autostart(&executable, enabled).map_err(|_| AppError::operation_failed())?;
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.start_on_boot = enabled;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
-    Ok("Success".to_owned())
+pub async fn get_start_on_boot() -> Result<bool, AppError> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let executable = std::env::current_exe()?;
+        query_autostart(&executable)
+    })
+    .await
+    .map_err(|error| AppError::detailed("autostart_query_failed", error.to_string()))?
+    .map_err(|error| {
+        AppError::detailed(
+            "autostart_query_failed",
+            format!("Could not read startup task: {error}"),
+        )
+    })
+}
+
+#[tauri::command]
+pub async fn set_start_on_boot(
+    enabled: bool,
+    app: AppHandle,
+    runtime: State<'_, RuntimeState>,
+) -> Result<bool, AppError> {
+    let result = async {
+        tauri::async_runtime::spawn_blocking(move || {
+            let executable = std::env::current_exe()?;
+            set_autostart(&executable, enabled)
+        })
+        .await
+        .map_err(|error| AppError::detailed("autostart_failed", error.to_string()))?
+        .map_err(|error| {
+            AppError::detailed(
+                "autostart_failed",
+                format!(
+                    "Could not {} startup task: {error}",
+                    if enabled { "enable" } else { "remove" }
+                ),
+            )
+        })
+    }
+    .await;
+    log_failed_result(&runtime, &app, "Change startup task", result).await
 }
 
 #[tauri::command]
@@ -410,16 +444,29 @@ pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), AppError> {
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn save_mode(
+pub async fn save_mode(
     tun_mode: bool,
     sys_proxy: bool,
     storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.state.tun_mode = tun_mode;
-    snapshot.state.sys_proxy = sys_proxy;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
-    Ok("Success".to_owned())
+    // Serialize with tray/startup operations without announcing an offline save
+    // as a kernel restart. A running kernel must change mode through apply_state.
+    let _operation = runtime.operation().await;
+    if runtime.core().await.is_some() {
+        return Err(AppError::invalid_input(
+            "The kernel started while saving mode; retry the mode change",
+        ));
+    }
+    let storage = storage.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        storage
+            .save_mode(tun_mode, sys_proxy)
+            .map_err(map_storage_write_error)?;
+        Ok("Success".to_owned())
+    })
+    .await
+    .map_err(|error| AppError::detailed("mode_save_failed", error.to_string()))?
 }
 
 #[tauri::command]
@@ -676,7 +723,7 @@ pub async fn add_profile(
             log_command_failure(runtime.inner(), &app, "Profile add", &error).await;
             return Ok("Error: Kernel is not installed".to_owned());
         }
-        let content = download_bytes(&url, MAX_PROFILE_BYTES, None).await?;
+        let content = download_bytes(&url, MAX_PROFILE_BYTES).await?;
         validate_profile_json(&content)?;
         let id = Uuid::new_v4().to_string();
         let path = storage
@@ -820,7 +867,7 @@ pub async fn update_active_profile(
             return Ok("Error: No active profile".to_owned());
         };
         validate_profile_fields(&profile.name, &profile.url)?;
-        let content = download_bytes(&profile.url, MAX_PROFILE_BYTES, None).await?;
+        let content = download_bytes(&profile.url, MAX_PROFILE_BYTES).await?;
         validate_profile_json(&content)?;
         let path = storage
             .paths()
@@ -1008,7 +1055,7 @@ pub async fn check_update(
     app: AppHandle,
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
-) -> Result<String, AppError> {
+) -> Result<ReleaseUpdateDto, AppError> {
     let result = async {
         let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
         let release = latest_release(
@@ -1022,7 +1069,10 @@ pub async fn check_update(
                 "No release version found",
             ));
         }
-        Ok(release.tag_name)
+        Ok(ReleaseUpdateDto {
+            changelog: release.body.filter(|body| !body.trim().is_empty()).unwrap_or_else(|| format!("Release notes are unavailable. [View release on GitHub](https://github.com/SagerNet/sing-box/releases/tag/{})", release.tag_name)),
+            version: release.tag_name,
+        })
     }
     .await;
     log_failed_result(runtime.inner(), &app, "Kernel update check", result).await
@@ -1033,12 +1083,18 @@ pub async fn check_program_update(
     app: AppHandle,
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
-) -> Result<ProgramUpdateDto, AppError> {
+) -> Result<ReleaseUpdateDto, AppError> {
     let result = async {
         let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
         let release = latest_release(PROGRAM_REPOSITORY_API, snapshot.settings.pre_release).await?;
         if !release_has_updater_metadata(&release) {
-            return Ok(ProgramUpdateDto {
+            return Ok(ReleaseUpdateDto {
+                version: app.package_info().version.to_string(),
+                changelog: String::new(),
+            });
+        }
+        if release.tag_name.trim_start_matches('v') == app.package_info().version.to_string() {
+            return Ok(ReleaseUpdateDto {
                 version: app.package_info().version.to_string(),
                 changelog: String::new(),
             });
@@ -1053,11 +1109,11 @@ pub async fn check_program_update(
             .await
             .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?;
         Ok(match update {
-            Some(update) => ProgramUpdateDto {
+            Some(update) => ReleaseUpdateDto {
+                changelog: program_changelog(&release, &update.version),
                 version: update.version,
-                changelog: update.body.unwrap_or_default(),
             },
-            None => ProgramUpdateDto {
+            None => ReleaseUpdateDto {
                 version: app.package_info().version.to_string(),
                 changelog: String::new(),
             },
@@ -1071,6 +1127,7 @@ pub async fn check_program_update(
 pub async fn update_kernel(
     app: AppHandle,
     mirror: String,
+    expected_version: Option<String>,
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
@@ -1086,13 +1143,23 @@ pub async fn update_kernel(
         runtime.inner(),
         &app,
         "Kernel update metadata",
-        latest_release(
-            "https://api.github.com/repos/SagerNet/sing-box",
-            snapshot.settings.pre_release,
-        )
-        .await,
+        match expected_version.as_deref() {
+            Some(version) => {
+                release_by_version("https://api.github.com/repos/SagerNet/sing-box", version).await
+            }
+            None => {
+                latest_release(
+                    "https://api.github.com/repos/SagerNet/sing-box",
+                    snapshot.settings.pre_release,
+                )
+                .await
+            }
+        },
     )
     .await?;
+    if let Some(expected) = expected_version.as_deref() {
+        ensure_update_version(expected, &release.tag_name)?;
+    }
     let version = release.tag_name.trim_start_matches('v');
     let architecture = log_failed_result(
         runtime.inner(),
@@ -1327,23 +1394,12 @@ pub async fn update_kernel(
 pub async fn update_program(
     app: AppHandle,
     mirror: String,
-    storage: State<'_, Storage>,
+    expected_version: String,
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
     let result = async {
-        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-        let release = latest_release(PROGRAM_REPOSITORY_API, snapshot.settings.pre_release).await?;
-        if !release_has_updater_metadata(&release) {
-            return Err(AppError::new(
-                "update_not_available",
-                "No updater metadata is available for the selected release",
-            ));
-        }
-        let tag = snapshot
-            .settings
-            .pre_release
-            .then_some(release.tag_name.as_str());
-        let updater = build_program_updater(&app, snapshot.settings.pre_release, tag)?;
+        let tag = format!("v{}", expected_version.trim_start_matches('v'));
+        let updater = build_program_updater(&app, true, Some(&tag))?;
         let _operation = runtime.core_operation(&app).await;
         let mut update = updater
             .check()
@@ -1352,6 +1408,8 @@ pub async fn update_program(
             .ok_or_else(|| {
                 AppError::new("update_not_available", "No program update is available")
             })?;
+        ensure_update_version(&expected_version, &update.version)?;
+        update.timeout = Some(Duration::from_secs(30 * 60));
         if !mirror.trim().is_empty() {
             let download_url = mirrored_url(&mirror, update.download_url.as_str())?;
             update.download_url = Url::parse(&download_url)
@@ -1359,6 +1417,7 @@ pub async fn update_program(
         }
         let _ = app.emit("log", "Update ready. Restarting...");
         let mut downloaded = 0_u64;
+        let mut last_progress = None;
         let bytes = update
             .download(
                 |chunk, total| {
@@ -1367,7 +1426,10 @@ pub async fn update_program(
                         .and_then(|total| downloaded.checked_mul(100)?.checked_div(total))
                         .unwrap_or(0)
                         .min(100) as u32;
-                    let _ = app.emit("download-progress", progress);
+                    if last_progress != Some(progress) {
+                        last_progress = Some(progress);
+                        let _ = app.emit("download-progress", progress);
+                    }
                 },
                 || {
                     let _ = app.emit("download-progress", 100_u32);
@@ -2004,6 +2066,12 @@ fn build_program_updater(
     let cleanup_runtime = app.state::<RuntimeState>().inner().clone();
     app.updater_builder()
         .target("windows-x86_64-nsis")
+        .timeout(Duration::from_secs(20))
+        .configure_client(|client| {
+            client
+                .connect_timeout(Duration::from_secs(8))
+                .read_timeout(Duration::from_secs(30))
+        })
         .endpoints(vec![endpoint])
         .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?
         .on_before_exit(move || {
@@ -2019,17 +2087,15 @@ fn build_program_updater(
         .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))
 }
 
-async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, AppError> {
-    let url = if pre_release {
-        format!("{repo}/releases")
-    } else {
-        format!("{repo}/releases/latest")
-    };
+async fn release_response(url: &str) -> Result<reqwest::Response, AppError> {
     let response = http_client()?
         .get(url)
+        .timeout(Duration::from_secs(20))
         .send()
         .await
-        .map_err(|_| AppError::new("network_error", "Network request failed"))?;
+        .map_err(|error| {
+            AppError::detailed("network_error", format!("Release request failed: {error}"))
+        })?;
     if !response.status().is_success() {
         return Err(AppError::detailed(
             "network_error",
@@ -2039,18 +2105,57 @@ async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, Ap
             ),
         ));
     }
-    if pre_release {
-        let releases = response
-            .json::<Vec<ReleaseInfo>>()
+    Ok(response)
+}
+
+async fn release_by_version(repo: &str, version: &str) -> Result<ReleaseInfo, AppError> {
+    let tag = format!("v{}", version.trim_start_matches('v'));
+    // Reuse the updater's strict tag validation before constructing an API path.
+    program_update_endpoint(true, Some(&tag))?;
+    release_response(&format!("{repo}/releases/tags/{tag}"))
+        .await?
+        .json()
+        .await
+        .map_err(|error| {
+            AppError::detailed("network_error", format!("Release data is invalid: {error}"))
+        })
+}
+
+async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, AppError> {
+    if !pre_release {
+        return release_response(&format!("{repo}/releases/latest"))
+            .await?
+            .json()
             .await
-            .map_err(|_| AppError::new("network_error", "Release data is invalid"))?;
-        select_pre_release(releases)
-    } else {
-        response
-            .json::<ReleaseInfo>()
-            .await
-            .map_err(|_| AppError::new("network_error", "Release data is invalid"))
+            .map_err(|error| {
+                AppError::detailed("network_error", format!("Release data is invalid: {error}"))
+            });
     }
+    // Bound the whole scan, not just each page. Usually the first release matches.
+    tokio::time::timeout(Duration::from_secs(30), async {
+        for page in 1..=30 {
+            let releases: Vec<ReleaseInfo> =
+                release_response(&format!("{repo}/releases?per_page=1&page={page}"))
+                    .await?
+                    .json()
+                    .await
+                    .map_err(|error| {
+                        AppError::detailed(
+                            "network_error",
+                            format!("Release data is invalid: {error}"),
+                        )
+                    })?;
+            if releases.is_empty() {
+                break;
+            }
+            if let Ok(release) = select_pre_release(releases) {
+                return Ok(release);
+            }
+        }
+        Err(AppError::new("update_check_failed", "No pre-release found"))
+    })
+    .await
+    .map_err(|_| AppError::new("network_error", "Release lookup timed out"))?
 }
 
 fn select_pre_release(releases: Vec<ReleaseInfo>) -> Result<ReleaseInfo, AppError> {
@@ -2058,6 +2163,29 @@ fn select_pre_release(releases: Vec<ReleaseInfo>) -> Result<ReleaseInfo, AppErro
         .into_iter()
         .find(|release| release.prerelease)
         .ok_or_else(|| AppError::new("update_check_failed", "No pre-release found"))
+}
+
+fn ensure_update_version(expected: &str, actual: &str) -> Result<(), AppError> {
+    if expected.trim_start_matches('v') != actual.trim_start_matches('v') {
+        return Err(AppError::new(
+            "update_version_changed",
+            "The available release changed. Check for updates and confirm again.",
+        ));
+    }
+    Ok(())
+}
+
+fn program_changelog(release: &ReleaseInfo, version: &str) -> String {
+    if release.tag_name.trim_start_matches('v') == version {
+        if let Some(body) = release
+            .body
+            .as_deref()
+            .filter(|body| !body.trim().is_empty())
+        {
+            return body.to_owned();
+        }
+    }
+    format!("Release notes are unavailable. [View release on GitHub]({PROGRAM_REPOSITORY}/releases/tag/v{version})")
 }
 
 fn release_has_updater_metadata(release: &ReleaseInfo) -> bool {
@@ -2069,20 +2197,18 @@ fn release_has_updater_metadata(release: &ReleaseInfo) -> bool {
 
 fn http_client() -> Result<Client, AppError> {
     Client::builder()
-        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(8))
+        .read_timeout(Duration::from_secs(30))
         .user_agent(HTTP_USER_AGENT)
         .build()
         .map_err(|_| AppError::operation_failed())
 }
 
-async fn download_bytes(
-    url: &str,
-    limit: usize,
-    app: Option<&AppHandle>,
-) -> Result<Vec<u8>, AppError> {
+async fn download_bytes(url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
     validate_http_url(url)?;
     let response = http_client()?
         .get(url)
+        .timeout(Duration::from_secs(120))
         .send()
         .await
         .map_err(|_| AppError::new("network_error", "Download failed"))?;
@@ -2103,9 +2229,6 @@ async fn download_bytes(
             ));
         }
         body.extend_from_slice(&chunk);
-        if let Some(app) = app {
-            let _ = app.emit("download-progress", 0_u32);
-        }
     }
     Ok(body)
 }
@@ -2114,6 +2237,7 @@ async fn download_file(app: &AppHandle, url: &str, target: &Path) -> Result<(), 
     validate_http_url(url)?;
     let response = http_client()?
         .get(url)
+        .timeout(Duration::from_secs(30 * 60))
         .send()
         .await
         .map_err(|_| AppError::new("network_error", "Download failed"))?;
@@ -2134,6 +2258,7 @@ async fn download_file(app: &AppHandle, url: &str, target: &Path) -> Result<(), 
     }
     let total = response.content_length().unwrap_or(0);
     let mut current = 0_u64;
+    let mut last_progress = None;
     let temp = target.with_extension(format!("part-{}", Uuid::new_v4()));
     let result = async {
         let mut file = tokio::fs::File::create(&temp)
@@ -2157,7 +2282,10 @@ async fn download_file(app: &AppHandle, url: &str, target: &Path) -> Result<(), 
                 .checked_div(total)
                 .unwrap_or(0)
                 .min(100) as u32;
-            let _ = app.emit("download-progress", progress);
+            if last_progress != Some(progress) {
+                last_progress = Some(progress);
+                let _ = app.emit("download-progress", progress);
+            }
         }
         file.flush()
             .await
@@ -2275,7 +2403,6 @@ fn limit_log_lines(content: &str, max_lines: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::prepare_control_api;
     use super::{
         current_time_string, extract_api_secret, extract_api_url, http_client, install_staged_file,
         is_hex_color, limit_log_lines, mirrored_url, program_update_endpoint,
@@ -2283,6 +2410,7 @@ mod tests {
         staged_profile_path, window_theme, AppPaths, DataSnapshot, Effect, Profile, ReleaseInfo,
         Theme, HTTP_USER_AGENT,
     };
+    use super::{ensure_update_version, prepare_control_api, program_changelog};
     use serde_json::json;
     use std::fs;
     use std::path::PathBuf;
@@ -2403,6 +2531,31 @@ mod tests {
     }
 
     #[test]
+    fn update_must_match_confirmed_version() {
+        assert!(ensure_update_version("v1.15.0-alpha.7", "1.15.0-alpha.7").is_ok());
+        assert!(ensure_update_version("1.15.0-alpha.7", "1.15.0-alpha.8").is_err());
+    }
+
+    #[test]
+    fn changelog_uses_matching_release_body_or_a_release_link() {
+        let mut release: ReleaseInfo = serde_json::from_value(json!({
+            "tag_name": "v3.0.0-alpha.2", "body": "Edited release notes"
+        }))
+        .unwrap();
+        assert_eq!(
+            program_changelog(&release, "3.0.0-alpha.2"),
+            "Edited release notes"
+        );
+        assert!(program_changelog(&release, "3.0.0-alpha.3").contains("/tag/v3.0.0-alpha.3"));
+        release.body = None;
+        assert!(
+            program_changelog(&release, "3.0.0-alpha.2").contains("Release notes are unavailable")
+        );
+        release.body = Some("  ".into());
+        assert!(program_changelog(&release, "3.0.0-alpha.2").contains("View release on GitHub"));
+    }
+
+    #[test]
     fn legacy_release_without_updater_metadata_is_not_updateable() {
         let legacy: ReleaseInfo = serde_json::from_value(json!({
             "tag_name":"v2.8.0",
@@ -2496,6 +2649,71 @@ mod tests {
             .expect("HTTP response");
         assert!(response.status().is_success());
         server.await.expect("server task");
+    }
+
+    #[tokio::test]
+    async fn release_paging_exact_version_and_subscription_limits() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                (
+                    "/releases?per_page=1&page=1",
+                    r#"[{"tag_name":"v1.0.0","prerelease":false}]"#,
+                ),
+                (
+                    "/releases?per_page=1&page=2",
+                    r#"[{"tag_name":"v1.1.0-alpha.1","prerelease":true}]"#,
+                ),
+                (
+                    "/releases/tags/v1.1.0-alpha.1",
+                    r#"{"tag_name":"v1.1.0-alpha.1","prerelease":true}"#,
+                ),
+                ("/profile", "profile-data"),
+                ("/large", "oversized"),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = vec![0; 8192];
+                let count = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..count])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                socket
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            body.len(),
+                            body
+                        )
+                        .as_bytes(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        });
+        let release = super::latest_release(&base, true).await.unwrap();
+        assert_eq!(release.tag_name, "v1.1.0-alpha.1");
+        assert_eq!(
+            super::release_by_version(&base, "1.1.0-alpha.1")
+                .await
+                .unwrap()
+                .tag_name,
+            release.tag_name
+        );
+        assert_eq!(
+            super::download_bytes(&format!("{base}/profile"), 32)
+                .await
+                .unwrap(),
+            b"profile-data"
+        );
+        assert_eq!(
+            super::download_bytes(&format!("{base}/large"), 3)
+                .await
+                .unwrap_err()
+                .code,
+            "download_too_large"
+        );
+        server.await.unwrap();
     }
 
     #[test]

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { Button } from '@fluentui/react-components'
-import { useLive } from '../state/AppContext'
+import { useLogs } from '../state/AppContext'
 import { ProductDialog } from './ProductDialog'
 import { ScrollArea, type ScrollAreaRef } from './ScrollArea'
 
 export function AppLogsDialog() {
-  const live = useLive()
+  const live = useLogs()
   const scrollRef = useRef<ScrollAreaRef>(null)
 
   useEffect(() => {

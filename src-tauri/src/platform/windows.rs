@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::ffi::{c_void, OsStr, OsString};
-use std::fs::{self, OpenOptions};
-use std::io::{self, Error, ErrorKind, Write};
+use std::fs;
+use std::io::{self, Error, ErrorKind};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::io::RawHandle;
 use std::os::windows::process::CommandExt;
@@ -467,68 +467,127 @@ pub fn set_loopback_exemptions(add: &[String], remove: &[String]) -> io::Result<
     Ok(())
 }
 
-pub fn set_autostart(executable: &Path, enabled: bool) -> io::Result<()> {
-    if enabled {
-        let executable = existing_absolute_executable(executable)?;
-        let xml_path = write_task_xml(&render_autostart_xml(&executable))?;
-        let result = run_schtasks([
-            OsString::from("/Create"),
-            OsString::from("/TN"),
-            OsString::from(AUTOSTART_TASK_NAME),
-            OsString::from("/XML"),
-            xml_path.clone().into_os_string(),
-            OsString::from("/F"),
-        ])
-        .and_then(|output| ensure_schtasks_success("create autostart task", output));
-        let cleanup = fs::remove_file(&xml_path);
-        if let Err(error) = result {
-            let _ = cleanup;
-            return Err(error);
-        }
-        cleanup?;
+// Task Scheduler takes a UTF-16 BSTR, so no temporary XML file or localized CLI
+// output is involved. COM objects stay on the calling blocking worker thread.
+fn with_task_folder<T>(
+    action: impl FnOnce(&windows::Win32::System::TaskScheduler::ITaskFolder) -> windows::core::Result<T>,
+) -> io::Result<T> {
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+        COINIT_MULTITHREADED,
+    };
+    use windows::Win32::System::TaskScheduler::{ITaskService, TaskScheduler};
+    use windows::Win32::System::Variant::VARIANT;
 
-        if !query_autostart()? {
-            return Err(Error::other(
-                "schtasks reported success but WinBoxAutostart was not found",
-            ));
+    struct Apartment;
+    impl Drop for Apartment {
+        fn drop(&mut self) {
+            unsafe { CoUninitialize() }
         }
-        Ok(())
-    } else {
-        if !query_autostart()? {
-            return Ok(());
-        }
+    }
+    let result = (|| unsafe {
+        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
+        let _apartment = Apartment;
+        let service: ITaskService = CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER)?;
+        let empty = VARIANT::default();
+        service.Connect(&empty, &empty, &empty, &empty)?;
+        let folder = service.GetFolder(&"\\".into())?;
+        action(&folder)
+    })();
+    result.map_err(|error| Error::other(format!("Task Scheduler: {error}")))
+}
 
-        let output = run_schtasks([
-            OsString::from("/Delete"),
-            OsString::from("/TN"),
-            OsString::from(AUTOSTART_TASK_NAME),
-            OsString::from("/F"),
-        ])?;
-        ensure_schtasks_success("delete autostart task", output)?;
-        if query_autostart()? {
-            return Err(Error::other(
-                "schtasks reported success but WinBoxAutostart still exists",
-            ));
-        }
-        Ok(())
+fn registered_task(
+    folder: &windows::Win32::System::TaskScheduler::ITaskFolder,
+    name: &str,
+) -> windows::core::Result<Option<windows::Win32::System::TaskScheduler::IRegisteredTask>> {
+    match unsafe { folder.GetTask(&name.into()) } {
+        Ok(task) => Ok(Some(task)),
+        // Only ERROR_FILE_NOT_FOUND is absence. Access/service failures stay errors.
+        Err(error) if error.code() == windows::core::HRESULT::from_win32(2) => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
-pub fn query_autostart() -> io::Result<bool> {
-    let output = run_schtasks([
-        OsString::from("/Query"),
-        OsString::from("/TN"),
-        OsString::from(AUTOSTART_TASK_NAME),
-        OsString::from("/FO"),
-        OsString::from("LIST"),
-    ])?;
-    if output.status.success() {
-        return Ok(true);
+fn task_matches(
+    task: &windows::Win32::System::TaskScheduler::IRegisteredTask,
+    executable: &Path,
+) -> windows::core::Result<bool> {
+    use windows::core::{Interface, BSTR};
+    use windows::Win32::System::TaskScheduler::IExecAction;
+    unsafe {
+        if !task.Enabled()?.as_bool() {
+            return Ok(false);
+        }
+        let actions = task.Definition()?.Actions()?;
+        let mut count = 0;
+        actions.Count(&mut count)?;
+        if count != 1 {
+            return Ok(false);
+        }
+        let action = actions.get_Item(1)?;
+        let Ok(exec) = action.cast::<IExecAction>() else {
+            return Ok(false);
+        };
+        let mut path = BSTR::new();
+        let mut arguments = BSTR::new();
+        exec.Path(&mut path)?;
+        exec.Arguments(&mut arguments)?;
+        Ok(path
+            .to_string()
+            .eq_ignore_ascii_case(&task_path(executable))
+            && arguments.to_string().trim() == "-minimized")
     }
-    if task_is_missing(&output) {
-        return Ok(false);
-    }
-    Err(schtasks_error("query autostart task", &output))
+}
+
+pub fn set_autostart(executable: &Path, enabled: bool) -> io::Result<bool> {
+    set_named_autostart(AUTOSTART_TASK_NAME, executable, enabled)
+}
+
+fn set_named_autostart(name: &str, executable: &Path, enabled: bool) -> io::Result<bool> {
+    use windows::Win32::System::TaskScheduler::{
+        TASK_CREATE_OR_UPDATE, TASK_LOGON_INTERACTIVE_TOKEN,
+    };
+    use windows::Win32::System::Variant::VARIANT;
+    let executable = existing_absolute_executable(executable)?;
+    with_task_folder(|folder| unsafe {
+        if enabled {
+            let empty = VARIANT::default();
+            folder.RegisterTask(
+                &name.into(),
+                &render_autostart_xml(&executable).into(),
+                TASK_CREATE_OR_UPDATE.0,
+                &empty,
+                &empty,
+                TASK_LOGON_INTERACTIVE_TOKEN,
+                &empty,
+            )?;
+        } else if registered_task(folder, name)?.is_some() {
+            folder.DeleteTask(&name.into(), 0)?;
+        }
+        let task = registered_task(folder, name)?;
+        let actual = match task {
+            Some(ref task) => task_matches(task, &executable)?,
+            None => false,
+        };
+        if actual != enabled || (!enabled && task.is_some()) {
+            return Err(windows::core::Error::new(
+                windows::core::HRESULT(0x80004005u32 as i32),
+                "Autostart verification did not match the requested state",
+            ));
+        }
+        Ok(actual)
+    })
+}
+
+pub fn query_autostart(executable: &Path) -> io::Result<bool> {
+    let executable = existing_absolute_executable(executable)?;
+    with_task_folder(
+        |folder| match registered_task(folder, AUTOSTART_TASK_NAME)? {
+            Some(task) => task_matches(&task, &executable),
+            None => Ok(false),
+        },
+    )
 }
 
 pub fn render_autostart_xml(executable: &Path) -> String {
@@ -540,7 +599,7 @@ pub fn render_autostart_xml(executable: &Path) -> String {
         .unwrap_or_default();
 
     format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
+        r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <Triggers>
     <LogonTrigger>
@@ -683,39 +742,6 @@ fn existing_absolute_executable(executable: &Path) -> io::Result<PathBuf> {
         ));
     }
     Ok(executable)
-}
-
-fn write_task_xml(xml: &str) -> io::Result<PathBuf> {
-    let temp_dir = std::env::temp_dir();
-    for attempt in 0..100u32 {
-        let path = temp_dir.join(format!(
-            "WinBoxAutostart-{}-{attempt}.xml",
-            std::process::id()
-        ));
-        let file = OpenOptions::new().write(true).create_new(true).open(&path);
-        let mut file = match file {
-            Ok(file) => file,
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
-        };
-        if let Err(error) = file.write_all(xml.as_bytes()).and_then(|()| file.flush()) {
-            let _ = fs::remove_file(&path);
-            return Err(error);
-        }
-        return Ok(path);
-    }
-    Err(Error::new(
-        ErrorKind::AlreadyExists,
-        "could not allocate a temporary task XML path",
-    ))
-}
-
-fn run_schtasks<I, S>(args: I) -> io::Result<Output>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    run_system_tool("schtasks.exe", args)
 }
 
 fn run_system_tool<I, S>(name: &str, args: I) -> io::Result<Output>
@@ -898,25 +924,6 @@ fn registry_value_utf16(key: &str, name: &str) -> Option<String> {
     Some(String::from_utf16_lossy(&words))
 }
 
-fn ensure_schtasks_success(action: &str, output: Output) -> io::Result<()> {
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(schtasks_error(action, &output))
-    }
-}
-
-fn schtasks_error(action: &str, output: &Output) -> io::Error {
-    Error::other(format!("{action} failed: {}", output_text(output)))
-}
-
-fn task_is_missing(output: &Output) -> bool {
-    let text = output_text(output).to_ascii_lowercase();
-    text.contains("cannot find the path specified")
-        || text.contains("cannot find the file specified")
-        || text.contains("not found")
-}
-
 fn output_text(output: &Output) -> String {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -988,6 +995,39 @@ mod tests {
         assert!(xml.contains("<RunLevel>HighestAvailable</RunLevel>"));
         assert!(xml.contains("<Arguments>-minimized</Arguments>"));
         assert!(xml.contains("C:\\Users\\A &amp; B\\WinBox.exe"));
+        assert!(xml.contains("encoding=\"UTF-16\""));
+    }
+
+    #[test]
+    #[ignore = "creates and removes a unique diagnostic task; run elevated on Windows"]
+    fn autostart_task_roundtrip() {
+        let name = format!("WinBox-Test-{}", uuid::Uuid::new_v4());
+        let root = std::env::temp_dir().join(&name);
+        fs::create_dir(&root).unwrap();
+        // Never execute this file. Unicode, spaces and ampersands exercise XML/BSTR encoding.
+        let executable = root.join("测试 & WinBox.exe");
+        fs::write(&executable, b"Task registration fixture, not an executable").unwrap();
+        let result = (|| -> std::io::Result<()> {
+            assert!(!super::set_named_autostart(&name, &executable, false)?);
+            assert!(super::set_named_autostart(&name, &executable, true)?);
+            assert!(super::set_named_autostart(&name, &executable, true)?);
+            super::with_task_folder(|folder| unsafe {
+                let task = super::registered_task(folder, &name)?.unwrap();
+                assert!(super::task_matches(&task, &executable)?);
+                assert!(!super::task_matches(&task, &root.join("other.exe"))?);
+                task.SetEnabled(windows::Win32::Foundation::VARIANT_FALSE)?;
+                assert!(!super::task_matches(&task, &executable)?);
+                Ok(())
+            })?;
+            assert!(!super::set_named_autostart(&name, &executable, false)?);
+            assert!(!super::set_named_autostart(&name, &executable, false)?);
+            Ok(())
+        })();
+        let cleanup = super::set_named_autostart(&name, &executable, false);
+        fs::remove_file(&executable).unwrap();
+        fs::remove_dir(&root).unwrap();
+        cleanup.expect("remove diagnostic task");
+        result.expect("roundtrip preserves task state");
     }
 
     #[test]

@@ -1,32 +1,17 @@
 import { Activity, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Checkbox, Spinner } from '@fluentui/react-components'
 import { ArrowLeft16Regular, Dismiss16Regular, Settings16Regular, Subtract16Regular } from '@fluentui/react-icons'
-import { marked } from 'marked'
+import { renderChangelog } from './utils/changelog'
 import * as Backend from './api/backend'
 import { useApp } from './state/AppContext'
 import Dashboard from './components/Dashboard'
 import { PageMotion } from './components/motion'
+import { ScrollArea } from './components/ScrollArea'
 import { ProductDialog } from './components/ProductDialog'
 import TrayIconUrl from './assets/icon-builder/src/tray.svg'
 import { brandButtonStyle } from './theme'
 
 const SettingsPage = lazy(() => import('./components/SettingsPage'))
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  })[character] ?? character)
-}
-
-function renderChangelog(value: string) {
-  const renderer = new marked.Renderer()
-  renderer.html = ({ text }) => escapeHtml(text)
-  return marked.parse(value, { renderer }) as string
-}
 
 export default function App() {
   const app = useApp()
@@ -36,7 +21,8 @@ export default function App() {
   const openSettings = () => { setSettingsVisited(true); setShowSettings(true) }
   const [showQuitConfirm, setShowQuitConfirm] = useState(false)
   const [showUwpModal, setShowUwpModal] = useState(false)
-  const [showChangelogModal, setShowChangelogModal] = useState(false)
+  const [updateDialog, setUpdateDialog] = useState<'program' | 'kernel'>('program')
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false)
   const updateCheckStarted = useRef(false)
 
@@ -87,7 +73,8 @@ export default function App() {
     }
   }
 
-  const changelog = useMemo(() => renderChangelog(app.programChangelog), [app.programChangelog])
+  const kernelDialog = updateDialog === 'kernel'
+  const changelog = useMemo(() => renderChangelog(kernelDialog ? app.kernelChangelog : app.programChangelog), [kernelDialog, app.kernelChangelog, app.programChangelog])
 
   const switchMode = async (target: { tunMode: boolean; sysProxy: boolean }) => {
     const result = await app.handleSwitchMode(target)
@@ -131,7 +118,7 @@ export default function App() {
               <Suspense fallback={<div className="page-loading"><Spinner size="tiny" label="Loading settings…" /></div>}>
                 <SettingsPage showUwpModal={showUwpModal}
                   onOpenUwp={() => { setShowUwpModal(true); void app.loadUwpApps() }}
-                  onCloseUwp={() => setShowUwpModal(false)} onOpenChangelog={() => setShowChangelogModal(true)} />
+                  onCloseUwp={() => setShowUwpModal(false)} onOpenChangelog={kind => { setUpdateDialog(kind); setShowUpdateDialog(true) }} />
               </Suspense>
             </div>
           </PageMotion>
@@ -159,20 +146,26 @@ export default function App() {
       </ProductDialog>
 
       <ProductDialog
-        open={showChangelogModal}
-        title={`What's new in ${app.programRemoteVer}`}
-        onOpenChange={setShowChangelogModal}
+        open={showUpdateDialog}
+        title={kernelDialog ? 'Update sing-box' : 'Update WinBox'}
+        onOpenChange={setShowUpdateDialog}
         width="md"
         footer={(
           <div className="dialog-actions-stretch">
-            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => setShowChangelogModal(false)}>Later</Button>
-            <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => { setShowChangelogModal(false); openSettings(); void app.performProgramUpdate() }}>
+            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => setShowUpdateDialog(false)}>Later</Button>
+            <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" disabled={app.isChangingUpdateChannel || ['checking', 'updating'].includes(app.updateState) || ['checking', 'updating'].includes(app.programUpdateState)} onClick={() => { setShowUpdateDialog(false); openSettings(); void (kernelDialog ? app.performUpdate() : app.performProgramUpdate()) }}>
               Update now
             </Button>
           </div>
         )}
       >
-        {app.programUpdateState === 'updating' ? <Spinner label="Updating…" /> : <div className="markdown-body" dangerouslySetInnerHTML={{ __html: changelog }} />}
+        <p>{kernelDialog ? app.localVer : app.programLocalVer} → {kernelDialog ? app.remoteVer : app.programRemoteVer}</p>
+        <ScrollArea key={updateDialog} maxHeight="45vh" style={{ minHeight: 0 }}><div className="markdown-body" onClick={(event) => {
+          const link = (event.target as Element).closest('a')
+          if (!link) return
+          event.preventDefault()
+          void Backend.BrowserOpenURL(link.href).catch(reportBackendError)
+        }} dangerouslySetInnerHTML={{ __html: changelog }} /></ScrollArea>
       </ProductDialog>
     </div>
   )

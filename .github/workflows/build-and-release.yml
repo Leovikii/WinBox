@@ -180,7 +180,6 @@ jobs:
 
           $metadata = [ordered]@{
             version = $version
-            notes = $notes
             pub_date = (Get-Date).ToUniversalTime().ToString('o')
             platforms = [ordered]@{
               'windows-x86_64-nsis' = [ordered]@{

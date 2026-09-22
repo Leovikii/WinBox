@@ -140,6 +140,18 @@ impl Storage {
         Ok(())
     }
 
+    pub fn save_mode(&self, tun_mode: bool, sys_proxy: bool) -> Result<(), StorageError> {
+        let _guard = self.inner.lock.lock().expect("storage lock");
+        let path = self.inner.paths.state_file();
+        let mut state = read_json_or_default(&path, AppState::default())?;
+        state.tun_mode = tun_mode;
+        state.sys_proxy = sys_proxy;
+        atomic_write(
+            &path,
+            &serde_json::to_vec_pretty(&state).expect("state is serializable"),
+        )
+    }
+
     pub fn save_override(&self, kind: &str, content: &str) -> Result<(), StorageError> {
         let _guard = self.inner.lock.lock().expect("storage lock");
         self.save_override_unlocked(kind, content)
@@ -340,6 +352,36 @@ mod tests {
         snapshot.tun_config = r#"{"type":"tun","mtu":1500}"#.to_owned();
         storage.save(&snapshot).expect("save snapshot");
         assert_eq!(storage.load().expect("reload"), snapshot);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn mode_save_only_updates_state_and_preserves_invalid_data() {
+        let root = temp_dir("mode");
+        let storage = Storage::new(AppPaths::from_data_dir(&root));
+        let mut snapshot = DataSnapshot::default();
+        snapshot.state.active_id = "keep-profile".to_owned();
+        storage.save(&snapshot).unwrap();
+        let settings = fs::read(storage.paths().settings_file()).unwrap();
+        // Mode persistence must not read/rewrite unrelated files, even invalid overrides.
+        let override_path = storage.paths().override_file("tun").unwrap();
+        fs::write(&override_path, "invalid-but-unrelated").unwrap();
+        storage.save_mode(true, false).unwrap();
+        let state: crate::models::AppState =
+            serde_json::from_slice(&fs::read(storage.paths().state_file()).unwrap()).unwrap();
+        assert!(state.tun_mode && !state.sys_proxy);
+        assert_eq!(state.active_id, "keep-profile");
+        assert_eq!(fs::read(storage.paths().settings_file()).unwrap(), settings);
+        assert_eq!(
+            fs::read_to_string(override_path).unwrap(),
+            "invalid-but-unrelated"
+        );
+        fs::write(storage.paths().state_file(), "invalid-state").unwrap();
+        assert!(storage.save_mode(false, true).is_err());
+        assert_eq!(
+            fs::read_to_string(storage.paths().state_file()).unwrap(),
+            "invalid-state"
+        );
         let _ = fs::remove_dir_all(root);
     }
 }

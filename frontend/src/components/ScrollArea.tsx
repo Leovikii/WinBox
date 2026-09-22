@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from 'overlayscrollbars-react'
-import { useApp } from '../state/AppContext'
+import { useTheme } from '../state/AppContext'
 
 export interface ScrollAreaRef {
   scrollToBottom: () => void
@@ -24,7 +24,7 @@ export const ScrollArea = forwardRef<ScrollAreaRef, ScrollAreaProps>(function Sc
   maxHeight,
   horizontal = false,
 }, ref) {
-  const { isDark } = useApp()
+  const { isDark } = useTheme()
   const scrollRef = useRef<OverlayScrollbarsComponentRef | null>(null)
   const position = useRef({ top: 0, left: 0 })
   const active = useRef(true)

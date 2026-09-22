@@ -1,13 +1,13 @@
 # 架构与开发入口
 
-2026-09-22 用户人工验收后关闭 Wails→Tauri、Vue→React/Fluent 迁移阶段。当前目标版本 `3.0.0-alpha.2`，后续按正常维护开发；历史计划/决策/验收流水从 Git 历史查阅，不再维护迁移百分比。
+2026-09-22 用户人工验收后关闭 Wails→Tauri、Vue→React/Fluent 迁移阶段。当前目标版本 `3.0.0-alpha.3`，后续按正常维护开发；历史计划/决策/验收流水从 Git 历史查阅，不再维护迁移百分比。
 
 ## 模块
 
 | 位置 | 职责 |
 | --- | --- |
 | `frontend/src/api/backend.ts` | 唯一前端 IPC、DTO、事件订阅边界 |
-| `frontend/src/state/AppContext.tsx` | 初始化、业务状态/动作、低频应用上下文与流量/日志上下文 |
+| `frontend/src/state/AppContext.tsx` | 初始化、业务状态/动作、低频应用、主题、流量、日志各自独立的上下文 |
 | `frontend/src/components/`、`App.tsx` | Fluent 展示、业务弹窗和窗口交互 |
 | `frontend/src/theme.ts`、`index.css`、`components/motion.ts` | 主题 token、产品布局、官方 presence 动效 |
 | `frontend/src/utils/` | 纯数据处理；不依赖桌面运行时 |
@@ -38,6 +38,7 @@
 | Fluent icons 2.0.341 | [微软图标](https://github.com/microsoft/fluentui-system-icons)，MIT；按原生尺寸选 Regular |
 | OverlayScrollbars / React 0.5.6 | [官方项目](https://github.com/KingSora/OverlayScrollbars)，MIT；Fluent 无等价滚动区，保留成熟实现 |
 | Tauri 2.11.5、updater 2.11.0 | [Tauri](https://github.com/tauri-apps/tauri)、官方插件，MIT/Apache-2.0；opener/single-instance 复用官方实现 |
+| windows 0.61.3 | [微软 windows-rs](https://github.com/microsoft/windows-rs)，MIT/Apache-2.0，微软持续维护；复用已锁定版本，直接启用 COM/TaskScheduler/Variant 绑定，避免 schtasks XML 文件编码与本地化输出；只在 Windows 平台、阻塞工作线程内使用 |
 | Tokio、reqwest、tokio-tungstenite、serde、sha2、zip | 异步进程/网络/JSON/完整性及归档处理；不用 shell 插件管理动态下载的内核 |
 
 GitHub 标志来自 [primer/octicons](https://github.com/primer/octicons)，MIT 原文在 `frontend/src/assets/github.LICENSE`。不打包微软系统字体。图标生成器在 `frontend/src/assets/icon-builder/`，托盘 SVG/ICO 和 README 截图仍有用途，不属于清理对象。

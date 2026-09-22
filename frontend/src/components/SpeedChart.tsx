@@ -4,6 +4,9 @@ import { useLayoutEffect, useMemo, useState } from 'react'
 import type { SpeedPoint } from '../utils/trafficHistory'
 
 const MIN_SCALE_SPEED = 100 * 1024
+const noTicks: number[] = []
+const margins = { top: 2, right: 0, bottom: 2, left: 0 }
+const svgProps = { 'aria-hidden': true } as const
 
 export function SpeedChart({ history, dark }: { history: SpeedPoint[]; dark: boolean }) {
   const palette = dark ? webDarkTheme : webLightTheme
@@ -43,16 +46,16 @@ export function SpeedChart({ history, dark }: { history: SpeedPoint[]; dark: boo
         yMaxValue={maxSpeed}
         yAxisTickCount={1}
         xAxisTickCount={1}
-        tickValues={[]}
-        yAxisTickValues={[]}
-        margins={{ top: 2, right: 0, bottom: 2, left: 0 }}
+        tickValues={noTicks}
+        yAxisTickValues={noTicks}
+        margins={margins}
         mode="tozeroy"
         hideLegend
         hideTooltip
         enableGradient
         enablePerfOptimization
         optimizeLargeData
-        svgProps={{ 'aria-hidden': true }}
+        svgProps={svgProps}
       />
     </div>
   )
