@@ -12,6 +12,7 @@ export interface ProfileDto {
 
 export interface InitDataDto {
   running: boolean
+  coreBusy: boolean
   coreExists: boolean
   localVersion: string
   tunMode: boolean
@@ -116,8 +117,6 @@ export const SaveMode = (tunMode: boolean, sysProxy: boolean) =>
 export const ApplyState = (targetTun: boolean, targetProxy: boolean) =>
   invokeText('apply_state', { targetTun, targetProxy })
 
-export const ToggleService = () => invokeText('toggle_service')
-
 export const RestartCore = () => invokeText('restart_core')
 
 export const AddProfile = (name: string, url: string) =>
@@ -149,9 +148,6 @@ export const SetCloseBehavior = (behavior: string) =>
 
 export const GetAppLog = () => invokeOrThrow<string>('get_app_log')
 export const ClearAppLog = () => invokeText('clear_app_log')
-export const GetKernelLog = () => invokeOrThrow<string>('get_kernel_log')
-export const ClearKernelLog = () => invokeText('clear_kernel_log')
-export const GetLogFile = () => invokeOrThrow<string>('get_log_file')
 
 export const GetUWPApps = () => invokeOrThrow<UWPAppDto[]>('get_uwp_apps')
 
@@ -193,9 +189,6 @@ export const Show = () =>
   invokeOrThrow<void>('show')
 
 export const Quit = () => invoke<void>('quit')
-export const StartTray = () => invoke<void>('start_tray')
-export const UpdateTrayIcon = () => invoke<void>('update_tray_icon')
-export const UpdateTrayMenu = () => invoke<void>('update_tray_menu')
 
 export const SetWindowTheme = (mode: string) =>
   invokeOrThrow<void>('set_window_theme', { mode })

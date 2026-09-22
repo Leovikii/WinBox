@@ -1,3 +1,9 @@
+const versionPattern = /^[vV]?\d+(?:\.\d+)+(?:-[0-9A-Za-z.-]+)?$/
+
+export function isVersion(value: string): boolean {
+  return versionPattern.test(value.trim())
+}
+
 export function compareVersions(v1: string, v2: string): number {
   const clean1 = v1.replace(/^[vV]/, '').trim()
   const clean2 = v2.replace(/^[vV]/, '').trim()
@@ -29,5 +35,5 @@ export function compareVersions(v1: string, v2: string): number {
 }
 
 export function isNewerVersion(remote: string, local: string): boolean {
-  return compareVersions(remote, local) > 0
+  return isVersion(remote) && isVersion(local) && compareVersions(remote, local) > 0
 }

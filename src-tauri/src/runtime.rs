@@ -34,6 +34,7 @@ struct RuntimeInner {
     core: Mutex<Option<Arc<Mutex<CoreProcess>>>>,
     operation: Mutex<()>,
     stopping: AtomicBool,
+    busy: AtomicBool,
     app_log_lock: Mutex<()>,
     kernel_log: Mutex<VecDeque<String>>,
     traffic_cancel: Mutex<Option<oneshot::Sender<()>>>,
@@ -53,6 +54,19 @@ struct PersistedProxyState {
     owned: SystemProxySettings,
 }
 
+pub struct CoreOperation<'a> {
+    _lock: tokio::sync::MutexGuard<'a, ()>,
+    busy: &'a AtomicBool,
+    app: AppHandle,
+}
+
+impl Drop for CoreOperation<'_> {
+    fn drop(&mut self) {
+        self.busy.store(false, Ordering::Release);
+        let _ = self.app.emit("core-busy", false);
+    }
+}
+
 impl RuntimeState {
     pub fn new(paths: AppPaths) -> Self {
         let persisted_proxy = load_proxy_state(&paths);
@@ -62,6 +76,7 @@ impl RuntimeState {
                 core: Mutex::new(None),
                 operation: Mutex::new(()),
                 stopping: AtomicBool::new(false),
+                busy: AtomicBool::new(false),
                 app_log_lock: Mutex::new(()),
                 kernel_log: Mutex::new(VecDeque::with_capacity(MAX_KERNEL_LOG_LINES)),
                 traffic_cancel: Mutex::new(None),
@@ -80,6 +95,21 @@ impl RuntimeState {
 
     pub async fn operation(&self) -> tokio::sync::MutexGuard<'_, ()> {
         self.inner.operation.lock().await
+    }
+
+    pub async fn core_operation(&self, app: &AppHandle) -> CoreOperation<'_> {
+        let lock = self.inner.operation.lock().await;
+        self.inner.busy.store(true, Ordering::Release);
+        let _ = app.emit("core-busy", true);
+        CoreOperation {
+            _lock: lock,
+            busy: &self.inner.busy,
+            app: app.clone(),
+        }
+    }
+
+    pub fn core_busy(&self) -> bool {
+        self.inner.busy.load(Ordering::Acquire)
     }
 
     pub async fn core(&self) -> Option<Arc<Mutex<CoreProcess>>> {

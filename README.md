@@ -2,7 +2,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Tauri 2](https://tauri.app), Rust, and Vue 3.
+A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Tauri 2](https://tauri.app), Rust, React, and Microsoft Fluent UI.
 
 <div align="center">
   <img src="frontend/src/assets/demo/demo1.png" alt="WinBox Dashboard 1" width="350" style="border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.1); margin: 0 10px;">
@@ -25,10 +25,10 @@ WinBox is designed to provide a seamless and professional proxy management exper
 
 ## Installation
 
-1. Navigate to the [Releases](../../releases) page.
+1. Navigate to the [Releases](https://github.com/Leovikii/WinBox/releases) page.
 2. Download the Windows AMD64/x64 NSIS installer and confirm the installation. It uses the default `C:\Program Files\WinBox\` location and does not require a path or component choice.
 3. The installer starts WinBox automatically after installation.
-   *Note: TUN mode requires the application to be launched with Administrator privileges to manage virtual network interfaces.*
+   *Note: WinBox currently requests Administrator privileges at startup.*
 
 WinBox stores user data outside the installation directory, normally at
 `%LOCALAPPDATA%\com.leovikii.winbox\`. Updates replace application files only.
@@ -36,9 +36,8 @@ The installation directory contains only the application and installer-generated
 runtime/uninstall files; profiles, settings, logs and the sing-box core stay in
 the data directory.
 The installer does not automatically migrate data from the old single-file
-portable version. Before first launch, old portable users should back up their
-old `data` directory and manually copy its contents to the new data directory
-if they want to keep their profiles and settings.
+portable version. Old portable users should follow the backup and copy steps below to keep
+their profiles and settings.
 
 For a manual upgrade from the old portable version:
 
@@ -51,14 +50,14 @@ For a manual upgrade from the old portable version:
 ## Quick Start
 
 1. **First Initialization**: Navigate to **Settings**. If operating in a restricted network environment, enable the **GitHub Mirror** option. Click **"Check Updates"** to automatically provision the Sing-box kernel.
-2. **Import Profiles**: Open the "Profiles" drawer to add and manage your subscription URLs.
-3. **Connect**: Toggle **TUN Mode** or **System Proxy** directly from the main dashboard.
+2. **Import Profiles**: Open the "Profile" manager to add and manage your subscription URLs.
+3. **Connect**: Select **Proxy**, **TUN**, or **Mixed**, then click **Start**.
 
 ## Build from Source
 
 **Prerequisites:**
-* [Rust](https://www.rust-lang.org/tools/install) (stable, Windows MSVC toolchain)
-* [Node.js](https://nodejs.org/) (18+)
+* [Rust](https://www.rust-lang.org/tools/install) (1.97+, Windows x64 MSVC toolchain and Visual Studio C++ Build Tools)
+* [Node.js](https://nodejs.org/) (20.19+ on Node 20, or 22.12+)
 * WebView2 Runtime
 * [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
 
@@ -66,14 +65,15 @@ For a manual upgrade from the old portable version:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YourUsername/WinBox.git
+git clone https://github.com/Leovikii/WinBox.git
 cd WinBox
 
 # 2. Install frontend dependencies and build the frontend
 npm ci --prefix frontend
 npm --prefix frontend run build
 
-# 3. Build the Windows AMD64/x64 NSIS installer for local testing
+# 3. Install the pinned CLI, then build the x64 NSIS installer for local testing
+cargo install tauri-cli --version 2.11.4 --locked
 cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign
 ```
 
@@ -86,5 +86,11 @@ artifacts.
 The in-app updater uses the existing pre-release setting when checking release
 metadata; no separate update channel is created.
 
-The migration rules and current implementation evidence live in
-[`docs/tauri-migration/README.md`](docs/tauri-migration/README.md).
+The backend and React + Fluent UI migrations are complete. After manual testing,
+the maintainer closed the refactor phase on 2026-09-22. Version `3.0.0-alpha.2`
+is ready for the maintainer's `dev` → `main` pull request; publication follows the
+existing signed release workflow.
+
+Development guides: [Architecture](docs/architecture.md),
+[Frontend design](docs/frontend.md), [Backend contracts](docs/backend.md),
+[Testing and release](docs/development.md). AI agents start with [AGENTS.md](AGENTS.md).

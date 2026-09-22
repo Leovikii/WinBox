@@ -196,7 +196,7 @@ fn read_override(path: PathBuf, default: &str) -> Result<String, StorageError> {
     }
 }
 
-// ponytail: files are committed sequentially; add a manifest/journal when cross-file crash recovery is required (MIG-007/V05).
+// ponytail: files are committed sequentially; add a manifest/journal when cross-file crash recovery is required.
 pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<(), StorageError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| StorageError::Io {

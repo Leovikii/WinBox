@@ -14,6 +14,81 @@ pub const AUTOSTART_DELAY: &str = "PT30S";
 pub const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[link(name = "iphlpapi")]
+unsafe extern "system" {
+    fn GetExtendedTcpTable(
+        table: *mut c_void,
+        size: *mut u32,
+        order: i32,
+        family: u32,
+        class: u32,
+        reserved: u32,
+    ) -> u32;
+}
+
+/// Check the endpoint's owner, so an unrelated HTTP server cannot signal readiness.
+pub fn owns_tcp_listener(pid: u32, address: std::net::SocketAddr) -> io::Result<bool> {
+    let family = if address.is_ipv4() { 2 } else { 23 };
+    let mut size = 0;
+    let mut table = Vec::<u32>::new();
+    loop {
+        // OWNER_PID_LISTENER = 3. u32 storage provides the table's required alignment.
+        let result = unsafe {
+            GetExtendedTcpTable(
+                if table.is_empty() {
+                    std::ptr::null_mut()
+                } else {
+                    table.as_mut_ptr().cast()
+                },
+                &mut size,
+                0,
+                family,
+                3,
+                0,
+            )
+        };
+        if result == 122 {
+            table.resize((size as usize).div_ceil(4), 0);
+            continue;
+        }
+        if result != 0 {
+            return Err(Error::from_raw_os_error(result as i32));
+        }
+        break;
+    }
+    let width = if address.is_ipv4() { 6 } else { 14 };
+    let count = table.first().copied().unwrap_or(0) as usize;
+    for row in table
+        .get(1..)
+        .unwrap_or_default()
+        .chunks_exact(width)
+        .take(count)
+    {
+        let (port, owner, local_matches) = match address.ip() {
+            std::net::IpAddr::V4(ip) => (
+                row[2],
+                row[5],
+                row[1] == 0 || row[1].to_ne_bytes() == ip.octets(),
+            ),
+            std::net::IpAddr::V6(ip) => {
+                let bytes: Vec<u8> = row[..4]
+                    .iter()
+                    .flat_map(|word| word.to_ne_bytes())
+                    .collect();
+                (
+                    row[5],
+                    row[13],
+                    bytes.iter().all(|byte| *byte == 0) || bytes == ip.octets(),
+                )
+            }
+        };
+        if owner == pid && u16::from_be(port as u16) == address.port() && local_matches {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 const ERROR_INVALID_HANDLE: i32 = 6;
 const ERROR_ACCESS_DENIED: i32 = 5;
 const ERROR_SHARING_VIOLATION: i32 = 32;
@@ -48,6 +123,33 @@ unsafe extern "system" {
     ) -> i32;
     fn MoveFileExW(existing_file_name: *const u16, new_file_name: *const u16, flags: u32) -> i32;
 }
+
+#[allow(non_snake_case)]
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    fn RegOpenKeyExW(
+        hkey: isize,
+        sub_key: *const u16,
+        options: u32,
+        access: u32,
+        result: *mut isize,
+    ) -> i32;
+    fn RegQueryValueExW(
+        hkey: isize,
+        value_name: *const u16,
+        reserved: *mut u32,
+        value_type: *mut u32,
+        data: *mut u8,
+        data_size: *mut u32,
+    ) -> i32;
+    fn RegCloseKey(hkey: isize) -> i32;
+}
+
+const HKEY_CURRENT_USER: isize = -2147483647isize;
+const KEY_QUERY_VALUE: u32 = 0x0001;
+const ERROR_SUCCESS_CODE: i32 = 0;
+const REG_SZ: u32 = 1;
+const REG_EXPAND_SZ: u32 = 2;
 
 #[allow(non_snake_case)]
 #[link(name = "wininet")]
@@ -316,18 +418,21 @@ pub fn get_uwp_apps() -> io::Result<Vec<UwpAppRecord>> {
     let mut apps = Vec::new();
     for sid in sids {
         let key = format!(r"{root}\{sid}");
-        let detail = run_system_tool("reg.exe", [OsString::from("QUERY"), OsString::from(key)])?;
-        if !detail.status.success() {
-            continue;
-        }
-        let display_name = reg_value(&detail.stdout, "DisplayName").unwrap_or_default();
-        if display_name.contains("ms-resource") || display_name.is_empty() {
-            continue;
-        }
+        let display_name = registry_value_utf16(&key, "DisplayName").unwrap_or_default();
+        let package_name = registry_value_utf16(&key, "Moniker").unwrap_or_default();
+        let display_name = if display_name.contains("ms-resource") || display_name.is_empty() {
+            if package_name.is_empty() {
+                sid.clone()
+            } else {
+                package_name.clone()
+            }
+        } else {
+            display_name
+        };
         apps.push(UwpAppRecord {
             sid: sid.clone(),
             display_name,
-            package_name: reg_value(&detail.stdout, "Moniker").unwrap_or_default(),
+            package_name,
             is_exempt: exempt.contains(&sid),
         });
     }
@@ -724,15 +829,73 @@ fn validate_uwp_sid(value: &str) -> io::Result<()> {
     }
 }
 
-fn reg_value(bytes: &[u8], name: &str) -> Option<String> {
-    let text = String::from_utf8_lossy(bytes);
-    text.lines().find_map(|line| {
-        let trimmed = line.trim();
-        let rest = trimmed.strip_prefix(name)?;
-        let rest = rest.trim_start();
-        let rest = rest.strip_prefix("REG_SZ")?.trim_start();
-        Some(rest.to_owned())
-    })
+fn registry_value_utf16(key: &str, name: &str) -> Option<String> {
+    let key = key.strip_prefix(r"HKCU\").unwrap_or(key);
+    let key_w: Vec<u16> = OsStr::new(key)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let name_w: Vec<u16> = OsStr::new(name)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut handle = 0isize;
+    let result = unsafe {
+        RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            key_w.as_ptr(),
+            0,
+            KEY_QUERY_VALUE,
+            &mut handle,
+        )
+    };
+    if result != ERROR_SUCCESS_CODE {
+        return None;
+    }
+    let mut value_type = 0u32;
+    let mut size = 0u32;
+    let query = unsafe {
+        RegQueryValueExW(
+            handle,
+            name_w.as_ptr(),
+            std::ptr::null_mut(),
+            &mut value_type,
+            std::ptr::null_mut(),
+            &mut size,
+        )
+    };
+    if query != ERROR_SUCCESS_CODE
+        || (value_type != REG_SZ && value_type != REG_EXPAND_SZ)
+        || size < 2
+    {
+        unsafe {
+            RegCloseKey(handle);
+        }
+        return None;
+    }
+    let mut bytes = vec![0u8; size as usize];
+    let query = unsafe {
+        RegQueryValueExW(
+            handle,
+            name_w.as_ptr(),
+            std::ptr::null_mut(),
+            &mut value_type,
+            bytes.as_mut_ptr(),
+            &mut size,
+        )
+    };
+    unsafe {
+        RegCloseKey(handle);
+    }
+    if query != ERROR_SUCCESS_CODE {
+        return None;
+    }
+    let words = bytes[..size as usize]
+        .chunks_exact(2)
+        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+        .take_while(|word| *word != 0)
+        .collect::<Vec<_>>();
+    Some(String::from_utf16_lossy(&words))
 }
 
 fn ensure_schtasks_success(action: &str, output: Output) -> io::Result<()> {
@@ -787,6 +950,35 @@ mod tests {
     use super::{render_autostart_xml, validate_core_executable, AUTOSTART_DELAY};
     use std::fs;
     use std::path::Path;
+
+    #[test]
+    fn tcp_listener_owner_matches_ipv4_and_ipv6() {
+        for host in ["127.0.0.1:0", "[::1]:0"] {
+            let listener = std::net::TcpListener::bind(host).unwrap();
+            let address = listener.local_addr().unwrap();
+            assert!(super::owns_tcp_listener(std::process::id(), address).unwrap());
+            assert!(!super::owns_tcp_listener(0, address).unwrap());
+        }
+    }
+
+    #[test]
+    #[ignore = "reads the current Windows user's AppContainer registry; run explicitly on the desktop"]
+    fn installed_uwp_apps_are_detected() {
+        let apps = super::get_uwp_apps().expect("enumerate UWP mappings");
+        assert!(
+            !apps.is_empty(),
+            "this desktop must have installed UWP applications"
+        );
+        assert!(apps.iter().all(|app| !app.display_name.is_empty()));
+        assert!(
+            apps.iter().any(|app| !app.package_name.is_empty()),
+            "registry values must be read successfully"
+        );
+        println!(
+            "Detected {} UWP applications with readable names",
+            apps.len()
+        );
+    }
 
     #[test]
     fn task_xml_preserves_startup_contract_and_escapes_path() {
