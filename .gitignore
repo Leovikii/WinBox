@@ -27,3 +27,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Generated frontend browser regression output
+frontend/test-results/

@@ -155,6 +155,7 @@ impl From<StorageError> for AppError {
 #[serde(rename_all = "camelCase")]
 pub struct InitDataDto {
     pub running: bool,
+    pub core_busy: bool,
     pub core_exists: bool,
     pub local_version: String,
     pub tun_mode: bool,
@@ -228,6 +229,7 @@ async fn init_data_from_snapshot(
         .cloned();
     InitDataDto {
         running: runtime.core().await.is_some(),
+        core_busy: runtime.core_busy(),
         core_exists,
         local_version: local_version(&storage.paths().core_dir),
         tun_mode: snapshot.state.tun_mode,
@@ -493,12 +495,12 @@ async fn apply_state_impl(
     storage: &Storage,
     runtime: &RuntimeState,
 ) -> Result<String, AppError> {
-    let _operation = runtime.operation().await;
+    let _operation = runtime.core_operation(app).await;
     let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
 
     let Some((target_tun, target_proxy)) = requested_mode(target_tun, target_proxy) else {
         let _ = app.emit("core-stopping", ());
-        let result = stop_core_impl(runtime).await;
+        let result = stop_core_impl(app, runtime).await;
         if result == "Stopped" || result == "Already stopped" {
             let _ = app.emit("status", false);
             let _ = app.emit(
@@ -538,12 +540,19 @@ async fn apply_state_impl(
         return Ok("Success".to_owned());
     }
 
-    let _ = app.emit("core-starting", ());
+    let _ = app.emit(
+        if was_running {
+            "core-restarting"
+        } else {
+            "core-starting"
+        },
+        (),
+    );
     if was_running {
-        let stop_result = stop_core_impl(runtime).await;
+        let stop_result = stop_core_impl(app, runtime).await;
         if stop_result.starts_with("Error") {
             let _ = storage.save(&previous);
-            let _ = app.emit("status", true);
+            let _ = app.emit("status", runtime.core().await.is_some());
             let _ = app.emit(
                 "state-sync",
                 json!({
@@ -567,50 +576,7 @@ async fn apply_state_impl(
         Err(error) => {
             let _ = storage.save(&previous);
             let _ = app.emit("status", false);
-            Ok(error.code)
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn toggle_service(
-    app: AppHandle,
-    storage: State<'_, Storage>,
-    runtime: State<'_, RuntimeState>,
-) -> Result<String, AppError> {
-    let _operation = runtime.operation().await;
-    if runtime.core().await.is_some() {
-        let result = stop_core_impl(&runtime).await;
-        if result == "Stopped" || result == "Already stopped" {
-            refresh_tray(&app, false, false, false);
-        }
-        return Ok(result);
-    }
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    if active_profile_path(&snapshot, storage.paths()).is_err() {
-        return Ok("config-missing".to_owned());
-    }
-    let _ = app.emit("core-starting", ());
-    match start_core_impl(&app, &storage, &runtime, &snapshot).await {
-        Ok(()) => {
-            let _ = app.emit("status", true);
-            refresh_tray(
-                &app,
-                true,
-                snapshot.state.tun_mode,
-                snapshot.state.sys_proxy,
-            );
-            Ok("Success".to_owned())
-        }
-        Err(error) => {
-            let _ = app.emit("status", false);
-            refresh_tray(
-                &app,
-                false,
-                snapshot.state.tun_mode,
-                snapshot.state.sys_proxy,
-            );
-            Ok(error.code)
+            Ok(format!("Error: {}", error.message))
         }
     }
 }
@@ -629,15 +595,15 @@ async fn restart_core_impl(
     storage: &Storage,
     runtime: &RuntimeState,
 ) -> Result<String, AppError> {
-    let _operation = runtime.operation().await;
+    let _operation = runtime.core_operation(app).await;
     if runtime.core().await.is_none() {
         return Ok("Error: Core is not running".to_owned());
     }
     let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
     let _ = app.emit("core-restarting", ());
-    let stop_result = stop_core_impl(runtime).await;
+    let stop_result = stop_core_impl(app, runtime).await;
     if stop_result.starts_with("Error") {
-        let _ = app.emit("status", true);
+        let _ = app.emit("status", runtime.core().await.is_some());
         return Ok(stop_result);
     }
     match start_core_impl(app, storage, runtime, &snapshot).await {
@@ -661,21 +627,37 @@ async fn restart_core_impl(
                 snapshot.state.tun_mode,
                 snapshot.state.sys_proxy,
             );
-            Ok(error.code)
+            Ok(format!("Error: {}", error.message))
         }
     }
+}
+
+fn report_tray_result(app: &AppHandle, result: Result<String, AppError>) {
+    let message = match result {
+        Ok(message) if matches!(message.as_str(), "Success" | "Stopped" | "Already stopped") => {
+            return
+        }
+        Ok(message) => message,
+        Err(error) => error.message,
+    };
+    let _ = app.emit(
+        "log",
+        format!("Error: {}", message.trim_start_matches("Error: ")),
+    );
 }
 
 pub async fn apply_state_from_tray(app: AppHandle, target_tun: bool, target_proxy: bool) {
     let storage = app.state::<Storage>().inner().clone();
     let runtime = app.state::<RuntimeState>().inner().clone();
-    let _ = apply_state_impl(&app, target_tun, target_proxy, &storage, &runtime).await;
+    let result = apply_state_impl(&app, target_tun, target_proxy, &storage, &runtime).await;
+    report_tray_result(&app, result);
 }
 
 pub async fn restart_core_from_tray(app: AppHandle) {
     let storage = app.state::<Storage>().inner().clone();
     let runtime = app.state::<RuntimeState>().inner().clone();
-    let _ = restart_core_impl(&app, &storage, &runtime).await;
+    let result = restart_core_impl(&app, &storage, &runtime).await;
+    report_tray_result(&app, result);
 }
 
 #[tauri::command]
@@ -772,7 +754,7 @@ pub async fn select_profile(
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
-    let _operation = runtime.operation().await;
+    let _operation = runtime.core_operation(&app).await;
     let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
     if !snapshot.profiles.iter().any(|profile| profile.id == id) {
         return Ok("Error: Profile not found".to_owned());
@@ -783,7 +765,7 @@ pub async fn select_profile(
     storage.save(&snapshot).map_err(map_storage_write_error)?;
     if was_running {
         let _ = app.emit("core-restarting", ());
-        let stop_result = stop_core_impl(&runtime).await;
+        let stop_result = stop_core_impl(&app, &runtime).await;
         if stop_result.starts_with("Error") {
             let _ = storage.save(&previous);
             let _ = app.emit(
@@ -812,7 +794,7 @@ pub async fn select_profile(
             } else {
                 let _ = app.emit("status", false);
             }
-            return Ok(error.code);
+            return Ok(format!("Error: {}", error.message));
         }
         let _ = app.emit("status", true);
     }
@@ -1022,47 +1004,6 @@ pub(crate) fn refresh_tray(app: &AppHandle, running: bool, tun_mode: bool, sys_p
 }
 
 #[tauri::command]
-pub fn start_tray(app: AppHandle) -> Result<(), AppError> {
-    if let Some(tray) = app.tray_by_id("main") {
-        tray.set_visible(true)
-            .map_err(|_| AppError::operation_failed())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn update_tray_icon(
-    app: AppHandle,
-    storage: State<'_, Storage>,
-    runtime: State<'_, RuntimeState>,
-) -> Result<(), AppError> {
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    refresh_tray(
-        &app,
-        runtime.core().await.is_some(),
-        snapshot.state.tun_mode,
-        snapshot.state.sys_proxy,
-    );
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn update_tray_menu(
-    app: AppHandle,
-    storage: State<'_, Storage>,
-    runtime: State<'_, RuntimeState>,
-) -> Result<(), AppError> {
-    let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    refresh_tray(
-        &app,
-        runtime.core().await.is_some(),
-        snapshot.state.tun_mode,
-        snapshot.state.sys_proxy,
-    );
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn check_update(
     app: AppHandle,
     storage: State<'_, Storage>,
@@ -1133,7 +1074,7 @@ pub async fn update_kernel(
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
-    let _operation = runtime.operation().await;
+    let _operation = runtime.core_operation(&app).await;
     let snapshot = log_failed_result(
         runtime.inner(),
         &app,
@@ -1288,7 +1229,7 @@ pub async fn update_kernel(
         let was_running = runtime.core().await.is_some();
         if was_running {
             let _ = app.emit("core-stopping", ());
-            let stop_result = stop_core_impl(&runtime).await;
+            let stop_result = stop_core_impl(&app, &runtime).await;
             if stop_result.starts_with("Error") {
                 log_update_phase(&runtime, &app, "ERROR", stop_result.clone()).await;
                 return Err(AppError::detailed("core_stop_failed", stop_result));
@@ -1403,7 +1344,7 @@ pub async fn update_program(
             .pre_release
             .then_some(release.tag_name.as_str());
         let updater = build_program_updater(&app, snapshot.settings.pre_release, tag)?;
-        let _operation = runtime.operation().await;
+        let _operation = runtime.core_operation(&app).await;
         let mut update = updater
             .check()
             .await
@@ -1468,7 +1409,8 @@ async fn start_core_impl(
 ) -> Result<(), AppError> {
     let profile = active_profile_path(snapshot, storage.paths())?;
     let config_path = storage.paths().core_dir.join("config.json");
-    let config = build_runtime_config(&profile, snapshot)?;
+    let mut config = build_runtime_config(&profile, snapshot)?;
+    let api_address = prepare_control_api(&mut config)?;
     let bytes = serde_json::to_vec_pretty(&config).map_err(|_| AppError::operation_failed())?;
     write_atomic(&config_path, &bytes).map_err(|_| AppError::operation_failed())?;
     run_core_check(&storage.paths().core_dir, &config_path)?;
@@ -1488,6 +1430,37 @@ async fn start_core_impl(
                 format!("Failed to start sing-box: {}", io_error_detail(&error)),
             )
         })?;
+    let mut output = process
+        .take_output()
+        .ok_or_else(|| AppError::new("core_start_failed", "Failed to capture sing-box output"))?;
+    let secret = extract_api_secret(&config);
+    let readiness = {
+        let ready = process.wait_ready(api_address, secret.as_deref(), Duration::from_secs(30));
+        tokio::pin!(ready);
+        let mut output_open = true;
+        loop {
+            tokio::select! {
+                result = &mut ready => break result,
+                line = output.recv(), if output_open => match line {
+                    Some(line) => runtime.append_kernel_log(line).await,
+                    None => output_open = false,
+                }
+            }
+        }
+    };
+    if let Err(error) = readiness {
+        let stop_result = process.stop().await;
+        while let Ok(line) = output.try_recv() {
+            runtime.append_kernel_log(line).await;
+        }
+        if let Some(previous) = &proxy_restore {
+            let _ = restore_system_proxy(previous);
+        }
+        let detail = format!("Core startup failed: {error}; cleanup: {stop_result:?}");
+        let _ = runtime.append_app_log(app, "ERROR", &detail).await;
+        let _ = app.emit("log", format!("Error: {detail}"));
+        return Err(AppError::detailed("core_start_failed", detail));
+    }
     if let Some(proxy_restore) = proxy_restore {
         let proxy_owned = match read_system_proxy() {
             Ok(proxy_owned) => proxy_owned,
@@ -1513,17 +1486,6 @@ async fn start_core_impl(
             ));
         }
     }
-    let output = process
-        .take_output()
-        .ok_or_else(|| AppError::new("core_start_failed", "Failed to capture sing-box output"));
-    let output = match output {
-        Ok(output) => output,
-        Err(error) => {
-            let _ = process.stop().await;
-            let _ = runtime.restore_proxy_if_owned().await;
-            return Err(error);
-        }
-    };
     let process = Arc::new(Mutex::new(process));
     runtime.set_core(process.clone()).await;
     runtime.spawn_core_monitor(app, process, output);
@@ -1536,7 +1498,7 @@ async fn start_core_impl(
     Ok(())
 }
 
-async fn stop_core_impl(runtime: &RuntimeState) -> String {
+async fn stop_core_impl(app: &AppHandle, runtime: &RuntimeState) -> String {
     runtime.request_stop(true);
     let core = runtime.core().await;
     runtime.stop_traffic().await;
@@ -1562,12 +1524,13 @@ async fn stop_core_impl(runtime: &RuntimeState) -> String {
         result
     };
     runtime.request_stop(false);
+    let _ = app.emit("status", runtime.core().await.is_some());
     result
 }
 
 pub async fn shutdown_runtime(app: &AppHandle, runtime: &RuntimeState) {
-    let _operation = runtime.operation().await;
-    let _ = stop_core_impl(runtime).await;
+    let _operation = runtime.core_operation(app).await;
+    let _ = stop_core_impl(app, runtime).await;
     let _ = runtime
         .append_app_log(app, "INFO", "Application shutdown")
         .await;
@@ -1659,7 +1622,7 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
         }
     }
 
-    let _operation = runtime.operation().await;
+    let _operation = runtime.core_operation(&app).await;
     if runtime.core().await.is_some() {
         let _ = app.emit("core-lock", false);
         return;
@@ -1801,21 +1764,89 @@ fn build_runtime_config(profile_path: &Path, snapshot: &DataSnapshot) -> Result<
     Ok(config)
 }
 
-fn extract_api_url(config: &Value) -> String {
-    let external = config
-        .get("experimental")
-        .and_then(|value| value.get("clash_api"))
-        .and_then(|value| value.get("external_controller"))
+// Only the generated config receives a fallback controller; the saved profile is untouched.
+fn prepare_control_api(config: &mut Value) -> Result<std::net::SocketAddr, AppError> {
+    let experimental = config
+        .as_object_mut()
+        .ok_or_else(AppError::operation_failed)?
+        .entry("experimental")
+        .or_insert_with(|| json!({}));
+    if experimental.is_null() {
+        *experimental = json!({});
+    }
+    let clash = experimental
+        .as_object_mut()
+        .ok_or_else(|| AppError::invalid_input("experimental must be an object"))?
+        .entry("clash_api")
+        .or_insert_with(|| json!({}));
+    if clash.is_null() {
+        *clash = json!({});
+    }
+    let clash = clash
+        .as_object_mut()
+        .ok_or_else(|| AppError::invalid_input("clash_api must be an object"))?;
+    if clash
+        .get("external_controller")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .is_empty()
+    {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| AppError::detailed("core_start_failed", e.to_string()))?;
+        let address = listener
+            .local_addr()
+            .map_err(|e| AppError::detailed("core_start_failed", e.to_string()))?;
+        clash.insert("external_controller".into(), json!(address.to_string()));
+        if clash
+            .get("secret")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .is_empty()
+        {
+            clash.insert("secret".into(), json!(Uuid::new_v4().to_string()));
+        }
+    }
+    let external = clash
+        .get("external_controller")
         .and_then(Value::as_str)
         .unwrap_or("");
-    let host_port = if external.starts_with(':') {
-        format!("127.0.0.1{external}")
-    } else if external.starts_with("127.0.0.1:") || external.starts_with("localhost:") {
-        external.to_owned()
-    } else if let Some(port) = external.strip_prefix("0.0.0.0:") {
+    let external = if external.starts_with(':') {
+        format!("0.0.0.0{external}")
+    } else if let Some(port) = external.strip_prefix("localhost:") {
         format!("127.0.0.1:{port}")
     } else {
-        "127.0.0.1:9090".to_owned()
+        external.to_owned()
+    };
+    clash.insert("external_controller".into(), json!(external));
+    let mut address: std::net::SocketAddr = external.parse().map_err(|_| {
+        AppError::invalid_input("Control API must use a local IP address and nonzero port")
+    })?;
+    if address.port() == 0 {
+        return Err(AppError::invalid_input("Control API port must not be zero"));
+    }
+    if address.ip().is_unspecified() {
+        address.set_ip(if address.is_ipv4() {
+            std::net::Ipv4Addr::LOCALHOST.into()
+        } else {
+            std::net::Ipv6Addr::LOCALHOST.into()
+        });
+    }
+    Ok(address)
+}
+
+fn extract_api_url(config: &Value) -> String {
+    let external = config
+        .pointer("/experimental/clash_api/external_controller")
+        .and_then(Value::as_str)
+        .unwrap_or("127.0.0.1:9090");
+    let host_port = if external.starts_with(':') {
+        format!("127.0.0.1{external}")
+    } else if let Some(port) = external.strip_prefix("0.0.0.0:") {
+        format!("127.0.0.1:{port}")
+    } else if let Some(port) = external.strip_prefix("[::]:") {
+        format!("[::1]:{port}")
+    } else {
+        external.to_owned()
     };
     format!("http://{host_port}")
 }
@@ -2244,6 +2275,7 @@ fn limit_log_lines(content: &str, max_lines: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::prepare_control_api;
     use super::{
         current_time_string, extract_api_secret, extract_api_url, http_client, install_staged_file,
         is_hex_color, limit_log_lines, mirrored_url, program_update_endpoint,
@@ -2267,7 +2299,7 @@ mod tests {
     }
 
     #[test]
-    fn api_url_is_restricted_to_loopback() {
+    fn api_url_preserves_explicit_controller_and_maps_wildcards() {
         assert_eq!(
             extract_api_url(&json!({"experimental":{"clash_api":{"external_controller":":9090"}}})),
             "http://127.0.0.1:9090"
@@ -2276,7 +2308,7 @@ mod tests {
             extract_api_url(
                 &json!({"experimental":{"clash_api":{"external_controller":"10.0.0.1:9090"}}})
             ),
-            "http://127.0.0.1:9090"
+            "http://10.0.0.1:9090"
         );
         assert_eq!(
             extract_api_url(
@@ -2288,6 +2320,34 @@ mod tests {
             extract_api_secret(&json!({"experimental":{"clash_api":{"secret":"test-secret"}}})),
             Some("test-secret".to_owned())
         );
+    }
+
+    #[test]
+    fn runtime_controller_fallback_preserves_profile_options() {
+        let mut absent = json!({"log": {"disabled": true}});
+        let address = prepare_control_api(&mut absent).unwrap();
+        assert!(address.ip().is_loopback());
+        assert_ne!(address.port(), 0);
+        assert!(extract_api_secret(&absent).is_some());
+        assert_eq!(absent["log"]["disabled"], true);
+        for (controller, expected) in [
+            ("0.0.0.0:9090", "127.0.0.1:9090"),
+            ("[::]:9090", "[::1]:9090"),
+            ("localhost:9090", "127.0.0.1:9090"),
+        ] {
+            let mut config = json!({"experimental":{"clash_api":{"external_controller":controller,"secret":"keep", "external_ui":"ui"}}});
+            assert_eq!(
+                prepare_control_api(&mut config).unwrap().to_string(),
+                expected
+            );
+            assert_eq!(extract_api_secret(&config).as_deref(), Some("keep"));
+            assert_eq!(config["experimental"]["clash_api"]["external_ui"], "ui");
+        }
+        for controller in ["127.0.0.1:0", "example.com:9090", "invalid"] {
+            let mut config =
+                json!({"experimental":{"clash_api":{"external_controller":controller}}});
+            assert!(prepare_control_api(&mut config).is_err());
+        }
     }
 
     #[test]

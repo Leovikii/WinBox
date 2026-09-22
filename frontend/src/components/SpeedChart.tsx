@@ -1,49 +1,41 @@
 import { AreaChart, type ChartProps } from '@fluentui/react-charts'
-import { useEffect, useMemo, useState } from 'react'
+import { webDarkTheme, webLightTheme } from '@fluentui/react-components'
+import { useLayoutEffect, useMemo, useState } from 'react'
+import type { SpeedPoint } from '../utils/trafficHistory'
 
-const MAX_DATAPOINTS = 30
 const MIN_SCALE_SPEED = 100 * 1024
 
-interface SpeedChartProps {
-  uploadSpeed: number
-  downloadSpeed: number
-}
-
-interface SpeedPoint {
-  up: number
-  down: number
-}
-
-export function SpeedChart({ uploadSpeed, downloadSpeed }: SpeedChartProps) {
-  const [history, setHistory] = useState<SpeedPoint[]>(() => Array.from({ length: MAX_DATAPOINTS }, () => ({ up: 0, down: 0 })))
-
-  useEffect(() => {
-    setHistory((current) => [...current.slice(-(MAX_DATAPOINTS - 1)), { up: uploadSpeed, down: downloadSpeed }])
-  }, [downloadSpeed, uploadSpeed])
-
+export function SpeedChart({ history, dark }: { history: SpeedPoint[]; dark: boolean }) {
+  const palette = dark ? webDarkTheme : webLightTheme
+  const [mount, setMount] = useState(0)
+  // ponytail: react-charts 9.3.25 clears its imperative paths when Activity hides.
+  // Remount only the renderer on reveal; history stays in AppContext.
+  // Remove when the locked chart supports Activity effect reconnection.
+  useLayoutEffect(() => { setMount(value => value + 1) }, [])
   const maxSpeed = useMemo(() => Math.max(MIN_SCALE_SPEED, ...history.flatMap((point) => [point.up, point.down])), [history])
   const chartData = useMemo<ChartProps>(() => ({
     lineChartData: [
       {
         legend: 'Download',
-        color: '#3b82f6',
+        color: palette.colorPaletteBlueForeground2,
         hideNonActiveDots: true,
         lineOptions: { curve: 'linear', strokeWidth: 1.5, strokeLinecap: 'round' },
         data: history.map((point, index) => ({ x: index, y: point.down })),
       },
       {
         legend: 'Upload',
-        color: '#10b981',
+        color: palette.colorPaletteGreenForeground1,
         hideNonActiveDots: true,
-        lineOptions: { curve: 'linear', strokeWidth: 1.5, strokeLinecap: 'round' },
+        lineOptions: { curve: 'linear', strokeWidth: 1.5, strokeLinecap: 'round', strokeDasharray: '4 2' },
         data: history.map((point, index) => ({ x: index, y: point.up })),
       },
     ],
-  }), [history])
+  }), [history, palette])
 
   return (
     <div className="speed-chart" aria-label={`Network speed chart, maximum scale ${maxSpeed} bytes per second`}>
       <AreaChart
+        key={mount}
         data={chartData}
         height={100}
         width={300}

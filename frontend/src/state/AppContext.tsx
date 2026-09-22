@@ -11,6 +11,7 @@ import {
 import * as Backend from '../api/backend'
 import { EventsOn } from '../api/backend'
 import type { InitDataDto, ProfileDto, StateSyncDto, TrafficUpdateDto, UWPAppDto } from '../api/backend'
+import { appendTraffic, emptyTrafficHistory, type SpeedPoint } from '../utils/trafficHistory'
 import { cleanLog } from '../utils/logUtils'
 import { getModeColor } from '../utils/modeColors'
 import { isNewerVersion, isVersion } from '../utils/versionCompare'
@@ -134,6 +135,7 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 interface LiveContextValue {
+  trafficHistory: SpeedPoint[]
   uploadSpeed: number
   downloadSpeed: number
   appLogContent: string
@@ -150,12 +152,16 @@ const initialTheme = typeof window === 'undefined' ? 'system' : localStorage.get
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false)
+  const lifecycleRevision = useRef(0)
   const [running, setRunning] = useState(false)
   const [coreExists, setCoreExists] = useState(true)
   const [msg, setMsg] = useState('READY')
   const [tunMode, setTunMode] = useState(false)
   const [sysProxy, setSysProxy] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
+  const [localProcessing, setIsProcessing] = useState(false)
+  const [coreBusy, setCoreBusy] = useState(false)
+  const [coreLocked, setCoreLocked] = useState(false)
+  const isProcessing = localProcessing || coreBusy || coreLocked
   const [errorLog, setErrorLog] = useState('')
   const [showErrorAlert, setShowErrorAlert] = useState(false)
   const [errorAlertMessage, setErrorAlertMessage] = useState('')
@@ -168,8 +174,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [logLevel, setLogLevel] = useState('')
   const [logToFile, setLogToFile] = useState(true)
   const [closeBehavior, setCloseBehavior] = useState('ask')
-  const [uploadSpeed, setUploadSpeed] = useState(0)
-  const [downloadSpeed, setDownloadSpeed] = useState(0)
+  const [trafficHistory, setTrafficHistory] = useState(emptyTrafficHistory)
+  const { up: uploadSpeed, down: downloadSpeed } = trafficHistory[trafficHistory.length - 1]
   const [windowCloseRequested, setWindowCloseRequested] = useState(false)
 
   const [profiles, setProfiles] = useState<ProfileDto[]>([])
@@ -240,10 +246,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return true
   }, [setErrorAlert])
 
-  const applyInitData = useCallback(async (data: InitDataDto) => {
+  const applyInitData = useCallback(async (data: InitDataDto, revision: number) => {
     let nextTun = data.tunMode
     let nextProxy = data.sysProxy
-    if (!nextTun && !nextProxy) {
+    if (revision === lifecycleRevision.current && !nextTun && !nextProxy) {
       nextProxy = true
       if (!defaultModePersisted.current) {
         defaultModePersisted.current = true
@@ -251,12 +257,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setRunning(data.running)
+    // A delayed snapshot must not overwrite newer lifecycle events.
+    if (revision === lifecycleRevision.current) {
+      setCoreBusy(data.coreBusy)
+      setRunning(data.running)
+      setMsg(data.coreExists ? (data.coreBusy ? 'Working...' : data.running ? 'Running' : 'Offline') : 'Kernel Missing')
+      setTunMode(nextTun)
+      setSysProxy(nextProxy)
+    }
     setCoreExists(data.coreExists)
     setLocalVer(data.localVersion || 'Unknown')
-    setMsg(data.coreExists ? (data.running ? 'Running' : 'Offline') : 'Kernel Missing')
-    setTunMode(nextTun)
-    setSysProxy(nextProxy)
     setProfiles(data.profiles || [])
     setActiveProfile(data.activeProfile || null)
     setStartOnBoot(data.startOnBoot)
@@ -273,8 +283,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [persistMode])
 
   const refreshData = useCallback(async () => {
+    const revision = lifecycleRevision.current
     const data = await Backend.getInitData()
-    await applyInitData(data)
+    await applyInitData(data, revision)
     return data
   }, [applyInitData])
 
@@ -282,33 +293,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     const unlisten = [
       EventsOn<TrafficUpdateDto>('traffic-update', (data) => {
-        setUploadSpeed(data.upload)
-        setDownloadSpeed(data.download)
+        setTrafficHistory(history => appendTraffic(history, data.upload, data.download))
       }),
       EventsOn('window-close-requested', () => setWindowCloseRequested(true)),
       EventsOn('core-starting', () => {
-        setIsProcessing(true)
+        lifecycleRevision.current++
         setMsg('Starting...')
       }),
       EventsOn('core-stopping', () => {
-        setIsProcessing(true)
+        lifecycleRevision.current++
         setMsg('Stopping...')
       }),
       EventsOn('core-restarting', () => {
-        setIsProcessing(true)
+        lifecycleRevision.current++
         setMsg('Restarting...')
       }),
-      EventsOn<boolean>('core-lock', (locked) => setIsProcessing(locked)),
+      EventsOn<boolean>('core-lock', setCoreLocked),
+      EventsOn<boolean>('core-busy', busy => {
+        lifecycleRevision.current++
+        setCoreBusy(busy)
+        if (!busy) setMsg(previous => ['Starting...', 'Stopping...', 'Restarting...', 'Working...'].includes(previous) ? 'Stopped' : previous)
+      }),
       EventsOn<boolean>('status', (isRunning) => {
+        lifecycleRevision.current++
         setRunning(isRunning)
+        if (!isRunning) setTrafficHistory(emptyTrafficHistory())
         setMsg((previous) => {
-          if (!isRunning && (previous === 'Starting...' || previous === 'Restarting...')) return previous
+          if (!isRunning && ['Starting...', 'Restarting...', 'Working...', 'Error'].includes(previous)) return previous
           if (!isRunning && previous !== 'Standby' && previous !== 'Net Timeout') return 'Stopped'
           return isRunning ? 'Running' : previous
         })
-        setIsProcessing(false)
       }),
       EventsOn<StateSyncDto>('state-sync', (state) => {
+        lifecycleRevision.current++
         setTunMode(state.tunMode)
         setSysProxy(state.sysProxy)
         if (!state.tunMode && !state.sysProxy && !defaultModePersisted.current) {
@@ -344,9 +361,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await Backend.waitForEventsReady()
       if (cancelled) return
       try {
+        const revision = lifecycleRevision.current
         const data = await Backend.getInitData()
         if (!cancelled) {
-          await applyInitData(data)
+          await applyInitData(data, revision)
           setInitialized(true)
         }
         const log = await Backend.GetAppLog()
@@ -394,15 +412,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setIsProcessing(true)
     const willStart = !running
+    setMsg(willStart ? 'Starting...' : 'Stopping...')
     try {
       const result = await Backend.ApplyState(willStart ? tunMode : false, willStart ? sysProxy : false)
-      if (result !== 'Success' && result !== 'Stopped') {
+      if (!['Success', 'Stopped', 'Already stopped'].includes(result)) {
         setMsg('Error')
         setErrorLog(cleanLog(result))
         return result === 'config-missing' ? { error: 'config-missing' } : undefined
       }
-      setRunning(willStart)
-      setMsg(willStart ? 'Running' : 'Stopped')
       return undefined
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
@@ -425,15 +442,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nextProxy = target === 'proxy' ? !sysProxy : sysProxy
     const previous = { tun: tunMode, proxy: sysProxy }
     setIsProcessing(true)
-    setTunMode(nextTun)
-    setSysProxy(nextProxy)
     setMsg(nextTun || nextProxy ? 'Starting...' : 'Stopping...')
     try {
       const result = await Backend.ApplyState(nextTun, nextProxy)
-      if (result === 'Success' || result === 'Stopped') {
-        setRunning(nextTun || nextProxy)
-        setMsg(nextTun || nextProxy ? 'Running' : 'Stopped')
-      } else {
+      if (!['Success', 'Stopped', 'Already stopped'].includes(result)) {
         setTunMode(previous.tun)
         setSysProxy(previous.proxy)
         setMsg('Error')
@@ -460,24 +472,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return { error: 'kernel-missing' }
     }
     const previous = { tun: tunMode, proxy: sysProxy }
-    setTunMode(target.tunMode)
-    setSysProxy(target.sysProxy)
     setIsProcessing(true)
     try {
       if (!running) {
         const saved = await persistMode(target.tunMode, target.sysProxy)
-        if (!saved) {
-          setTunMode(previous.tun)
-          setSysProxy(previous.proxy)
+        if (saved) {
+          setTunMode(target.tunMode)
+          setSysProxy(target.sysProxy)
         }
         return undefined
       }
       setMsg('Restarting...')
       const result = await Backend.ApplyState(target.tunMode, target.sysProxy)
-      if (result === 'Success' || result === 'Stopped') {
-        setRunning(target.tunMode || target.sysProxy)
-        setMsg(target.tunMode || target.sysProxy ? 'Running' : 'Stopped')
-      } else {
+      if (!['Success', 'Stopped', 'Already stopped'].includes(result)) {
         setTunMode(previous.tun)
         setSysProxy(previous.proxy)
         setMsg('Error')
@@ -629,7 +636,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const openManageProfiles = useCallback(() => {
     setManageProfilesError('')
     setManageProfilesList(profiles.map((profile) => ({ ...profile, name: profile.name || '', url: profile.url || '' })))
-    setManageProfilesList((current) => current.length ? current : [{ id: `new_${Date.now()}`, name: '', url: '' }])
+    setManageProfilesList((current) => current.length ? current : [{ id: `new_${crypto.randomUUID()}`, name: '', url: '' }])
     setShowManageProfilesModal(true)
   }, [profiles])
 
@@ -638,7 +645,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addNewDraftProfile = useCallback(() => {
-    setManageProfilesList((current) => [...current, { id: `new_${Date.now()}`, name: '', url: '' }])
+    setManageProfilesList((current) => [...current, { id: `new_${crypto.randomUUID()}`, name: '', url: '' }])
   }, [])
 
   const saveManageProfiles = useCallback(async () => {
@@ -935,11 +942,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const statusText = useMemo(() => {
     if (!coreExists) return 'Warning'
     if (msg === 'Error') return 'Error'
-    if (isProcessing && ['Starting...', 'Stopping...', 'Restarting...', 'Updating...'].includes(msg)) return msg
+    if (isProcessing && ['Starting...', 'Stopping...', 'Restarting...', 'Updating...', 'Working...'].includes(msg)) return msg
     if (['Detecting', 'Standby', 'Net Timeout'].includes(msg)) return msg
     if (!running) return 'Offline'
     if (tunMode && sysProxy) return 'Mixed Routing'
-    if (tunMode) return 'Tun Adapter'
+    if (tunMode) return 'TUN adapter'
     if (sysProxy) return 'System Proxy'
     return 'Online'
   }, [coreExists, isProcessing, msg, running, sysProxy, tunMode])
@@ -947,7 +954,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const statusColor = useMemo(() => {
     if (!coreExists) return 'var(--status-warning)'
     if (msg === 'Error' || msg === 'Net Timeout') return 'var(--status-error)'
-    if (msg === 'Detecting' || (isProcessing && ['Starting...', 'Stopping...', 'Restarting...', 'Updating...'].includes(msg))) return 'var(--status-warning)'
+    if (msg === 'Detecting' || (isProcessing && ['Starting...', 'Stopping...', 'Restarting...', 'Updating...', 'Working...'].includes(msg))) return 'var(--status-warning)'
     if (msg === 'Standby') return 'var(--status-standby)'
     if (!running) return 'var(--status-offline)'
     if (tunMode && sysProxy) return 'var(--status-mixed)'
@@ -996,6 +1003,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ])
 
   const liveValue = useMemo<LiveContextValue>(() => ({
+    trafficHistory,
     uploadSpeed,
     downloadSpeed,
     appLogContent,
@@ -1004,7 +1012,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     copyState,
     clearAppLog,
     copyAppLog,
-  }), [appLogContent, clearAppLog, copyAppLog, copyState, downloadSpeed, showLogModal, uploadSpeed])
+  }), [appLogContent, clearAppLog, copyAppLog, copyState, downloadSpeed, showLogModal, uploadSpeed, trafficHistory])
 
   return (
     <AppContext.Provider value={value}>

@@ -1,26 +1,29 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Button, Dropdown, Option, Radio, RadioGroup, Spinner, Text } from '@fluentui/react-components'
 import {
   ArrowDown16Regular,
-  ArrowDownload24Regular,
-  ArrowMaximize24Regular,
-  ArrowSync24Regular,
+  ArrowMaximize16Regular,
+  ArrowSync16Regular,
   ArrowUp16Regular,
-  DocumentText24Regular,
-  Flash12Regular,
-  Globe24Regular,
-  LockClosed24Regular,
-  Power20Regular,
-  Power24Regular,
-  Rocket24Regular,
+  DocumentText16Regular,
+  Edit16Regular,
+  PlugConnected16Regular,
+  Globe16Regular,
+  PlugDisconnected16Regular,
+  Play16Regular,
+  Options16Regular,
+  DocumentSettings16Regular,
   Server24Regular,
-  Stop24Regular,
-  Warning12Regular,
+  LockClosed24Regular,
+  ArrowDownload24Regular,
+  Stop16Regular,
+  Warning16Regular,
 } from '@fluentui/react-icons'
 import * as Backend from '../api/backend'
 import { useApp, useLive } from '../state/AppContext'
 import { ScrollArea, type ScrollAreaRef } from './ScrollArea'
 import { SpeedChart } from './SpeedChart'
+import { brandButtonStyle } from '../theme'
 import { ManageProfilesDialog } from './ManageProfilesDialog'
 import { AppLogsDialog } from './AppLogsDialog'
 
@@ -32,7 +35,7 @@ interface DashboardProps {
 
 const modeOptions = [
   { label: 'Proxy', value: 'proxy', color: '#10b981' },
-  { label: 'Tun', value: 'tun', color: '#3b82f6' },
+  { label: 'TUN', value: 'tun', color: '#3b82f6' },
   { label: 'Mixed', value: 'mixed', color: '#d946ef' },
 ]
 
@@ -77,9 +80,20 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
   const app = useApp()
   const live = useLive()
   const inlineLogRef = useRef<ScrollAreaRef>(null)
+  const modeInputs = useRef<Record<string, HTMLInputElement | null>>({})
+  const restoreModeFocus = useRef(false)
   const mode = selectedMode(app.tunMode, app.sysProxy)
   const activeColor = modeOptions.find((option) => option.value === mode)?.color || '#3b82f6'
+  const actionStyle = useMemo(() => brandButtonStyle(app.running ? '#d13438' : activeColor, app.isDark), [activeColor, app.isDark, app.running])
   const showSpeed = app.running && (app.tunMode || app.sysProxy) && !app.isProcessing
+
+  useEffect(() => {
+    if (app.isProcessing || !restoreModeFocus.current) return
+    restoreModeFocus.current = false
+    // A temporary native disabled state blurs the selected radio. Restore only
+    // when the user has not moved to another control during the async operation.
+    if (document.activeElement === document.body) modeInputs.current[mode]?.focus({ preventScroll: true })
+  }, [app.isProcessing, mode])
 
   useEffect(() => {
     if (!inlineLogRef.current) return
@@ -90,6 +104,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
   const activeProfileName = app.activeProfile?.name || ''
 
   const handleModeChange = (value: string) => {
+    restoreModeFocus.current = Object.values(modeInputs.current).some(input => input === document.activeElement)
     const target = value === 'mixed' ? { tunMode: true, sysProxy: true } : value === 'tun' ? { tunMode: true, sysProxy: false } : { tunMode: false, sysProxy: true }
     onSwitchMode(target)
   }
@@ -99,25 +114,25 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
   }
 
   return (
-    <div className="dashboard-page">
+    <div className={`dashboard-page ${app.running ? 'dashboard-running' : 'dashboard-idle'}`}>
       <section className={`dashboard-card status-card ${app.running ? 'status-card-running' : 'status-card-idle'}`}>
         <div className="card-heading status-heading">
           <div className="status-label" style={{ color: app.statusColor }}>
             <span className={`status-led ${app.running || app.isProcessing ? 'status-led-active' : ''}`} style={{ color: app.statusColor }}>
-              {app.isProcessing ? <ArrowSync24Regular className="status-led-icon status-led-spin" /> : app.msg === 'Error' || !app.coreExists ? <Warning12Regular className="status-led-icon" /> : app.running ? <Flash12Regular className="status-led-icon" /> : <Power20Regular className="status-led-icon" />}
+              {app.isProcessing ? <ArrowSync16Regular className="status-led-icon status-led-spin" /> : app.msg === 'Error' || !app.coreExists ? <Warning16Regular className="status-led-icon" /> : app.running ? <PlugConnected16Regular className="status-led-icon" /> : <PlugDisconnected16Regular className="status-led-icon" />}
             </span>
-            <Text weight="semibold">{app.statusText.toLowerCase()}</Text>
+            <Text weight="semibold">{app.statusText}</Text>
           </div>
           {showSpeed ? (
             <div className="speed-readout" aria-label={`Upload ${formatSpeed(live.uploadSpeed)}, download ${formatSpeed(live.downloadSpeed)}`}>
               <span><ArrowUp16Regular />{formatSpeed(live.uploadSpeed)}</span>
               <span><ArrowDown16Regular />{formatSpeed(live.downloadSpeed)}</span>
             </div>
-          ) : !app.running ? <span className="idle-mark" aria-label="Idle"><Power20Regular /></span> : null}
+          ) : null}
         </div>
         {app.running ? (
           <div className="status-chart-wrap">
-            <SpeedChart uploadSpeed={live.uploadSpeed} downloadSpeed={live.downloadSpeed} />
+            <SpeedChart history={live.trafficHistory} dark={app.isDark} />
           </div>
         ) : null}
       </section>
@@ -126,11 +141,13 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
         {app.profiles.length > 0 ? (
           <>
             <div className="card-heading">
-              <div className="section-title"><Server24Regular /><Text weight="semibold">Profile</Text></div>
+              <div className="section-title"><DocumentSettings16Regular /><Text weight="semibold">Profile</Text></div>
               {app.running ? (
                 <Dropdown
                   className="winbox-dropdown profile-compact-select"
-                  inlinePopup
+                  appearance="outline"
+                  size="small"
+                  button={{ className: 'winbox-dropdown-button' }}
                   listbox={{ className: 'winbox-dropdown-listbox' }}
                   value={activeProfileName}
                   selectedOptions={app.activeProfile ? [app.activeProfile.id] : []}
@@ -138,16 +155,18 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
                   disabled={app.isProcessing}
                   aria-label="Active profile"
                 >
-                  {profileOptions.map((option) => <Option key={option.value} value={option.value} checkIcon={null}>{option.label}</Option>)}
+                  {profileOptions.map((option) => <Option className="winbox-option" key={option.value} value={option.value} checkIcon={{ className: 'winbox-option-marker', children: <span className="winbox-selection-bar" /> }}>{option.label}</Option>)}
                 </Dropdown>
               ) : (
-                  <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<ArrowSync24Regular />} onClick={app.openManageProfiles} disabled={app.isProcessing} aria-label="Manage profiles" />
+                  <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<Edit16Regular />} onClick={app.openManageProfiles} disabled={app.isProcessing} aria-label="Manage profiles" />
               )}
             </div>
-            <div className="profile-controls">
+            <div className="profile-controls" inert={app.running} aria-hidden={app.running}>
               <Dropdown
                 className="winbox-dropdown"
-                inlinePopup
+                appearance="outline"
+                size="small"
+                  button={{ className: 'winbox-dropdown-button' }}
                 listbox={{ className: 'winbox-dropdown-listbox' }}
                 value={activeProfileName}
                 selectedOptions={app.activeProfile ? [app.activeProfile.id] : []}
@@ -155,13 +174,13 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
                 disabled={app.isProcessing}
                 aria-label="Select profile"
               >
-                {profileOptions.map((option) => <Option key={option.value} value={option.value} checkIcon={null}>{option.label}</Option>)}
+                {profileOptions.map((option) => <Option className="winbox-option" key={option.value} value={option.value} checkIcon={{ className: 'winbox-option-marker', children: <span className="winbox-selection-bar" /> }}>{option.label}</Option>)}
               </Dropdown>
                 <Button
                 className="winbox-secondary-button winbox-small-button"
                 appearance="secondary"
                 size="small"
-                icon={app.isUpdatingProfile ? <Spinner size="tiny" /> : <ArrowSync24Regular />}
+                icon={app.isUpdatingProfile ? <Spinner size="tiny" /> : <ArrowSync16Regular />}
                 onClick={() => void app.updateActiveProfile()}
                 disabled={app.isProcessing || !app.activeProfile || app.isUpdatingProfile}
               >
@@ -173,7 +192,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
           <div className={`empty-card ${!app.coreExists ? 'empty-card-muted' : ''}`}>
             <Server24Regular />
             <Text weight="semibold">No profile found</Text>
-            {app.coreExists ? <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button" onClick={app.openManageProfiles}>Add Profile</Button> : null}
+            {app.coreExists ? <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button" onClick={app.openManageProfiles}>Add profile</Button> : null}
           </div>
         )}
       </section>
@@ -182,7 +201,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
         {app.profiles.length > 0 ? (
           <>
             <div className="mode-row">
-              <div className="section-title"><Rocket24Regular /><Text weight="semibold">Mode</Text></div>
+              <div className="section-title"><Options16Regular /><Text weight="semibold">Mode</Text></div>
               <RadioGroup
                 className="mode-selector"
                 data-selected={mode}
@@ -192,25 +211,22 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
                 disabled={app.isProcessing}
                 aria-label="Proxy mode"
               >
-                {modeOptions.map((option) => <Radio key={option.value} value={option.value} label={option.label} className="mode-option" indicator={{ className: 'mode-radio-indicator' }} />)}
+                {modeOptions.map((option) => <Radio key={option.value} value={option.value} input={{ ref: node => { modeInputs.current[option.value] = node } }} className="mode-option" label={{ children: option.label, className: 'mode-label' }} indicator={{ className: 'mode-radio-indicator' }} />)}
               </RadioGroup>
             </div>
             <div className={`control-actions ${app.running ? 'control-actions-running' : ''}`}>
-              {app.running ? <Button appearance="secondary" className="winbox-secondary-button winbox-control-button" icon={<Globe24Regular />} onClick={() => void Backend.OpenDashboard().catch((error) => app.setErrorAlert(error instanceof Error ? error.message : String(error)))} disabled={app.isProcessing}>Web UI</Button> : null}
+              <div className="control-side" inert={!app.running} aria-hidden={!app.running}><Button appearance="secondary" className="winbox-secondary-button winbox-control-button" icon={<Globe16Regular />} onClick={() => void Backend.OpenDashboard().catch((error) => app.setErrorAlert(error instanceof Error ? error.message : String(error)))} disabled={app.isProcessing}>Web UI</Button></div>
               <Button
-                className="winbox-primary-button winbox-control-button"
+                className={`${app.running ? 'winbox-danger-button' : 'winbox-primary-button'} winbox-control-button`}
                 appearance="primary"
-                icon={app.isProcessing ? <Spinner size="tiny" /> : app.running ? <Stop24Regular /> : <Power24Regular />}
+                icon={app.isProcessing ? <Spinner size="tiny" /> : app.running ? <Stop16Regular /> : <Play16Regular />}
                 disabled={!app.coreExists || !app.activeProfile || app.isProcessing}
                 onClick={() => void app.handleServiceToggle()}
-                style={{
-                  '--winbox-action-color': app.running ? '#dc2626' : activeColor,
-                  '--winbox-action-border': app.running ? '#ef4444' : activeColor,
-                } as CSSProperties}
+                style={actionStyle}
               >
                 {app.running ? (app.statusText === 'Stopping...' ? 'Stopping' : 'Stop') : (app.statusText === 'Starting...' ? 'Starting' : 'Start')}
               </Button>
-              {app.running ? <Button appearance="secondary" className="winbox-secondary-button winbox-control-button" icon={app.statusText === 'Restarting...' ? <Spinner size="tiny" /> : <ArrowSync24Regular />} onClick={onRestartCore} disabled={app.isProcessing}>Restart</Button> : null}
+              <div className="control-side" inert={!app.running} aria-hidden={!app.running}><Button appearance="secondary" className="winbox-secondary-button winbox-control-button" icon={app.statusText === 'Restarting...' ? <Spinner size="tiny" /> : <ArrowSync16Regular />} onClick={onRestartCore} disabled={app.isProcessing}>Restart</Button></div>
             </div>
           </>
         ) : (
@@ -222,8 +238,8 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
 
       <section className="dashboard-card logs-card">
         <div className="card-heading logs-heading">
-          <div className="section-title"><DocumentText24Regular /><Text weight="semibold">Logs</Text></div>
-          <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<ArrowMaximize24Regular />} onClick={() => live.setShowLogModal(true)} aria-label="Expand logs" />
+          <div className="section-title"><DocumentText16Regular /><Text weight="semibold">Logs</Text></div>
+          <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<ArrowMaximize16Regular />} onClick={() => live.setShowLogModal(true)} aria-label="Expand logs" />
         </div>
         <ScrollArea ref={inlineLogRef} height="100%" className="logs-scroll-area">
           <div className="inline-log-content">{live.appLogContent || 'No logs available.'}</div>

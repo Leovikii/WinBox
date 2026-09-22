@@ -50,8 +50,8 @@ For a manual upgrade from the old portable version:
 ## Quick Start
 
 1. **First Initialization**: Navigate to **Settings**. If operating in a restricted network environment, enable the **GitHub Mirror** option. Click **"Check Updates"** to automatically provision the Sing-box kernel.
-2. **Import Profiles**: Open the "Profiles" drawer to add and manage your subscription URLs.
-3. **Connect**: Toggle **TUN Mode** or **System Proxy** directly from the main dashboard.
+2. **Import Profiles**: Open the "Profile" manager to add and manage your subscription URLs.
+3. **Connect**: Select **Proxy**, **TUN**, or **Mixed**, then click **Start**.
 
 ## Build from Source
 
@@ -86,11 +86,11 @@ artifacts.
 The in-app updater uses the existing pre-release setting when checking release
 metadata; no separate update channel is created.
 
-The Rust/Tauri backend migration is implemented and
-[v3.0.0-alpha.1](https://github.com/Leovikii/WinBox/releases/tag/v3.0.0-alpha.1)
-has been published. The React + Microsoft Fluent UI frontend migration for
-`3.0.0-alpha.2` is complete on `dev` and has passed the Windows x64 manual
-regression scope recorded in the [frontend migration plan](docs/frontend-refactor/README.md).
-The next step is a pull request from `dev` to `main`; the signed alpha.2
-Release is created only by the existing `main` workflow. Remaining backend
-acceptance checks stay tracked in [the migration documents](docs/tauri-migration/README.md).
+The backend and React + Fluent UI migrations are complete. After manual testing,
+the maintainer closed the refactor phase on 2026-09-22. Version `3.0.0-alpha.2`
+is ready for the maintainer's `dev` → `main` pull request; publication follows the
+existing signed release workflow.
+
+Development guides: [Architecture](docs/architecture.md),
+[Frontend design](docs/frontend.md), [Backend contracts](docs/backend.md),
+[Testing and release](docs/development.md). AI agents start with [AGENTS.md](AGENTS.md).
