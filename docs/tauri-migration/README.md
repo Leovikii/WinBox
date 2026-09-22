@@ -5,14 +5,14 @@
 ## 当前入口
 
 - [待补人工验收](validation.md#待补人工验收2026-09-21)：已合并重复场景；卸载和数据清理由用户确认通过。
-- [前端迁移计划](../frontend-refactor/README.md)：用户已指定 alpha.2 迁移到 React + Fluent UI；保留视觉/交互并优化动效，后端人工测试保留，前端可先行。
+- [前端迁移计划](../frontend-refactor/README.md)：alpha.2 已迁移到 React + Fluent UI；用户已确认 Windows x64 前端实机回归通过，待从 `dev` 创建 PR 到 `main` 触发签名发布，后端人工测试仍独立保留。
 - 发布与 CI 证据：`MIG-045-RELEASE-AUDIT-2026-09-21`，见 [validation.md](validation.md)。已确认 main 签名构建成功，Release 包含 x64 NSIS、同名 `.sig` 与 `latest.json`。
 
 首个 alpha 的发布不替代跨版本更新、系统状态恢复和桌面回归证据。剩余场景通过，或用户明确批准具体范围例外并登记后，才能关闭整体计划。
 
 ## 最终实现与边界
 
-- Tauri 2 + Rust + Vue 3 + 独立 sing-box；Go/Wails 活动代码和临时兼容桥已移除，旧实现从 Git 历史查阅。
+- Tauri 2 + Rust + React + Microsoft Fluent UI + 独立 sing-box；Go/Wails 活动代码和临时兼容桥已移除，旧实现从 Git 历史查阅。
 - 本版仅 Windows AMD64/x64，只发行 NSIS。portable ZIP、单 EXE 发行、MSI 和 ARM64 不在范围；Linux 留到下个大版本。
 - 安装目录为 `%ProgramFiles%\WinBox\`；用户数据唯一根为 `%LOCALAPPDATA%\com.leovikii.winbox\`（Tauri `appLocalDataDir()`）。配置、订阅、核心和日志不写入安装目录。
 - 旧便携数据不自动扫描、复制或合并；人工备份/复制步骤见 [项目 README](../../README.md#installation)。

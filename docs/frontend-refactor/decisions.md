@@ -79,3 +79,14 @@
 - Dialog 焦点：焦点触发控件在 `useLayoutEffect` 中于 Fluent 自动聚焦前记录，避免普通 `useEffect` 只能捕获 Dialog 内关闭按钮；Escape/关闭按钮完成退出动效后恢复到原控件。
 - 证据：最新 `npm run build`、TypeScript 检查和生产预览通过；计算样式确认 Dialog Surface 使用主题不透明面、菜单为主题面且选项无边框；AX/DOM 检查确认每个选项均无 `.fui-Option__checkIcon` 节点。浅/深主题 Dropdown 点击展开、选择、Escape、主题颜色、Manage Profiles、编辑器和日志/退出场景已回归。浏览器无 Tauri runtime 的 `invoke` 错误仍是预览限制。
 - 原生启动阻塞：清单要求 `requireAdministrator`；非管理员运行 x64 产物返回 `0xc0000142`/`os error 740`，WebView2 `153.0.4234.48` 已存在。需要管理员人工启动后，才能继续 Tauri IPC、Mica、更新、UWP、托盘和 DPI 验收；不在自动化中绕过 UAC。
+
+## 模式与顶部状态回归（2026-09-22）
+
+- 规范复核：微软 Typography 规定 Segoe UI Variable、12px Regular 为正文最小值、Semibold 用于强调且 UI 文案优先 sentence case；Geometry 规定页内控件 4px、浮层 8px 圆角；Motion 的 point-to-point 动效使用 `cubic-bezier(.55,.55,0,1)` 和 167/250/333ms 档位；Radio buttons 负责互斥选择、方向键和焦点。模式控件因此保留 Fluent `RadioGroup`/`Radio`，只修正产品装饰层和标签密度。
+- 附图滑块 bug 的原因是百分比位移写在伪元素 `transform` 中，`100%` 以伪元素自身宽度为基准后又被除以三，导致 TUN/MIXED 永远卡在左侧附近；改为 `100% + 2px` 与 `200% + 4px`，并让伪元素边框采用 border-box。没有增加 JS 测量、ResizeObserver 或新的组件抽象。
+- 顶部光晕采用单个 `.status-led::before` 产品伪元素恢复旧版 ambient bloom；它不承担交互、不复制旧控件，且在 forced-colors 隐藏。图表使用已锁定的 Fluent `AreaChart` 公开 `mode`/`lineOptions` 调整为 `tozeroy`、linear、1.5px，避免为视觉复刻再维护第二套 SVG 绘图基础设施。
+
+## alpha.2 实机回归与发布边界（2026-09-22）
+
+- 用户确认 Windows x64 实机回归通过，覆盖 React/Fluent 前端的模式滑块初始位置与切换动画、模式文字密度、顶部状态光晕、连续速度图、右上角控件、Dropdown、浅/深主题及各类弹窗。该证据关闭前端迁移对应的人工回归门槛；后端迁移的独立安装、升级、UWP、托盘、旧数据和其他历史验收仍以 `docs/tauri-migration/validation.md` 为准。
+- alpha.2 的版本、锁文件、x64 unsigned NSIS 测试产物和自动检查已齐全；本地不创建 `main` PR 或 Release。维护者手动把 `dev` 提交 PR 到 `main` 后，才允许既有 GitHub Actions 使用签名 secrets 生成 NSIS、同名 `.sig`、`latest.json` 并发布第二个 alpha。

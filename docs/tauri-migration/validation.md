@@ -674,3 +674,11 @@ OS、架构、权限、WebView2、工具链、sing-box、数据模式：
 - 方法：PowerShell `Invoke-RestMethod` 查询 GitHub Release/Actions/jobs，`Invoke-WebRequest` 读取公开签名；只读检查成功。沙箱内首次请求因本机 TLS 凭据错误失败，之后通过只读提权命令成功核对；没有访问私钥或修改远端状态。
 - 结论：消除旧发布密钥/main Release 阻塞，关闭 BUG-010；保留 BUG-003/007/008 的复测状态及剩余矩阵。卸载/数据清理人工结果通过；其他实机检查未在本轮执行。
 - DOC-002：本轮仅文档清理与前端准备，11 份 Markdown、32 个本地链接/锚点、22 个唯一任务 ID 检查通过；源码路径/导出/配置核对及 `git diff --check` 通过；不重复运行与文档无关的 Rust/前端构建。
+
+### MIG-046-FRONTEND-ALPHA2-RETEST-2026-09-22 — React/Fluent alpha.2 实机回归与发布交接
+
+- 范围：alpha.2 前端迁移的 Windows x64 实机回归；覆盖模式滑块启动位置与三段切换动画、模式文字密度、顶部状态 ambient bloom、连续速度图、右上角窗口控件、Dropdown 展开/选择、浅深主题及普通/编辑器/日志/档案/更新/退出等弹窗。
+- 用户结果：用户确认上述前端实机测试通过；FE-002、FE-004、FE-005、FE-006、FE-007、FE-008 在前端台账中登记为 `done`。本条只关闭前端对应人工门槛，不把该确认扩展为后端迁移的安装、升级、UWP、托盘、自启、旧数据或其他历史验收全部通过。
+- 自动证据：`npm run build`、`npx tsc --noEmit`、`npm audit --audit-level=high`（0 vulnerabilities）、`git diff --check`；x64 `cargo fmt --check`、`cargo test --locked --offline`（33/33）、`cargo clippy --locked --offline -- -D warnings`；`cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign` 均通过。
+- x64 unsigned 测试资产：主程序 `src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe`，PE `0x8664`、版本 `3.0.0-alpha.2`、18,959,872 bytes、SHA-256 `9677374CDD2FA440AF05A6A76CA0DE4E39B3DE98C812A4601CE1AD696CDB5101`；NSIS `WinBox_3.0.0-alpha.2_x64-setup.exe`，4,775,019 bytes、SHA-256 `DD9AB7B39F461805DF639AA5F029A7C40143101410213A006A2FC6B70B2A8DCE`。两者仅为本机验证产物，不作为 Release 输入。
+- 发布边界：当前工作区只推送 `dev`，不创建 `main` PR、不直接创建 Release；维护者手动创建并合并 `dev` → `main` PR 后，既有 GitHub Actions 才生成签名 x64 NSIS、同名 `.sig` 和 `latest.json`，作为第二个 alpha 发布。ARM64、MSI、portable 不构建、不发布、不验收。

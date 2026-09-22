@@ -27,15 +27,15 @@ export function SpeedChart({ uploadSpeed, downloadSpeed }: SpeedChartProps) {
       {
         legend: 'Download',
         color: '#3b82f6',
-        opacity: 0.18,
         hideNonActiveDots: true,
+        lineOptions: { curve: 'linear', strokeWidth: 1.5, strokeLinecap: 'round' },
         data: history.map((point, index) => ({ x: index, y: point.down })),
       },
       {
         legend: 'Upload',
         color: '#10b981',
-        opacity: 0.18,
         hideNonActiveDots: true,
+        lineOptions: { curve: 'linear', strokeWidth: 1.5, strokeLinecap: 'round' },
         data: history.map((point, index) => ({ x: index, y: point.up })),
       },
     ],
@@ -54,6 +54,7 @@ export function SpeedChart({ uploadSpeed, downloadSpeed }: SpeedChartProps) {
         tickValues={[]}
         yAxisTickValues={[]}
         margins={{ top: 2, right: 0, bottom: 2, left: 0 }}
+        mode="tozeroy"
         hideLegend
         hideTooltip
         enableGradient

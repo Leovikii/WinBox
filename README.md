@@ -2,7 +2,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Tauri 2](https://tauri.app), Rust, and Vue 3.
+A minimal, modern, and highly optimized Windows GUI for [Sing-box](https://github.com/SagerNet/sing-box), engineered with [Tauri 2](https://tauri.app), Rust, React, and Microsoft Fluent UI.
 
 <div align="center">
   <img src="frontend/src/assets/demo/demo1.png" alt="WinBox Dashboard 1" width="350" style="border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.1); margin: 0 10px;">
@@ -88,7 +88,9 @@ metadata; no separate update channel is created.
 
 The Rust/Tauri backend migration is implemented and
 [v3.0.0-alpha.1](https://github.com/Leovikii/WinBox/releases/tag/v3.0.0-alpha.1)
-has been published. Remaining manual acceptance checks are tracked in
-[the migration documents](docs/tauri-migration/README.md); frontend refactoring
-targets React and Microsoft Fluent UI in `3.0.0-alpha.2`, following the
-[frontend migration plan](docs/frontend-refactor/README.md).
+has been published. The React + Microsoft Fluent UI frontend migration for
+`3.0.0-alpha.2` is complete on `dev` and has passed the Windows x64 manual
+regression scope recorded in the [frontend migration plan](docs/frontend-refactor/README.md).
+The next step is a pull request from `dev` to `main`; the signed alpha.2
+Release is created only by the existing `main` workflow. Remaining backend
+acceptance checks stay tracked in [the migration documents](docs/tauri-migration/README.md).

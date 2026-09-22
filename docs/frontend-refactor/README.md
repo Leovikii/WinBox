@@ -2,7 +2,7 @@
 
 目标版本：`3.0.0-alpha.2`。2026-09-21 用户指定：保留后端人工测试，先进入前端迁移；Vue 3 迁移为 React，通用组件替换为微软 Fluent 官方组件，保留并尽可能优化当前视觉、动画与交互。本版完成 Windows AMD64/x64，Linux 在下个版本开发。
 
-本文件先定义交付计划，实施已在当前 `dev` 工作区推进到前端 review 阶段。前端进度唯一来源为 [tracker.md](tracker.md)，依赖候选、来源及限制见 [decisions.md](decisions.md)。后端未完成人工测试继续在 [原台账](../tauri-migration/tracker.md) 与 [验收清单](../tauri-migration/validation.md#待补人工验收2026-09-21) 保留，不作为前端启动的整体前置门槛，也不因前端构建通过而自动关闭。
+本文件先定义交付计划；当前 `dev` 工作区已完成前端实现和用户确认的 Windows x64 实机回归，待维护者创建 `dev` → `main` PR 触发 alpha.2 签名发布。前端进度唯一来源为 [tracker.md](tracker.md)，依赖候选、来源及限制见 [decisions.md](decisions.md)。后端未完成人工测试继续在 [原台账](../tauri-migration/tracker.md) 与 [验收清单](../tauri-migration/validation.md#待补人工验收2026-09-21) 保留，不因前端通过而自动关闭。
 
 ## 1. 推荐方案
 
@@ -136,7 +136,7 @@ UWP 页面与 Windows 专属动作保持独立业务组合，共享页面只负�
 
 迁移放在独立开发分支，以可回退的小提交推进。当前生产入口已切换为 React，未长期并存 Vue/React，也未建立跨框架同步桥；Tailwind 入口、旧 Vue 页面、W* 基础控件和 Font Awesome CDN 已移除，保留 OverlayScrollbars 作为已有日志/列表滚动能力。
 
-版本已在 FE-004 同步：`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 与 Cargo.lock 的本包版本、`frontend/package.json` 与 package-lock 顶层/根包版本均为 `3.0.0-alpha.2`；运行时版本仍由 Tauri metadata 提供。alpha.1 作为历史版本未全仓字符串替换。本轮只生成本机 unsigned x64 NSIS 测试包，不合并 main、不创建 Release；后续发布遵循明确授权。
+版本已在 FE-004 同步：`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 与 Cargo.lock 的本包版本、`frontend/package.json` 与 package-lock 顶层/根包版本均为 `3.0.0-alpha.2`；运行时版本仍由 Tauri metadata 提供。alpha.1 作为历史版本未全仓字符串替换。本轮只生成本机 unsigned x64 NSIS 测试包，不在本地合并 `main`、创建 PR 或创建 Release；维护者将 `dev` 手动 PR 到 `main` 后，由既有 workflow 生成签名 NSIS、`.sig` 与 `latest.json`。
 
 ## 8. 验证和完成定义
 
@@ -159,5 +159,13 @@ UWP 页面与 Windows 专属动作保持独立业务组合，共享页面只负�
 - 已执行：`npm run build`、`npx tsc --noEmit`、`npm audit --audit-level=high`（0 vulnerabilities）、`git diff --check`；x64 `cargo fmt --check`、`cargo test --locked --offline`（33/33）、`cargo clippy --locked --offline -- -D warnings`；`cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign` 通过。
 - 视觉/交互证据：生产预览覆盖 400×720 基线与本轮窄视口；设置页 Dropdown 展开、定位、选择和 Escape；主题、日志、退出、Manage Profiles、UWP 空状态、编辑器弹窗；标题栏 hover 连续截图稳定。生产构建控制台无错误；开发环境仅保留 Fluent Keyborg/React StrictMode 相关警告。
 - 2026-09-22 回归修复：应用更新比较在取得本机版本后再执行，`Unknown` 不再被当作可比较版本；增加检查中的并发保护。Dropdown 根控件与内部 combobox 只绘制一层 WinUI 边界，Portal 菜单改为不透明主题面、轻边框和选中背景，移除默认亮色焦点框；通过 Fluent `Option` 的公开 `checkIcon={null}` slot 完全移除左侧勾选节点和自定义竖条。弹窗表面改为不透出底层文字，编辑器 DialogBody/内容区/footer 已在窄视口填满；`ProductDialog` 用 `useLayoutEffect` 在 Fluent 自动聚焦前记录触发控件，Escape/关闭按钮退出后焦点恢复到原控件。浅色/深色主题、Dropdown、Manage Profiles、主题颜色和编辑器弹窗已用最新生产预览复核。
-- 当前 x64 测试产物：[NSIS 安装器](../../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-alpha.2_x64-setup.exe)，主程序 PE `0x8664`、版本 `3.0.0-alpha.2`、大小 `18,959,872` bytes、SHA-256 `68AD0FC5282F19CE0837759751B744F8407848E16F00B08BBDF781A96C1264C7`；安装器大小 `4,775,180` bytes、SHA-256 `57B104D8FBFB007E4B5A571E4E430B5888DB4F57C18AD01147E80EDEF2BCF264`。只生成 NSIS，不生成 ARM64/MSI/portable。
-- 未完成/阻塞：真实 Tauri WebView/NSIS 安装后人工验收，真实 profile/运行态/流量图表/日志压力、启停/模式/更新/UWP/主题材质/窗口按钮、DPI 100/125/150/200% 和旧数据边界。原生清单要求 `requireAdministrator`，当前非管理员启动返回 `0xc0000142`/`os error 740`；WebView2 `153.0.4234.48` 已安装，必须由用户以管理员权限启动并继续人工验收。浏览器预览中出现的 `invoke` 错误是没有 Tauri runtime 的预期限制，不记为前端视觉通过或后端失败修复。
+- 当前 x64 测试产物：[NSIS 安装器](../../src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-alpha.2_x64-setup.exe)，主程序 PE `0x8664`、版本 `3.0.0-alpha.2`、大小 `18,959,872` bytes、SHA-256 `9677374CDD2FA440AF05A6A76CA0DE4E39B3DE98C812A4601CE1AD696CDB5101`；安装器大小 `4,775,019` bytes、SHA-256 `DD9AB7B39F461805DF639AA5F029A7C40143101410213A006A2FC6B70B2A8DCE`。只生成 NSIS，不生成 ARM64/MSI/portable。
+- 实机回归：用户于 2026-09-22 确认 Windows x64 alpha.2 前端实机测试通过，覆盖模式滑块初始/切换、模式文字密度、顶部状态光晕、速度图、标题栏控件、Dropdown、主题和各类弹窗；本轮前端无待处理阻塞。该确认只关闭前端迁移的对应人工门槛，不自动关闭后端迁移台账中的安装/升级/UWP/托盘/旧数据及其他历史场景；其剩余证据仍见 [validation.md](../tauri-migration/validation.md)。
+
+## 10. 模式滑块与顶部状态回归（2026-09-22）
+
+- 依据微软最新 [Typography](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/typography)、[Geometry](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/geometry)、[Motion](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/motion)、[Color](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/color)、[Iconography](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/iconography) 和 [Radio buttons](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/radio-button) 规范复核：模式仍由 Fluent `RadioGroup`/`Radio` 负责互斥选择、方向键、焦点和无障碍语义；产品只保留选中背景层。模式文字固定为 12/16px、Regular，选中项 Semibold、sentence case，避免 Fluent `Label` 默认 14px 造成实机放大。
+- 修复附图中的滑块几何根因：`translateX(calc((100% - 10px) / 3 + 2px))` 中的百分比相对伪元素自身宽度解析，TUN/MIXED 只移动了目标距离的约三分之一；现在使用伪元素自身宽度的 `100%/200% + gap`，并显式 `box-sizing: border-box`，三段等宽、初始状态与切换动画均落在对应段位。动画保持 WinUI point-to-point 250ms 曲线，只有装饰层动画，官方单选控件仍是交互所有者。
+- 按旧版对照恢复顶部状态 ambient bloom：运行/处理中状态使用最小伪元素 `scale(3) + blur(6px) + opacity(.4)`，图标保留 6px 状态投影；`prefers-reduced-motion` 和 `forced-colors` 下自动减弱/移除光晕。
+- 速度图继续使用 Fluent v9 `AreaChart`，未恢复手写 SVG；通过公开 `mode="tozeroy"` 复刻旧版从零轴填充，公开 `lineOptions` 使用 linear、1.5px、round line，保留 30 点、最低 100 KiB/s、蓝/绿双渐变、无轴/图例/Tooltip。用户已在 Windows x64 实机确认真实流量更新和 WebView 重绘达到预期。
+- 本轮证据：`npm run build`、`npx tsc --noEmit`、`git diff --check` 通过；本地开发预览重新加载后确认新 CSS 规则已生效；用户随后在 Windows x64 实机确认运行态模式滑块、光晕和连续流量图通过。无 Tauri runtime 的浏览器限制仍只适用于浏览器预览，不再作为本轮前端实机回归阻塞。
