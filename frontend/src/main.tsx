@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { FluentProvider } from '@fluentui/react-components'
 import { createWinBoxTheme } from './theme'
 import App from './App'
-import { AppProvider, useApp } from './state/AppContext'
+import { AppProvider, useTheme } from './state/AppContext'
 import './index.css'
 
 function WinBoxRoot() {
-  const { isDark, accentColor } = useApp()
+  const { isDark, accentColor } = useTheme()
   const theme = useMemo(() => createWinBoxTheme(accentColor, isDark), [accentColor, isDark])
 
   return (

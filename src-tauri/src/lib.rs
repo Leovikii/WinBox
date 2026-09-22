@@ -49,6 +49,7 @@ pub fn run() {
             commands::save_override,
             commands::reset_override,
             commands::save_settings,
+            commands::get_start_on_boot,
             commands::set_start_on_boot,
             commands::set_auto_connect,
             commands::save_theme,

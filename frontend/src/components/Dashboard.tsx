@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { Button, Dropdown, Option, Radio, RadioGroup, Spinner, Text } from '@fluentui/react-components'
 import {
   ArrowDown16Regular,
@@ -20,7 +20,7 @@ import {
   Warning16Regular,
 } from '@fluentui/react-icons'
 import * as Backend from '../api/backend'
-import { useApp, useLive } from '../state/AppContext'
+import { useApp, useLogs, useTraffic, useTheme } from '../state/AppContext'
 import { ScrollArea, type ScrollAreaRef } from './ScrollArea'
 import { SpeedChart } from './SpeedChart'
 import { brandButtonStyle } from '../theme'
@@ -76,10 +76,39 @@ function selectedMode(tunMode: boolean, sysProxy: boolean) {
   return 'proxy'
 }
 
+const SpeedReadout = memo(function SpeedReadout() {
+  const { uploadSpeed, downloadSpeed } = useTraffic()
+  return <div className="speed-readout" aria-label={`Upload ${formatSpeed(uploadSpeed)}, download ${formatSpeed(downloadSpeed)}`}>
+    <span><ArrowUp16Regular />{formatSpeed(uploadSpeed)}</span>
+    <span><ArrowDown16Regular />{formatSpeed(downloadSpeed)}</span>
+  </div>
+})
+
+const TrafficChart = memo(function TrafficChart() {
+  const { trafficHistory } = useTraffic()
+  const { isDark } = useTheme()
+  return <SpeedChart history={trafficHistory} dark={isDark} />
+})
+
+const InlineLogs = memo(function InlineLogs() {
+  const live = useLogs()
+  const inlineLogRef = useRef<ScrollAreaRef>(null)
+  useEffect(() => {
+    if (inlineLogRef.current?.isAtBottom()) inlineLogRef.current.scrollToBottom()
+  }, [live.appLogContent])
+  return <section className="dashboard-card logs-card">
+    <div className="card-heading logs-heading">
+      <div className="section-title"><DocumentText16Regular /><Text weight="semibold">Logs</Text></div>
+      <Button appearance="secondary" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<ArrowMaximize16Regular />} onClick={() => live.setShowLogModal(true)} aria-label="Expand logs" />
+    </div>
+    <ScrollArea ref={inlineLogRef} height="100%" className="logs-scroll-area">
+      <div className="inline-log-content">{live.appLogContent || 'No logs available.'}</div>
+    </ScrollArea>
+  </section>
+})
+
 export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings }: DashboardProps) {
   const app = useApp()
-  const live = useLive()
-  const inlineLogRef = useRef<ScrollAreaRef>(null)
   const modeInputs = useRef<Record<string, HTMLInputElement | null>>({})
   const restoreModeFocus = useRef(false)
   const mode = selectedMode(app.tunMode, app.sysProxy)
@@ -94,11 +123,6 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
     // when the user has not moved to another control during the async operation.
     if (document.activeElement === document.body) modeInputs.current[mode]?.focus({ preventScroll: true })
   }, [app.isProcessing, mode])
-
-  useEffect(() => {
-    if (!inlineLogRef.current) return
-    if (inlineLogRef.current.isAtBottom()) inlineLogRef.current.scrollToBottom()
-  }, [live.appLogContent])
 
   const profileOptions = useMemo(() => app.profiles.map((profile) => ({ value: profile.id, label: profile.name })), [app.profiles])
   const activeProfileName = app.activeProfile?.name || ''
@@ -124,15 +148,12 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
             <Text weight="semibold">{app.statusText}</Text>
           </div>
           {showSpeed ? (
-            <div className="speed-readout" aria-label={`Upload ${formatSpeed(live.uploadSpeed)}, download ${formatSpeed(live.downloadSpeed)}`}>
-              <span><ArrowUp16Regular />{formatSpeed(live.uploadSpeed)}</span>
-              <span><ArrowDown16Regular />{formatSpeed(live.downloadSpeed)}</span>
-            </div>
+            <SpeedReadout />
           ) : null}
         </div>
         {app.running ? (
           <div className="status-chart-wrap">
-            <SpeedChart history={live.trafficHistory} dark={app.isDark} />
+            <TrafficChart />
           </div>
         ) : null}
       </section>
@@ -210,6 +231,8 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
                 onChange={(_, data) => handleModeChange(data.value)}
                 disabled={app.isProcessing}
                 aria-label="Proxy mode"
+                aria-busy={app.isModeSaving}
+                aria-disabled={app.isProcessing || app.isModeSaving}
               >
                 {modeOptions.map((option) => <Radio key={option.value} value={option.value} input={{ ref: node => { modeInputs.current[option.value] = node } }} className="mode-option" label={{ children: option.label, className: 'mode-label' }} indicator={{ className: 'mode-radio-indicator' }} />)}
               </RadioGroup>
@@ -221,6 +244,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
                 appearance="primary"
                 icon={app.isProcessing ? <Spinner size="tiny" /> : app.running ? <Stop16Regular /> : <Play16Regular />}
                 disabled={!app.coreExists || !app.activeProfile || app.isProcessing}
+                aria-disabled={app.isModeSaving || undefined}
                 onClick={() => void app.handleServiceToggle()}
                 style={actionStyle}
               >
@@ -236,15 +260,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
         )}
       </section>
 
-      <section className="dashboard-card logs-card">
-        <div className="card-heading logs-heading">
-          <div className="section-title"><DocumentText16Regular /><Text weight="semibold">Logs</Text></div>
-          <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<ArrowMaximize16Regular />} onClick={() => live.setShowLogModal(true)} aria-label="Expand logs" />
-        </div>
-        <ScrollArea ref={inlineLogRef} height="100%" className="logs-scroll-area">
-          <div className="inline-log-content">{live.appLogContent || 'No logs available.'}</div>
-        </ScrollArea>
-      </section>
+      <InlineLogs />
 
       <ManageProfilesDialog />
       <AppLogsDialog />

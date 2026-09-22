@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Checkbox,
@@ -40,7 +40,7 @@ interface SettingsPageProps {
   showUwpModal: boolean
   onOpenUwp: () => void
   onCloseUwp: () => void
-  onOpenChangelog: () => void
+  onOpenChangelog: (kind: 'program' | 'kernel') => void
 }
 
 const themeModes = [
@@ -103,22 +103,63 @@ function SelectSetting({ label, value, options, onChange, disabled = false }: { 
   )
 }
 
-function UpdateAction({ kind, state, version, progress, onCheck, onUpdate, coreExists }: {
+function StartupSetting() {
+  const app = useApp()
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
+  const revision = useRef(0)
+
+  useEffect(() => {
+    if (inFlight.current) return
+    const current = ++revision.current
+    void Backend.GetStartOnBoot().then(value => {
+      if (current === revision.current) setEnabled(value)
+    }).catch(error => {
+      if (current === revision.current) { setEnabled(null); app.setErrorAlert(error.message) }
+    })
+    return () => { revision.current++ }
+  }, [app.setErrorAlert])
+
+  const toggle = async () => {
+    if (inFlight.current || enabled === null) return
+    inFlight.current = true
+    revision.current++
+    setBusy(true)
+    try {
+      const actual = await Backend.SetStartOnBoot(!enabled)
+      setEnabled(actual)
+      if (actual && app.autoConnectState === 'off') await app.handleAutoConnectChange('smart')
+    } catch (error) {
+      app.setErrorAlert(error instanceof Error ? error.message : String(error))
+      // A failed verification may follow a successful registration. Read reality.
+      try { setEnabled(await Backend.GetStartOnBoot()) } catch { setEnabled(null) }
+    } finally {
+      inFlight.current = false
+      setBusy(false)
+    }
+  }
+
+  return <SettingRow label="Run at startup"><Switch aria-label="Run at startup" checked={enabled === true} disabled={busy || enabled === null} aria-busy={busy} onChange={() => void toggle()} /></SettingRow>
+}
+
+function UpdateAction({ kind, state, progress, onCheck, onUpdate, coreExists, disabled = false }: {
   kind: 'program' | 'kernel'
   state: UpdateState
-  version: string
   progress: number
   onCheck: () => void
   onUpdate: () => void
   coreExists?: boolean
+  disabled?: boolean
 }) {
+  const installMissingKernel = kind === 'kernel' && !coreExists
   if (state === 'checking') return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button" disabled icon={<Spinner size="tiny" />}>Checking</Button>
-  if (state === 'available') return <Button appearance="primary" size="small" className="winbox-primary-button winbox-small-button update-action-button" icon={<ArrowDownload16Regular />} onClick={onUpdate}>Update to {version}</Button>
-  if (state === 'updating') return <div className="progress-action"><ProgressBar thickness="medium" aria-label={`${kind === 'program' ? 'Application' : 'Kernel'} download`} className="progress-action-bar" value={progress / 100} /><span>{progress}%</span></div>
+  if (state === 'available') return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button update-available" icon={<ArrowDownload16Regular />} disabled={disabled} onClick={onUpdate}>Update</Button>
+  if (state === 'updating') return <div className="progress-action"><span>{progress}%</span><ProgressBar thickness="medium" aria-label={`${kind === 'program' ? 'Application' : 'Kernel'} download`} className="progress-action-bar" value={progress / 100} /></div>
   if (state === 'success') return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button" icon={<CheckmarkCircle16Regular />} disabled>{kind === 'program' ? 'Restarting' : 'Updated'}</Button>
-  if (state === 'latest') return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button" icon={<CheckmarkCircle16Regular />} disabled>Latest</Button>
-  if (state === 'error') return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button" icon={<Warning16Regular />} onClick={onCheck}>Failed</Button>
-  return <Button appearance="secondary" size="small" icon={!coreExists && kind === 'kernel' ? <ArrowDownload16Regular /> : <ArrowSync16Regular />} onClick={onCheck} className={`winbox-secondary-button winbox-small-button update-action-button ${!coreExists && kind === 'kernel' ? 'warning-button' : ''}`}>{coreExists || kind === 'program' ? 'Check' : 'Download'}</Button>
+  if (state === 'latest' && !installMissingKernel) return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button" icon={<CheckmarkCircle16Regular />} disabled>Latest</Button>
+  if (state === 'error') return <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button update-action-button" icon={<Warning16Regular />} disabled={disabled} onClick={installMissingKernel ? onUpdate : onCheck}>Failed</Button>
+  return <Button appearance="secondary" size="small" icon={installMissingKernel ? <ArrowDownload16Regular /> : <ArrowSync16Regular />} disabled={disabled} onClick={installMissingKernel ? onUpdate : onCheck} className={`winbox-secondary-button winbox-small-button update-action-button ${installMissingKernel ? 'warning-button' : ''}`}>{installMissingKernel ? 'Download' : 'Check'}</Button>
 }
 
 function UwpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -218,10 +259,7 @@ export default function SettingsPage({ showUwpModal, onOpenUwp, onCloseUwp, onOp
   const app = useApp()
   const [showThemeModal, setShowThemeModal] = useState(false)
 
-  const togglePreRelease = async () => {
-    await app.handlePreReleaseToggle()
-    app.resetUpdateStates()
-  }
+  const channelLocked = app.isChangingUpdateChannel || ['checking', 'updating'].includes(app.updateState) || ['checking', 'updating'].includes(app.programUpdateState)
 
   return (
     <div className="settings-page">
@@ -231,16 +269,16 @@ export default function SettingsPage({ showUwpModal, onOpenUwp, onCloseUwp, onOp
 
           <section className="settings-card">
             <div className="settings-section-heading"><span><Info16Regular /><Text weight="semibold">About</Text></span><Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button setting-action-button" onClick={() => void Backend.BrowserOpenURL('https://github.com/Leovikii/WinBox').catch((error) => app.setErrorAlert(error instanceof Error ? error.message : String(error)))} icon={<span className="github-icon" aria-hidden="true" />} aria-label="GitHub repository">GitHub</Button></div>
-            <SettingRow label="App version"><div className="version-row"><span>{app.programLocalVer}</span><UpdateAction kind="program" state={app.programUpdateState} version={app.programRemoteVer} progress={app.programDownloadProgress} onCheck={() => void app.checkProgramUpdate()} onUpdate={onOpenChangelog} /></div></SettingRow>
-            <SettingRow label="Kernel version"><div className="version-row"><span>{app.localVer}</span><UpdateAction kind="kernel" state={app.updateState} version={app.remoteVer} progress={app.downloadProgress} onCheck={() => void app.checkUpdate()} onUpdate={() => void app.performUpdate()} coreExists={app.coreExists} /></div></SettingRow>
-            <SettingRow label="Pre-release updates"><Switch aria-label="Pre-release updates" checked={app.preRelease} onChange={() => void togglePreRelease()} /></SettingRow>
+            <SettingRow label="App version"><div className="version-row"><span>{app.programLocalVer}</span><UpdateAction kind="program" state={app.programUpdateState} progress={app.programDownloadProgress} onCheck={() => void app.checkProgramUpdate()} onUpdate={() => onOpenChangelog('program')} disabled={app.isChangingUpdateChannel || app.updateState === 'updating'} /></div></SettingRow>
+            <SettingRow label="Kernel version"><div className="version-row"><span>{app.localVer}</span><UpdateAction kind="kernel" state={app.updateState} progress={app.downloadProgress} onCheck={() => void app.checkUpdate()} onUpdate={() => app.coreExists ? onOpenChangelog('kernel') : void app.performUpdate()} coreExists={app.coreExists} disabled={app.isChangingUpdateChannel || app.programUpdateState === 'updating'} /></div></SettingRow>
+            <SettingRow label="Pre-release updates"><Switch aria-label="Pre-release updates" checked={app.preRelease} disabled={channelLocked} onChange={() => void app.handlePreReleaseToggle()} /></SettingRow>
             <SettingRow label="Download proxy"><div className="setting-inline mirror-controls"><div className={`mirror-edit ${app.mirrorEnabled ? 'mirror-edit-open' : ''}`} inert={!app.mirrorEnabled} aria-hidden={!app.mirrorEnabled}><Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button winbox-icon-button" icon={<Edit16Regular />} onClick={() => void app.openEditor('mirror')} aria-label="Edit proxy URL" /></div><Switch aria-label="Download proxy" checked={app.mirrorEnabled} onChange={() => void app.handleMirrorToggle()} /></div></SettingRow>
           </section>
 
           <section className="settings-card">
             <div className="settings-section-heading"><span><Settings16Regular /><Text weight="semibold">General</Text></span></div>
             <SettingRow label="UWP loopback"><Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button setting-action-button" icon={<Edit16Regular />} onClick={onOpenUwp}>Edit</Button></SettingRow>
-            <SettingRow label="Run at startup"><Switch aria-label="Run at startup" checked={app.startOnBoot} onChange={() => void app.handleStartOnBootToggle()} /></SettingRow>
+            <StartupSetting />
             <SettingRow label="Auto connect"><SelectSetting label="Auto connect" value={app.autoConnectState} options={autoConnectModes} onChange={(value) => void app.handleAutoConnectChange(value)} /></SettingRow>
             <SettingRow label="On close action"><SelectSetting label="On close action" value={app.closeBehavior} options={closeModes} onChange={(value) => void app.handleCloseBehaviorChange(value)} /></SettingRow>
             <SettingRow label="Theme"><div className="setting-inline"><Button appearance="subtle" shape="circular" size="small" className="color-button" onClick={() => setShowThemeModal(true)} aria-label="Theme color"><span className="theme-color-preview" style={{ backgroundColor: app.accentColor }} /></Button><SelectSetting label="Theme" value={app.themeMode} options={themeModes} onChange={(value) => void app.setThemeMode(value)} /></div></SettingRow>

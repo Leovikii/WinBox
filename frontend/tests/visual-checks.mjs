@@ -24,6 +24,30 @@ await mkdir(evidence, { recursive: true })
 const browser = await chromium.launch({ headless: true, channel: process.env.WINBOX_BROWSER_CHANNEL || 'msedge' })
 const context = await browser.newContext({ viewport: { width: 400, height: 720 }, reducedMotion: 'no-preference', recordVideo: { dir: evidence, size: { width: 400, height: 720 } } })
 if (initScript) await context.addInitScript(initScript)
+// Test-only React commit observer: no instrumentation enters the production bundle.
+await context.addInitScript(() => {
+  window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+    supportsFiber: true,
+    inject: () => 1,
+    onCommitFiberRoot: (_id, root) => {
+      window.reactRoot = root;
+      if (!window.renderTargets) return;
+      const visit = fiber => {
+        for (const target of window.renderTargets) {
+          if (fiber.type === target.type && fiber !== target.last) {
+            if (fiber.flags & 1) target.count++;
+            target.last = fiber;
+          }
+        }
+        if (fiber.child) visit(fiber.child);
+        if (fiber.sibling) visit(fiber.sibling);
+      };
+      visit(root.current);
+    },
+    onCommitFiberUnmount: () => {},
+  };
+});
+
 const page = await context.newPage()
 const failures = []
 page.on('pageerror', error => failures.push(error.message))
@@ -54,6 +78,73 @@ try {
   await settle()
   check('normal motion media active', !await page.evaluate(() => matchMedia('(prefers-reduced-motion:reduce)').matches))
   await capture('dashboard-light')
+  // Offline mode persistence must not trigger the whole-dashboard busy treatment.
+  await page.evaluate(() => window.visualTest.holdNext('save_mode'));
+  await page.getByRole('radio', { name: 'TUN', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Proxy mode"]').getAttribute('aria-busy') === 'true');
+  check('offline mode save preserves status icon', await page.locator('.status-led-spin').count() === 0);
+  check('offline mode save preserves profile availability', await page.getByRole('combobox', { name: 'Select profile', exact: true }).isEnabled());
+  check('offline mode waits for successful save', await page.getByRole('radio', { name: 'Proxy', exact: true }).isChecked());
+  await page.getByRole('radio', { name: 'Mixed', exact: true }).dispatchEvent('click');
+  check('pending mode save rejects duplicate requests', await page.evaluate(() => window.visualTest.calls.filter(x => x === 'save_mode').length) === 1);
+  await page.evaluate(() => {
+    window.modeFrames = [];
+    const end = performance.now() + 500;
+    const sample = () => {
+      const page = document.querySelector('.winbox-page-dashboard');
+      const slider = document.querySelector('.mode-selector');
+      window.modeFrames.push({ opacity: Number(getComputedStyle(page).opacity), transform: getComputedStyle(page).transform, slider: getComputedStyle(slider, '::before').transform, spinning: !!document.querySelector('.status-led-spin') });
+      if (performance.now() < end) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    window.visualTest.release();
+  });
+  await page.waitForTimeout(550);
+  metrics.offlineModeFrames = await page.evaluate(() => window.modeFrames);
+  check('mode slider moves through intermediate frames', new Set(metrics.offlineModeFrames.map(f => f.slider)).size > 2);
+  check('mode animation keeps the page opaque and stationary', metrics.offlineModeFrames.every(f => f.opacity === 1 && f.transform === 'matrix(1, 0, 0, 1, 0, 0)' && !f.spinning));
+  check('mode save commits selected mode', await page.getByRole('radio', { name: 'TUN', exact: true }).isChecked());
+  await page.evaluate(() => window.visualTest.failNext('save_mode'));
+  await page.getByRole('radio', { name: 'Mixed', exact: true }).click(); await settle();
+  check('offline mode save failure retains selection and unlocks retry', await page.getByRole('radio', { name: 'TUN', exact: true }).isChecked() && await page.getByRole('radio', { name: 'Mixed', exact: true }).isEnabled());
+  await page.goto(baseURL); await button('Start').waitFor(); await settle();
+  await button('Settings').click(); await settle();
+  const startupSwitch = page.getByRole('switch', { name: 'Run at startup', exact: true });
+  await page.evaluate(() => window.visualTest.holdNext('set_start_on_boot'));
+  await startupSwitch.click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Run at startup"]').disabled);
+  check('startup request disables repeated clicks', await startupSwitch.isDisabled() && !await startupSwitch.isChecked());
+  await page.evaluate(() => window.visualTest.release()); await settle();
+  check('startup reflects verified backend state', await startupSwitch.isChecked() && await startupSwitch.isEnabled());
+  await startupSwitch.click(); await settle();
+  check('startup can be disabled', !await startupSwitch.isChecked());
+  await button('Back to Home').click(); await settle();
+  await page.evaluate(() => { window.visualTest.state.startOnBoot = true });
+  await button('Settings').click(); await settle();
+  check('settings reveal refreshes external startup changes', await startupSwitch.isChecked());
+  await button('Back to Home').click(); await settle();
+  await page.evaluate(() => window.visualTest.failNext('get_start_on_boot'));
+  await button('Settings').click(); await settle();
+  check('startup query failure is visible and not reported as off', await startupSwitch.isDisabled() && await page.getByText('Fixture: requested operation failed', { exact: true }).isVisible());
+  await page.goto(baseURL); await button('Start').waitFor(); await settle();
+
+  await page.evaluate(() => window.visualTest.holdNext('save_mode'));
+  await page.getByRole('radio', { name: 'TUN', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="Proxy mode"]').getAttribute('aria-busy') === 'true');
+  await page.evaluate(async () => {
+    await window.visualTest.emit('state-sync', { tunMode: true, sysProxy: true });
+    window.visualTest.release();
+  });
+  await settle();
+  check('late offline save cannot overwrite newer mode event', await page.getByRole('radio', { name: 'Mixed', exact: true }).isChecked());
+  await page.goto(`${baseURL}?scenario=slow-log`);
+  await page.waitForFunction(() => window.visualTest.calls.includes('get_app_log'));
+  await page.evaluate(async () => {
+    await window.visualTest.emit('onAppLog', 'newer-than-snapshot\n');
+    window.visualTest.release();
+  });
+  await settle();
+  check('late log snapshot cannot overwrite queued events', (await page.locator('.inline-log-content').textContent()).includes('newer-than-snapshot'));
   await page.goto(`${baseURL}?scenario=slow-init`);
   await page.waitForFunction(() => window.visualTest.calls.includes('get_init_data'));
   await page.evaluate(async () => {
@@ -246,6 +337,34 @@ try {
   await page.evaluate(async () => { for (let i = 0; i < 35; i++) await window.visualTest.emit('traffic-update', { upload: 40960, download: 102400 + i * 1024 }) })
   await settle()
   await capture('dashboard-running')
+  const trackRenders = () => page.evaluate(() => {
+    window.renderTargets = ['.dashboard-page', '.speed-chart', '.logs-card'].map(selector => {
+      const element = document.querySelector(selector);
+      let fiber = element[Object.keys(element).find(key => key.startsWith('__reactFiber$'))];
+      while (fiber && typeof fiber.type !== 'function') fiber = fiber.return;
+      const type = fiber.type;
+      const findCurrent = node => !node ? null : node.type === type ? node : findCurrent(node.child) || findCurrent(node.sibling);
+      return { selector, type, last: findCurrent(window.reactRoot.current), count: 0 };
+    });
+  });
+  await trackRenders();
+  await page.evaluate(async () => {
+    for (let i = 0; i < 20; i++) {
+      await window.visualTest.emit('onAppLog', `batch-log-${i}\n`);
+      await new Promise(resolve => setTimeout(resolve, 2));
+    }
+  });
+  await settle();
+  metrics.logRenders = await page.evaluate(() => window.renderTargets.map(({ selector, count }) => ({ selector, count })));
+  check('batched logs do not rerender dashboard or chart', metrics.logRenders[0].count === 0 && metrics.logRenders[1].count === 0 && metrics.logRenders[2].count > 0 && metrics.logRenders[2].count < 20);
+  check('log batching retains all ordered entries', await page.locator('.inline-log-content').evaluate(e => Array.from({length:20}, (_,i) => `batch-log-${i}\n`).every((line,i,lines) => e.textContent.includes(line) && (!i || e.textContent.indexOf(lines[i-1]) < e.textContent.indexOf(line)))));
+  await trackRenders();
+  await page.evaluate(() => window.visualTest.emit('traffic-update', { upload: 42, download: 84 }));
+  await settle();
+  metrics.trafficRenders = await page.evaluate(() => window.renderTargets.map(({ selector, count }) => ({ selector, count })));
+  check('traffic redraws chart without rerendering dashboard or logs', metrics.trafficRenders[0].count === 0 && metrics.trafficRenders[1].count > 0 && metrics.trafficRenders[2].count === 0);
+  await page.evaluate(() => { window.renderTargets = null });
+
   await openDropdown('Active profile');
   await page.keyboard.press('Escape');
   check('traffic series have a non-color distinction', await page.locator('.speed-chart path').evaluateAll(nodes => nodes.some(e => e.getAttribute('stroke-dasharray') || getComputedStyle(e).strokeDasharray !== 'none')))
@@ -285,7 +404,7 @@ try {
   await page.getByRole('switch', { name: 'Download proxy' }).click()
   await settle()
   check('collapsed mirror edit is inert', await page.locator('.mirror-edit').evaluate(e => e.inert))
-  await button('Update to 3.0.0-alpha.3').click()
+  await button('Update').click()
   await settle()
   await capture('changelog-light')
   await button('Later').click()
@@ -377,7 +496,7 @@ try {
   }
   await scroll.evaluate(e => { e.scrollTop = 0 })
   await page.evaluate(() => window.visualTest.holdNext('update_program'))
-  await button('Update to 3.0.0-alpha.3').click()
+  await button('Update').click()
   await button('Update now').click()
   const progress = page.getByRole('progressbar', { name: 'Application download' })
   await progress.waitFor()
@@ -476,6 +595,127 @@ try {
     await capture(`dashboard-${scenario}`)
     check(`${scenario} state has a recovery action`, await button(scenario === 'empty' ? 'Add profile' : 'Install kernel').isVisible())
   }
+  // Kernel installation and both updater failure paths use the exact production IPC adapters.
+  await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none', colorScheme: 'light' });
+  await page.setViewportSize({ width: 400, height: 720 });
+  const kernelRow = page.locator('.setting-row').filter({ hasText: 'Kernel version' });
+  const programRow = page.locator('.setting-row').filter({ hasText: 'App version' });
+  const preReleaseSwitch = page.getByRole('switch', { name: 'Pre-release updates', exact: true });
+  const openUpdateSettings = async (scenario = '') => {
+    await page.goto(`${baseURL}?scenario=${scenario}`);
+    await button('Settings').click(); await settle();
+  };
+  for (const message of ['Network request failed', 'The release service returned HTTP 403', 'Release data is invalid']) {
+    await openUpdateSettings();
+    await page.evaluate(message => window.visualTest.failNext('check_update', message), message);
+    await kernelRow.getByRole('button', { name: 'Check', exact: true }).click(); await settle();
+    check(`kernel check reports ${message} instead of Latest`, await kernelRow.getByRole('button', { name: 'Failed' }).isVisible() && await page.getByText(message, { exact: true }).isVisible());
+  }
+  await openUpdateSettings();
+  await page.evaluate(() => window.visualTest.setKernelRelease('not-a-version'));
+  await kernelRow.getByRole('button', { name: 'Check', exact: true }).click(); await settle();
+  check('invalid kernel metadata is never Latest', await kernelRow.getByRole('button', { name: 'Failed' }).isVisible());
+  await page.evaluate(() => window.visualTest.setKernelRelease('1.12.0'));
+  await kernelRow.getByRole('button', { name: 'Failed' }).click(); await settle();
+  check('matching installed kernel is Latest', await kernelRow.getByRole('button', { name: 'Latest' }).isDisabled());
+  await openUpdateSettings('unknown-kernel');
+  await kernelRow.getByRole('button', { name: 'Check', exact: true }).click(); await settle();
+  check('unknown installed kernel version offers repair instead of Latest', await kernelRow.getByRole('button', { name: 'Update' }).isVisible());
+
+  await openUpdateSettings('missing');
+  await page.evaluate(() => { window.visualTest.failNext('update_kernel', 'Network request failed'); window.visualTest.holdNext('update_kernel') });
+  const downloadButtonBounds = await kernelRow.getByRole('button', { name: 'Download', exact: true }).boundingBox();
+  await kernelRow.getByRole('button', { name: 'Download', exact: true }).click();
+  await page.getByRole('progressbar', { name: 'Kernel download' }).waitFor();
+  check('missing kernel Download directly installs without a separate check', await page.evaluate(() => window.visualTest.calls.includes('update_kernel') && !window.visualTest.calls.includes('check_update')));
+  check('kernel install locks the update channel and program install', await preReleaseSwitch.isDisabled() && await programRow.getByRole('button').isDisabled());
+  await page.evaluate(() => window.visualTest.emit('download-progress', 50)); await settle();
+  const progressBounds = await kernelRow.locator('.progress-action').boundingBox();
+  check('download progress preserves button geometry', ['x','y','width','height'].every(key => Math.abs(downloadButtonBounds[key] - progressBounds[key]) < 1));
+  check('download status includes operation and percentage', await kernelRow.getByText('50%', { exact: true }).isVisible());
+  await capture('kernel-progress-light');
+  check('kernel progress belongs to kernel download', Number(await page.getByRole('progressbar', { name: 'Kernel download' }).getAttribute('aria-valuenow')) === .5);
+  await page.evaluate(() => window.visualTest.release()); await settle();
+  check('missing kernel failure retains Not Installed and exposes retry', (await kernelRow.innerText()).includes('Not Installed') && await kernelRow.getByRole('button', { name: 'Failed' }).isEnabled() && await page.getByText('Network request failed', {exact:true}).isVisible());
+  await page.evaluate(() => { window.visualTest.setKernelRelease('1.14.1'); window.visualTest.holdNext('update_kernel') });
+  await kernelRow.getByRole('button', { name: 'Failed' }).click();
+  await page.getByRole('progressbar', { name: 'Kernel download' }).waitFor();
+  await page.evaluate(() => window.visualTest.release()); await settle();
+  check('kernel retry installs and displays actual backend version', (await kernelRow.innerText()).includes('1.14.1') && await kernelRow.getByRole('button', { name: 'Updated' }).isVisible());
+  check('kernel installation is not duplicated', await page.evaluate(() => window.visualTest.calls.filter(x => x === 'update_kernel').length) === 2);
+
+  await openUpdateSettings();
+  await kernelRow.getByRole('button', { name: 'Check', exact: true }).click(); await settle();
+  await page.evaluate(() => window.visualTest.setKernelRelease('1.14.1'));
+  await kernelRow.getByRole('button', { name: 'Update' }).click(); await settle();
+  check('kernel uses shared confirmation dialog with versions and release notes', await page.getByRole('dialog', { name: 'Update sing-box' }).isVisible() && await page.getByText('1.12.0 → 1.13.0', {exact:true}).isVisible() && await page.getByText('Kernel improvements.', {exact:true}).isVisible());
+  check('release emoji shortcode renders as Unicode', await page.getByRole('heading', {name:'📝 sing-box release notes'}).isVisible());
+  await capture('kernel-update-dialog');
+  await button('Later').click();
+  check('kernel dialog retains its title during exit', await page.getByRole('dialog', {name:'Update sing-box'}).count() === 1);
+  await settle();
+  check('kernel Later restores focus without installing', await page.evaluate(() => !window.visualTest.calls.includes('update_kernel')) && await kernelRow.getByRole('button').evaluate(e => e === document.activeElement));
+  await kernelRow.getByRole('button', {name:'Update',exact:true}).click(); await settle();
+  await button('Update now').click(); await settle();
+  check('changed release is not silently installed', await kernelRow.getByRole('button', {name:'Failed'}).isVisible() && await page.getByText('The available release changed. Check for updates and confirm again.', {exact:true}).isVisible());
+  await kernelRow.getByRole('button', {name:'Failed'}).click(); await settle();
+  await kernelRow.getByRole('button', {name:'Update',exact:true}).click(); await settle();
+  await button('Update now').click(); await settle();
+  check('confirmed kernel update installs and refreshes actual version', (await kernelRow.innerText()).includes('1.14.1') && await kernelRow.getByRole('button', {name:'Updated'}).isVisible());
+
+  await openUpdateSettings('unknown-program');
+  check('unknown application version is a visible failure rather than Latest', await programRow.getByRole('button', { name: 'Failed' }).isVisible() && await page.getByText('Could not read the application version', { exact: true }).isVisible());
+  await page.evaluate(() => { window.visualTest.setProgramVersion('3.0.0-alpha.3'); window.visualTest.setProgramRelease('invalid') });
+  await programRow.getByRole('button', { name: 'Failed' }).click(); await settle();
+  check('invalid application release is not Latest', await programRow.getByRole('button', { name: 'Failed' }).isVisible() && await page.getByText('The release service returned an invalid application version', { exact: true }).isVisible());
+  await page.evaluate(() => { window.visualTest.setProgramRelease('3.0.0-alpha.4', 'Visual regression fixture.\n\n[Release details](https://example.com/release) [unsafe](javascript:alert%281%29)'); window.visualTest.failNext('check_program_update', 'The release service returned HTTP 429') });
+  await programRow.getByRole('button', { name: 'Failed' }).click(); await settle();
+  check('application check shows server failure', await page.getByText('The release service returned HTTP 429', { exact: true }).isVisible());
+  await page.evaluate(() => window.visualTest.holdNext('check_program_update'));
+  await programRow.getByRole('button', { name: 'Failed' }).click();
+  await page.waitForTimeout(3200);
+  check('old failure timer cannot reset a pending retry', await programRow.getByRole('button', { name: 'Checking' }).isDisabled() && await preReleaseSwitch.isDisabled());
+  await page.evaluate(() => window.visualTest.release()); await settle();
+  await programRow.getByRole('button', { name: 'Update' }).click(); await settle();
+  check('update dialog shows version and changelog', await page.getByRole('dialog', { name: "Update WinBox" }).isVisible() && await page.getByText('Visual regression fixture.', { exact: true }).isVisible());
+  await page.getByRole('link', { name: 'Release details' }).click();
+  check('changelog links open externally without navigating the app', await page.evaluate(() => window.visualTest.calls.includes('open_url')) && await page.getByRole('dialog').isVisible());
+  check('unsafe changelog link is plain text', await page.getByRole('link', { name: 'unsafe' }).count() === 0);
+  await button('Later').click(); await settle();
+  check('Later does not start installation and restores focus', await page.evaluate(() => !window.visualTest.calls.includes('update_program')) && await programRow.getByRole('button').evaluate(e => e === document.activeElement));
+  await programRow.getByRole('button').click(); await settle();
+  await page.keyboard.press('Escape'); await settle();
+  check('Escape closes update dialog without installation', await page.getByRole('dialog').count() === 0 && await page.evaluate(() => !window.visualTest.calls.includes('update_program')));
+  await programRow.getByRole('button').click(); await settle();
+  await page.evaluate(() => { window.visualTest.holdNext('update_program'); window.visualTest.failNext('update_program', 'Signature verification failed') });
+  await button('Update now').click();
+  await page.getByRole('progressbar', { name: 'Application download' }).waitFor();
+  check('program install locks channel and kernel download', await preReleaseSwitch.isDisabled() && await kernelRow.getByRole('button').isDisabled());
+  await page.evaluate(() => window.visualTest.release()); await settle();
+  check('program signature failure is visible and retryable', await programRow.getByRole('button', {name:'Failed'}).isEnabled() && await page.getByText('Signature verification failed', {exact:true}).isVisible());
+  await programRow.getByRole('button', {name:'Failed'}).click(); await settle();
+  await programRow.getByRole('button', {name:'Update'}).click(); await settle();
+  await button('Update now').click(); await settle();
+  check('program update retry reaches restart state', await programRow.getByRole('button', {name:'Restarting'}).isDisabled());
+  check('one program install per confirmation', await page.evaluate(() => window.visualTest.calls.filter(x=>x==='update_program').length) === 2);
+
+  await openUpdateSettings();
+  await page.evaluate(() => window.visualTest.setKernelRelease('v1.15.0-alpha.7', '## Changes\n\n' + Array.from({length:40}, (_,i) => `- Improvement ${i}`).join('\n')));
+  await kernelRow.getByRole('button', {name:'Check',exact:true}).click(); await settle();
+  check('long target version stays out of the compact button', await kernelRow.getByRole('button', {name:'Update',exact:true}).isVisible() && !(await kernelRow.innerText()).includes('alpha.7'));
+  check('available update uses theme accent without animation', await kernelRow.getByRole('button', {name:'Update',exact:true}).evaluate(e => { const style=getComputedStyle(e); return style.color !== getComputedStyle(e.parentElement).color && style.animationName === 'none' }));
+  await capture('compact-update-actions');
+  await kernelRow.getByRole('button', {name:'Update',exact:true}).click(); await settle();
+  for (const width of [320,400]) {
+    await page.setViewportSize({width,height:720}); await settle();
+    const viewport = page.getByRole('dialog').locator('[data-overlayscrollbars-viewport]');
+    check(`long release notes scroll at ${width}`, await viewport.evaluate(e => { e.scrollTop=e.scrollHeight; return e.scrollTop > 0 }));
+    check(`update footer remains visible at ${width}`, await button('Update now').evaluate(e => {const r=e.getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight}));
+    await capture(`kernel-long-notes-${width}`);
+  }
+  await page.keyboard.press('Escape'); await settle();
+  check('kernel Escape does not install', await page.evaluate(() => !window.visualTest.calls.includes('update_kernel')));
+
   // Browser device scale is evidence for CSS/raster scaling, not Windows OS DPI.
   for (const deviceScaleFactor of [1, 1.25, 1.5, 2]) {
     const scaled = await browser.newContext({ viewport: { width: 400, height: 720 }, deviceScaleFactor, reducedMotion: 'reduce' })

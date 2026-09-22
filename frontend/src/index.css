@@ -150,7 +150,7 @@ button.winbox-close-button { --colorNeutralForeground2BrandHover: #ffffff; --col
 .theme-color-preview { display: block; width: 20px; height: 20px; border: 1px solid var(--colorNeutralStrokeAccessible); border-radius: var(--borderRadiusCircular); }
 .progress-action { display: flex; flex-direction: column; justify-content: center; gap: var(--spacingVerticalXS); width: 112px; min-height: 32px; color: var(--colorNeutralForeground2); font-size: var(--fontSizeBase200); }
 .progress-action-bar { width: 100%; }
-.progress-action > span { text-align: right; font-variant-numeric: tabular-nums; }
+.progress-action > span { text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Official controls retain their state, focus and disabled styles. Product classes
    set density and layout on public root/slots only. */
@@ -165,7 +165,8 @@ button.winbox-icon-button, button.winbox-dialog-close { width: 32px; min-width: 
 
 
 button.danger-icon-button:hover:not(:disabled) { color: var(--colorPaletteRedForeground1); background: var(--colorPaletteRedBackground1); }
-button.setting-action-button, button.update-action-button { min-width: 80px; }
+button.setting-action-button { min-width: 80px; }
+button.update-action-button { width: 112px; min-width: 112px; min-height: 32px; height: auto; white-space: normal; }
 .winbox-dropdown.winbox-dropdown { min-width: 0; border-radius: 4px; }
 .winbox-dropdown.setting-select { width: 112px; min-width: 112px; }
 .winbox-dropdown.profile-compact-select { width: 150px; min-width: 0; }
@@ -253,7 +254,7 @@ button.setting-action-button, button.update-action-button { min-width: 80px; }
 .custom-color-copy span { color: var(--colorNeutralForeground2); font-size: 12px; line-height: 16px; }
 .custom-color-copy code { color: var(--colorNeutralForeground3); font: 12px/16px "Cascadia Mono", Consolas, monospace; }
 
-.markdown-body { color: var(--colorNeutralForeground1); line-height: 1.6; user-select: text; }
+.markdown-body { overflow-wrap: anywhere; color: var(--colorNeutralForeground1); line-height: 1.6; user-select: text; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 1.25rem 0 .75rem; font-weight: 600; }
 .markdown-body h1 { padding-bottom: .3rem; border-bottom: 1px solid var(--colorNeutralStroke2); font-size: 1.5rem; }
 .markdown-body h2 { padding-bottom: .3rem; border-bottom: 1px solid var(--colorNeutralStroke2); font-size: 1.25rem; }
@@ -330,3 +331,8 @@ button.setting-action-button, button.update-action-button { min-width: 80px; }
 
 /* Official Octicons brand mark; inherit Fluent button state colors. */
 .github-icon { display: inline-block; width: 16px; height: 16px; background-color: currentColor; mask: url("./assets/github.svg") center / contain no-repeat; }
+
+button.update-available:not(:disabled) { color: var(--colorBrandForeground1); }
+@media (forced-colors: active) {
+  button.update-available:not(:disabled) { color: ButtonText; }
+}

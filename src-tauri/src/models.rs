@@ -81,6 +81,7 @@ pub struct GlobalSettings {
     #[serde(default = "default_auto_connect_state")]
     pub auto_connect_state: String,
     #[serde(default)]
+    // Legacy settings round-trip only; Task Scheduler is the autostart authority.
     pub start_on_boot: bool,
     #[serde(default = "default_close_behavior")]
     pub close_behavior: String,

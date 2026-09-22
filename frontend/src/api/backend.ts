@@ -21,7 +21,6 @@ export interface InitDataDto {
   activeProfile: ProfileDto | null
   mirror: string
   mirrorEnabled: boolean
-  startOnBoot: boolean
   autoConnectState: string
   themeMode: string
   accentColor: string
@@ -49,7 +48,7 @@ export interface UWPAppDto {
   isExempt: boolean
 }
 
-export interface ProgramUpdateDto {
+export interface ReleaseUpdateDto {
   version: string
   changelog: string
 }
@@ -102,8 +101,10 @@ export const resetOverride = (name: OverrideName) =>
 export const SaveSettings = (mirror: string, enabled: boolean) =>
   invokeText('save_settings', { mirror, enabled })
 
+export const GetStartOnBoot = () => invokeOrThrow<boolean>('get_start_on_boot')
+
 export const SetStartOnBoot = (enabled: boolean) =>
-  invokeText('set_start_on_boot', { enabled })
+  invokeOrThrow<boolean>('set_start_on_boot', { enabled })
 
 export const SetAutoConnect = (state: string) =>
   invokeText('set_auto_connect', { state })
@@ -154,21 +155,15 @@ export const GetUWPApps = () => invokeOrThrow<UWPAppDto[]>('get_uwp_apps')
 export const SetUWPLoopbackExemptions = (selectedSIDs: string[]) =>
   invokeText('set_uwp_loopback_exemptions', { selectedSids: selectedSIDs })
 
-export const CheckUpdate = () => invokeText('check_update')
+export const CheckUpdate = () => invokeOrThrow<ReleaseUpdateDto>('check_update')
 
-export const UpdateKernel = (mirror: string) =>
-  invokeText('update_kernel', { mirror })
+export const UpdateKernel = (mirror: string, expectedVersion: string | null) =>
+  invokeOrThrow<string>('update_kernel', { mirror, expectedVersion })
 
-export const CheckProgramUpdate = async (): Promise<ProgramUpdateDto | { error: string }> => {
-  try {
-    return await invoke<ProgramUpdateDto>('check_program_update')
-  } catch (error) {
-    return { error: errorText(error) }
-  }
-}
+export const CheckProgramUpdate = () => invokeOrThrow<ReleaseUpdateDto>('check_program_update')
 
-export const UpdateProgram = (mirror: string) =>
-  invokeText('update_program', { mirror })
+export const UpdateProgram = (mirror: string, expectedVersion: string) =>
+  invokeOrThrow<string>('update_program', { mirror, expectedVersion })
 
 export const getProductVersion = () =>
   invokeOrThrow<string>('get_product_version')
