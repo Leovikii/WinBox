@@ -1,6 +1,14 @@
 # 前端设计与实现规范
 
+alpha.4 权限交互：复用 ProductDialog、状态卡、Start 和设置行；TUN/mixed 授权后自动重启连接，取消保持未连接。开机自动连接只记录等待授权，不抢焦点或主动弹 UAC；手动启动可显示授权确认。权限等待与内核 busy/running 分离，状态以后端为准。启动按钮始终使用 Start，不因取消授权改名；普通权限 TUN/mixed 从首次启动即显示盾牌。授权弹窗采用一句说明、并排 Cancel/Continue，复用 dialog-actions-stretch。UWP 授权保留草稿，重开后重新确认；不新增权限页面或通用弹窗框架。设置页不展示权限状态行；普通权限无标识，管理员运行仅在标题栏显示可聚焦盾牌及 Fluent Tooltip。Auto connect 保持单行，标签旁的 Fluent 帮助按钮通过悬停/键盘焦点显示简短 Tooltip，不常驻说明段落。
+
 ## 依据
+
+初始化快照的模式使用独立 modeRevision 校验，只有新的模式事件/成功离线模式保存才使模式快照过期。权限、busy、status 等生命周期事件不会丢弃已保存的 TUN/mixed 模式；运行状态仍用生命周期 revision 防止旧快照覆盖新事件。
+
+开机 TUN/mixed 等待授权时发送一次 Windows 通知，点击打开主界面后复用 Start/授权弹窗；不自动弹 UAC。系统通知被关闭或勿扰隐藏时保留托盘短提示及主界面等待状态。启动代理恢复失败从初始化快照读取 `proxyError`，不依赖前端尚未订阅时的瞬时事件。
+
+全局错误复用单个 Fluent Toaster，在顶部居中、48px 标题栏下方覆盖显示（控件自带 16px 间距），不遮挡窗口按钮、不挤动页面。复用现有错误状态，新错误更新当前 Toast、不堆叠；保持显示至关闭或重试 Start。保留完整英文错误原文，长文本换行、超长内容在 ToastBody 内滚动，关闭按钮始终可见，正文可键盘聚焦滚动。表单局部校验仍保留就近 MessageBar；系统开机通知与应用内 Toast 分开。
 
 优先级：微软 WinUI 3 / Windows 设计及无障碍 → Fluent React v9 官方能力 → WinBox 已验收产品基线 → 最小自定义。旧效果参考 `v2.8.0`（`3b5eef8`），不恢复旧框架/手写控件。Fluent Web 不等于原生 WinUI，默认像素和 DPI 表现不能视为相同。
 
@@ -8,7 +16,7 @@
 
 ## 组件、文字与表面
 
-- 官方 Button、Input/Textarea、Switch、Checkbox、Dropdown/Option、Dialog、MessageBar、RadioGroup、TabList、ProgressBar、SwatchPicker、AreaChart 实际承担交互。主题 token → 公开 props/slots/motion → 必要产品样式；不依赖生成类名/私有 DOM，不复制控件，不做无用代理库。
+- 官方 Button、Input/Textarea、Switch、Checkbox、Dropdown/Option、Dialog、MessageBar、Toaster/Toast、RadioGroup、TabList、ProgressBar、SwatchPicker、AreaChart 实际承担交互。主题 token → 公开 props/slots/motion → 必要产品样式；不依赖生成类名/私有 DOM，不复制控件，不做无用代理库。
 - `ProductDialog` 是业务弹窗组合，保留官方 focus/Escape/Portal 与离场；`ScrollArea` 复用 OverlayScrollbars。自定义颜色保留原生 `input type=color`，Cancel/Apply 操作不变。
 - 正文/设置标签 14/20 Regular，小标题 14/20 Semibold，辅助信息 12/16 Regular，弹窗标题 20/28 Semibold。不要缩小文字解决溢出；紧凑控件有产品密度例外，以当前实现和缩放回归为准。
 - Segoe UI Variable → Segoe UI → system-ui/sans-serif；日志用等宽回退。sentence case，保留 TUN/UWP/IPv6。普通图标用原生 16Regular，空态 24Regular，不把大图标统一缩小；纯图标按钮有可访问名称。GitHub 为单色 16px 品牌标志。
@@ -31,7 +39,7 @@
 
 每次 UI 改动验证浅/深、320/400/480 宽度、长文本、鼠标/键盘/Escape、焦点恢复、慢操作/失败、减弱动效/高对比度及 100–200% 缩放。实际渲染/逐帧检查不能用编译代替；测试入口见 [development.md](development.md)。
 
-开机启动开关状态局部保存在设置组件中，每次进入/返回设置页查询系统任务；查询失败显示错误并禁用未知状态，操作期间防重复提交，失败后重新查询实际状态。
+开机启动开关状态局部保存在设置组件中，每次进入/返回设置页查询当前用户自启项；查询失败显示错误并禁用未知状态，操作期间防重复提交，失败后重新查询实际状态。
 
 更新检查保留结构化后端错误；版本未知或元数据无效不能显示 Latest。缺少内核时 Download 直接安装，完成后读取真实后端版本。检查/安装期间锁定更新通道，应用与内核安装互斥；失败保留反馈并允许重试，不用延迟计时器重置新请求。更新日志转义原始 HTML，仅允许 HTTP(S) 链接并经后端打开系统浏览器，图片仅显示替代文本。
 

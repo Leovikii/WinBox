@@ -4,7 +4,6 @@ import {
   Checkbox,
   Dropdown,
   MessageBar,
-  MessageBarActions,
   MessageBarBody,
   Option,
   ProgressBar,
@@ -16,15 +15,16 @@ import {
   Textarea,
   ColorSwatch,
   Switch,
+  Tooltip,
 } from '@fluentui/react-components'
 import {
   ArrowDownload16Regular,
   ArrowSync16Regular,
   CheckmarkCircle16Regular,
   Code16Regular,
-  Dismiss16Regular,
   Edit16Regular,
   Info16Regular,
+  QuestionCircle16Regular,
   Info24Regular,
   Settings16Regular,
   Warning16Regular,
@@ -51,7 +51,7 @@ const themeModes = [
 
 const autoConnectModes = [
   { value: 'smart', label: 'Smart' },
-  { value: 'on', label: 'On' },
+  { value: 'always', label: 'Always' },
   { value: 'off', label: 'Off' },
 ]
 
@@ -80,7 +80,7 @@ const accentColors = [
   { name: 'Red', value: '#E54D2E' },
 ]
 
-function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
+function SettingRow({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return <div className="setting-row"><Text className="setting-label">{label}</Text><div className="setting-control">{children}</div></div>
 }
 
@@ -265,7 +265,6 @@ export default function SettingsPage({ showUwpModal, onOpenUwp, onCloseUwp, onOp
     <div className="settings-page">
       <ScrollArea className="settings-scroll">
         <div className="settings-content">
-          <ExpandMotion visible={app.showErrorAlert} unmountOnExit><div className="message-presence" inert={!app.showErrorAlert}><MessageBar intent="error" layout="multiline" className="product-message-bar"><MessageBarBody>{app.errorAlertMessage}</MessageBarBody><MessageBarActions><Button appearance="transparent" className="winbox-transparent-button" icon={<Dismiss16Regular />} onClick={() => app.setErrorAlert('')} aria-label="Dismiss error" /></MessageBarActions></MessageBar></div></ExpandMotion>
 
           <section className="settings-card">
             <div className="settings-section-heading"><span><Info16Regular /><Text weight="semibold">About</Text></span><Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button setting-action-button" onClick={() => void Backend.BrowserOpenURL('https://github.com/Leovikii/WinBox').catch((error) => app.setErrorAlert(error instanceof Error ? error.message : String(error)))} icon={<span className="github-icon" aria-hidden="true" />} aria-label="GitHub repository">GitHub</Button></div>
@@ -279,7 +278,7 @@ export default function SettingsPage({ showUwpModal, onOpenUwp, onCloseUwp, onOp
             <div className="settings-section-heading"><span><Settings16Regular /><Text weight="semibold">General</Text></span></div>
             <SettingRow label="UWP loopback"><Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button setting-action-button" icon={<Edit16Regular />} onClick={onOpenUwp}>Edit</Button></SettingRow>
             <StartupSetting />
-            <SettingRow label="Auto connect"><SelectSetting label="Auto connect" value={app.autoConnectState} options={autoConnectModes} onChange={(value) => void app.handleAutoConnectChange(value)} /></SettingRow>
+            <SettingRow label={<span className="setting-inline">Auto connect<Tooltip content="TUN / Mixed needs approval to auto-connect." relationship="description"><Button appearance="transparent" size="small" icon={<QuestionCircle16Regular />} aria-label="About auto connect" /></Tooltip></span>}><SelectSetting label="Auto connect" value={app.autoConnectState} options={autoConnectModes} onChange={(value) => void app.handleAutoConnectChange(value)} /></SettingRow>
             <SettingRow label="On close action"><SelectSetting label="On close action" value={app.closeBehavior} options={closeModes} onChange={(value) => void app.handleCloseBehaviorChange(value)} /></SettingRow>
             <SettingRow label="Theme"><div className="setting-inline"><Button appearance="subtle" shape="circular" size="small" className="color-button" onClick={() => setShowThemeModal(true)} aria-label="Theme color"><span className="theme-color-preview" style={{ backgroundColor: app.accentColor }} /></Button><SelectSetting label="Theme" value={app.themeMode} options={themeModes} onChange={(value) => void app.setThemeMode(value)} /></div></SettingRow>
           </section>

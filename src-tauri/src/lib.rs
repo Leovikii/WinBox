@@ -4,6 +4,7 @@ compile_error!("WinBox supports only Windows AMD64/x64");
 pub mod commands;
 #[cfg(windows)]
 pub mod core;
+pub mod handoff;
 pub mod models;
 pub mod paths;
 #[cfg(windows)]
@@ -26,6 +27,13 @@ use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let initial = match handoff::receive() {
+        Ok(action) => action,
+        Err(error) => {
+            eprintln!("WinBox handoff failed: {error}");
+            return;
+        }
+    };
     let startup = StartupOptions::from_environment();
     if startup.delay_start {
         std::thread::sleep(DELAY_START);
@@ -34,15 +42,14 @@ pub fn run() {
     let minimized = startup.minimized;
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            let _ = commands::show(app.clone());
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::get_init_data,
+            commands::authorize,
+            commands::continue_handoff,
             commands::get_product_version,
             commands::get_override,
             commands::get_default_override,
@@ -85,8 +92,16 @@ pub fn run() {
             commands::update_program
         ])
         .setup(move |app| {
+            app.manage(startup);
+            app.manage(handoff::HandoffState {
+                initial: std::sync::Mutex::new(initial.clone()),
+                ..Default::default()
+            });
             let paths = AppPaths::from_data_dir(app.path().app_local_data_dir()?);
             let runtime = RuntimeState::new(paths.clone());
+            // Recover before exposing commands or starting any network/privilege flow.
+            let proxy_recovery_failed =
+                tauri::async_runtime::block_on(runtime.restore_proxy_if_owned()).is_err();
             tauri::async_runtime::block_on(runtime.clear_session_logs())?;
             let storage = Storage::new(paths);
             app.manage(runtime.clone());
@@ -179,10 +194,7 @@ pub fn run() {
                             ..
                         }
                     ) {
-                        if let Some(window) = tray.app_handle().get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        let _ = commands::show(tray.app_handle().clone());
                     }
                 })
                 .build(app)?;
@@ -211,7 +223,7 @@ pub fn run() {
                     }
                 });
             }
-            if minimized {
+            if minimized && !proxy_recovery_failed {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }
@@ -222,9 +234,18 @@ pub fn run() {
                 "INFO",
                 "Application started",
             ))?;
+            if let Some(error) = tauri::async_runtime::block_on(runtime.proxy_error()) {
+                tauri::async_runtime::block_on(runtime.append_app_log(
+                    &startup_app,
+                    "ERROR",
+                    &error,
+                ))?;
+            }
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(Duration::from_millis(200)).await;
-                commands::startup_runtime(startup_app, runtime).await;
+                if initial.is_none() && !proxy_recovery_failed && !startup.notification {
+                    commands::startup_runtime(startup_app, runtime).await;
+                }
             });
             Ok(())
         })

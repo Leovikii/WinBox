@@ -9,8 +9,6 @@ use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-pub const AUTOSTART_TASK_NAME: &str = "WinBoxAutostart";
-pub const AUTOSTART_DELAY: &str = "PT30S";
 pub const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -467,176 +465,113 @@ pub fn set_loopback_exemptions(add: &[String], remove: &[String]) -> io::Result<
     Ok(())
 }
 
-// Task Scheduler takes a UTF-16 BSTR, so no temporary XML file or localized CLI
-// output is involved. COM objects stay on the calling blocking worker thread.
-fn with_task_folder<T>(
-    action: impl FnOnce(&windows::Win32::System::TaskScheduler::ITaskFolder) -> windows::core::Result<T>,
-) -> io::Result<T> {
-    use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
-        COINIT_MULTITHREADED,
-    };
-    use windows::Win32::System::TaskScheduler::{ITaskService, TaskScheduler};
-    use windows::Win32::System::Variant::VARIANT;
-
-    struct Apartment;
-    impl Drop for Apartment {
-        fn drop(&mut self) {
-            unsafe { CoUninitialize() }
-        }
-    }
-    let result = (|| unsafe {
-        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
-        let _apartment = Apartment;
-        let service: ITaskService = CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER)?;
-        let empty = VARIANT::default();
-        service.Connect(&empty, &empty, &empty, &empty)?;
-        let folder = service.GetFolder(&"\\".into())?;
-        action(&folder)
-    })();
-    result.map_err(|error| Error::other(format!("Task Scheduler: {error}")))
-}
-
-fn registered_task(
-    folder: &windows::Win32::System::TaskScheduler::ITaskFolder,
-    name: &str,
-) -> windows::core::Result<Option<windows::Win32::System::TaskScheduler::IRegisteredTask>> {
-    match unsafe { folder.GetTask(&name.into()) } {
-        Ok(task) => Ok(Some(task)),
-        // Only ERROR_FILE_NOT_FOUND is absence. Access/service failures stay errors.
-        Err(error) if error.code() == windows::core::HRESULT::from_win32(2) => Ok(None),
-        Err(error) => Err(error),
-    }
-}
-
-fn task_matches(
-    task: &windows::Win32::System::TaskScheduler::IRegisteredTask,
-    executable: &Path,
-) -> windows::core::Result<bool> {
-    use windows::core::{Interface, BSTR};
-    use windows::Win32::System::TaskScheduler::IExecAction;
-    unsafe {
-        if !task.Enabled()?.as_bool() {
-            return Ok(false);
-        }
-        let actions = task.Definition()?.Actions()?;
-        let mut count = 0;
-        actions.Count(&mut count)?;
-        if count != 1 {
-            return Ok(false);
-        }
-        let action = actions.get_Item(1)?;
-        let Ok(exec) = action.cast::<IExecAction>() else {
-            return Ok(false);
-        };
-        let mut path = BSTR::new();
-        let mut arguments = BSTR::new();
-        exec.Path(&mut path)?;
-        exec.Arguments(&mut arguments)?;
-        Ok(path
-            .to_string()
-            .eq_ignore_ascii_case(&task_path(executable))
-            && arguments.to_string().trim() == "-minimized")
-    }
-}
+const AUTOSTART_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 
 pub fn set_autostart(executable: &Path, enabled: bool) -> io::Result<bool> {
-    set_named_autostart(AUTOSTART_TASK_NAME, executable, enabled)
-}
-
-fn set_named_autostart(name: &str, executable: &Path, enabled: bool) -> io::Result<bool> {
-    use windows::Win32::System::TaskScheduler::{
-        TASK_CREATE_OR_UPDATE, TASK_LOGON_INTERACTIVE_TOKEN,
-    };
-    use windows::Win32::System::Variant::VARIANT;
-    let executable = existing_absolute_executable(executable)?;
-    with_task_folder(|folder| unsafe {
-        if enabled {
-            let empty = VARIANT::default();
-            folder.RegisterTask(
-                &name.into(),
-                &render_autostart_xml(&executable).into(),
-                TASK_CREATE_OR_UPDATE.0,
-                &empty,
-                &empty,
-                TASK_LOGON_INTERACTIVE_TOKEN,
-                &empty,
-            )?;
-        } else if registered_task(folder, name)?.is_some() {
-            folder.DeleteTask(&name.into(), 0)?;
-        }
-        let task = registered_task(folder, name)?;
-        let actual = match task {
-            Some(ref task) => task_matches(task, &executable)?,
-            None => false,
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::*;
+    let path = existing_absolute_executable(executable)?;
+    let key_name = wide(AUTOSTART_KEY);
+    let value_name = wide("WinBox");
+    let mut key = HKEY::default();
+    unsafe {
+        RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(key_name.as_ptr()),
+            None,
+            None,
+            REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE,
+            None,
+            &mut key,
+            None,
+        )
+        .ok()
+        .map_err(Error::other)?;
+        let result = if enabled {
+            let command = wide(&format!("\"{}\" -minimized -autostart", task_path(&path)));
+            let bytes =
+                std::slice::from_raw_parts(command.as_ptr().cast::<u8>(), command.len() * 2);
+            RegSetValueExW(key, PCWSTR(value_name.as_ptr()), None, REG_SZ, Some(bytes)).ok()
+        } else {
+            let result = RegDeleteValueW(key, PCWSTR(value_name.as_ptr()));
+            if result.0 == 2 {
+                Ok(())
+            } else {
+                result.ok()
+            }
         };
-        if actual != enabled || (!enabled && task.is_some()) {
-            return Err(windows::core::Error::new(
-                windows::core::HRESULT(0x80004005u32 as i32),
-                "Autostart verification did not match the requested state",
-            ));
-        }
-        Ok(actual)
-    })
+        let _ = RegCloseKey(key);
+        result.map_err(Error::other)?;
+    }
+    let actual = query_autostart(&path)?;
+    if actual != enabled {
+        return Err(Error::other("Autostart verification failed"));
+    }
+    Ok(actual)
 }
 
 pub fn query_autostart(executable: &Path) -> io::Result<bool> {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::*;
     let executable = existing_absolute_executable(executable)?;
-    with_task_folder(
-        |folder| match registered_task(folder, AUTOSTART_TASK_NAME)? {
-            Some(task) => task_matches(&task, &executable),
-            None => Ok(false),
-        },
-    )
+    let key = wide(AUTOSTART_KEY);
+    let name = wide("WinBox");
+    let mut data = vec![0u16; 32768];
+    let mut bytes = (data.len() * 2) as u32;
+    let result = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(key.as_ptr()),
+            PCWSTR(name.as_ptr()),
+            RRF_RT_REG_SZ,
+            None,
+            Some(data.as_mut_ptr().cast()),
+            Some(&mut bytes),
+        )
+    };
+    if result.0 == 2 {
+        return Ok(false);
+    }
+    result.ok().map_err(Error::other)?;
+    let length = data.iter().position(|ch| *ch == 0).unwrap_or(data.len());
+    let expected = format!("\"{}\" -minimized -autostart", task_path(&executable));
+    if !String::from_utf16_lossy(&data[..length]).eq_ignore_ascii_case(&expected) {
+        return Ok(false);
+    }
+    // Respect a user disabling this entry in Windows Startup apps; do not overwrite that choice.
+    let approved_key =
+        wide(r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run");
+    let mut approval = [0u8; 12];
+    let mut approval_size = approval.len() as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(approved_key.as_ptr()),
+            PCWSTR(name.as_ptr()),
+            RRF_RT_REG_BINARY,
+            None,
+            Some(approval.as_mut_ptr().cast()),
+            Some(&mut approval_size),
+        )
+    };
+    if status.0 != 2 {
+        status.ok().map_err(Error::other)?;
+        if approval_size < 4 {
+            return Err(Error::other("Windows startup approval state is invalid"));
+        }
+        let state = u32::from_le_bytes(approval[..4].try_into().unwrap());
+        match state {
+            2 | 6 => {},
+            3 | 7 => return Err(Error::other("WinBox is disabled in Windows Startup apps. Enable it there, or remove its startup entry there.")),
+            _ => return Err(Error::other("Windows startup approval state is unknown; check Windows Startup apps")),
+        }
+    }
+    Ok(true)
 }
 
-pub fn render_autostart_xml(executable: &Path) -> String {
-    let command = xml_escape(&task_path(executable));
-    let working_directory = executable
-        .parent()
-        .map(task_path)
-        .map(|path| xml_escape(&path))
-        .unwrap_or_default();
-
-    format!(
-        r#"<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-      <Delay>{AUTOSTART_DELAY}</Delay>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>true</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <Priority>7</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>{command}</Command>
-      <Arguments>-minimized</Arguments>
-      <WorkingDirectory>{working_directory}</WorkingDirectory>
-    </Exec>
-  </Actions>
-</Task>
-"#
-    )
+fn wide(value: &str) -> Vec<u16> {
+    value.encode_utf16().chain(Some(0)).collect()
 }
 
 pub fn validate_core_executable(executable: &Path, core_dir: &Path) -> io::Result<PathBuf> {
@@ -937,15 +872,6 @@ fn task_path(path: &Path) -> String {
         .to_string()
 }
 
-fn xml_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
-
 fn paths_equal(left: &Path, right: &Path) -> bool {
     task_path(left)
         .replace('/', "\\")
@@ -954,9 +880,8 @@ fn paths_equal(left: &Path, right: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{render_autostart_xml, validate_core_executable, AUTOSTART_DELAY};
+    use super::validate_core_executable;
     use std::fs;
-    use std::path::Path;
 
     #[test]
     fn tcp_listener_owner_matches_ipv4_and_ipv6() {
@@ -985,49 +910,6 @@ mod tests {
             "Detected {} UWP applications with readable names",
             apps.len()
         );
-    }
-
-    #[test]
-    fn task_xml_preserves_startup_contract_and_escapes_path() {
-        let xml = render_autostart_xml(Path::new(r"C:\Users\A & B\WinBox.exe"));
-
-        assert!(xml.contains(&format!("<Delay>{AUTOSTART_DELAY}</Delay>")));
-        assert!(xml.contains("<RunLevel>HighestAvailable</RunLevel>"));
-        assert!(xml.contains("<Arguments>-minimized</Arguments>"));
-        assert!(xml.contains("C:\\Users\\A &amp; B\\WinBox.exe"));
-        assert!(xml.contains("encoding=\"UTF-16\""));
-    }
-
-    #[test]
-    #[ignore = "creates and removes a unique diagnostic task; run elevated on Windows"]
-    fn autostart_task_roundtrip() {
-        let name = format!("WinBox-Test-{}", uuid::Uuid::new_v4());
-        let root = std::env::temp_dir().join(&name);
-        fs::create_dir(&root).unwrap();
-        // Never execute this file. Unicode, spaces and ampersands exercise XML/BSTR encoding.
-        let executable = root.join("测试 & WinBox.exe");
-        fs::write(&executable, b"Task registration fixture, not an executable").unwrap();
-        let result = (|| -> std::io::Result<()> {
-            assert!(!super::set_named_autostart(&name, &executable, false)?);
-            assert!(super::set_named_autostart(&name, &executable, true)?);
-            assert!(super::set_named_autostart(&name, &executable, true)?);
-            super::with_task_folder(|folder| unsafe {
-                let task = super::registered_task(folder, &name)?.unwrap();
-                assert!(super::task_matches(&task, &executable)?);
-                assert!(!super::task_matches(&task, &root.join("other.exe"))?);
-                task.SetEnabled(windows::Win32::Foundation::VARIANT_FALSE)?;
-                assert!(!super::task_matches(&task, &executable)?);
-                Ok(())
-            })?;
-            assert!(!super::set_named_autostart(&name, &executable, false)?);
-            assert!(!super::set_named_autostart(&name, &executable, false)?);
-            Ok(())
-        })();
-        let cleanup = super::set_named_autostart(&name, &executable, false);
-        fs::remove_file(&executable).unwrap();
-        fs::remove_dir(&root).unwrap();
-        cleanup.expect("remove diagnostic task");
-        result.expect("roundtrip preserves task state");
     }
 
     #[test]

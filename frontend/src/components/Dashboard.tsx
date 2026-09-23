@@ -10,6 +10,7 @@ import {
   PlugConnected16Regular,
   Globe16Regular,
   PlugDisconnected16Regular,
+  Shield16Regular,
   Play16Regular,
   Options16Regular,
   DocumentSettings16Regular,
@@ -242,7 +243,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
               <Button
                 className={`${app.running ? 'winbox-danger-button' : 'winbox-primary-button'} winbox-control-button`}
                 appearance="primary"
-                icon={app.isProcessing ? <Spinner size="tiny" /> : app.running ? <Stop16Regular /> : <Play16Regular />}
+                icon={app.isProcessing ? <Spinner size="tiny" /> : app.running ? <Stop16Regular /> : (app.permissionPending || (app.tunMode && !app.elevated)) ? <Shield16Regular /> : <Play16Regular />}
                 disabled={!app.coreExists || !app.activeProfile || app.isProcessing}
                 aria-disabled={app.isModeSaving || undefined}
                 onClick={() => void app.handleServiceToggle()}

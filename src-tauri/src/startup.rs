@@ -7,6 +7,8 @@ pub const DELAY_START: Duration = Duration::from_millis(1_500);
 pub struct StartupOptions {
     pub minimized: bool,
     pub delay_start: bool,
+    pub autostart: bool,
+    pub notification: bool,
 }
 
 impl StartupOptions {
@@ -20,6 +22,14 @@ impl StartupOptions {
             match arg.as_ref().to_str() {
                 Some("-minimized") => options.minimized = true,
                 Some("-delay-start") => options.delay_start = true,
+                Some("-autostart") => options.autostart = true,
+                Some(value)
+                    if value.split_once(':').is_some_and(|(scheme, _)| {
+                        scheme.eq_ignore_ascii_case("winbox-notification")
+                    }) =>
+                {
+                    options.notification = true
+                }
                 _ => {}
             }
         }
@@ -37,16 +47,36 @@ mod tests {
 
     #[test]
     fn recognizes_startup_flags_and_ignores_unknown_args() {
-        let options =
-            StartupOptions::from_args(["WinBox.exe", "-minimized", "-unknown", "-delay-start"]);
+        let options = StartupOptions::from_args([
+            "WinBox.exe",
+            "-minimized",
+            "-unknown",
+            "-delay-start",
+            "-autostart",
+        ]);
 
         assert_eq!(
             options,
             StartupOptions {
                 minimized: true,
                 delay_start: true,
+                autostart: true,
+                notification: false,
             }
         );
+    }
+
+    #[test]
+    fn notification_uris_only_request_a_visible_launch() {
+        for uri in [
+            "winbox-notification://open",
+            "WINBOX-NOTIFICATION://open",
+            "winbox-notification://unknown?command=connect",
+        ] {
+            let options = StartupOptions::from_args(["WinBox.exe", uri]);
+            assert!(options.notification);
+            assert!(!options.autostart && !options.minimized && !options.delay_start);
+        }
     }
 
     #[test]

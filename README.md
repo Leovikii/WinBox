@@ -15,44 +15,33 @@ WinBox is designed to provide a seamless and professional proxy management exper
 
 ## Key Features
 
-* **Smart Auto-Connect**: Intelligent state management that automatically detects system network connectivity. The proxy kernel seamlessly connects and disconnects based on your actual network availability, ensuring a truly hands-free experience.
+* **Smart Auto-Connect**: Checks network access at startup and connects when needed. Always and Off modes are also available; TUN and Mixed wait for administrator approval.
 * **Zero-Configuration Kernel**: Fully automated provisioning for Windows AMD64/x64. WinBox downloads, installs, and updates the matching Sing-box core without manual intervention.
 * **UWP Loopback Manager**: Includes a built-in exemption manager to grant Windows UWP applications (e.g., Microsoft Store apps) local loopback access, effortlessly bypassing Windows AppContainer isolation.
 * **High-Performance Architecture**: Batches event-driven logs and isolates traffic rendering to keep the dashboard responsive. The application is compiled with advanced optimization flags for a drastically reduced binary footprint.
 * **Modern Design System**: Crafted following WinUI 3 principles. It features an adaptive Light/Dark mode and utilizes a premium, high-contrast color palette inspired by Radix UI, delivering a professional and native Windows 11 aesthetic.
-* **Dual Routing Modes**: Seamlessly toggle between TUN Mode (Virtual Network Interface) and System Proxy Mode to suit varying network requirements.
-* **Silent Execution**: Optimized background process handling allows for a completely silent, window-free startup alongside Windows boot.
+* **Three Routing Modes**: Choose Proxy, TUN (virtual network adapter), or Mixed (TUN and system proxy).
+* **Background Startup**: Starts minimized at sign-in. A Windows notification lets you open WinBox when automatic connection requires approval.
 
-## 3.0.0-alpha.3
+## 3.0.0-alpha.4
 
-- Fix mode-switch flicker and Windows startup registration.
-- Share application and kernel update dialogs with GitHub release notes.
-- Reduce update metadata requests and separate check/download timeouts.
-- Validate a new kernel against the current configuration before replacing the installed version.
+- Current-user NSIS installation with visible installation/update progress.
+- WinBox starts without administrator privileges. TUN and Mixed request UAC authorization when needed, then restart and connect.
+- Sign-in startup stays minimized and waits for authorization when automatic connection needs TUN. No Windows service or elevated startup task is installed.
+- Startup restores WinBox's recorded system proxy before network checks or connection attempts. Errors appear in a shared English toast without moving the page layout.
+- Uninstall defaults to deleting WinBox user data; uncheck the option to retain it. Exit WinBox from its tray menu first so its core stops and its system proxy is restored.
 
 ## Installation
 
-1. Navigate to the [Releases](https://github.com/Leovikii/WinBox/releases) page.
-2. Download the Windows AMD64/x64 NSIS installer and confirm the installation. It uses the default `C:\Program Files\WinBox\` location and does not require a path or component choice.
-3. The installer starts WinBox automatically after installation.
-   *Note: WinBox currently requests Administrator privileges at startup.*
+1. Download the Windows AMD64/x64 NSIS installer from [Releases](https://github.com/Leovikii/WinBox/releases).
+2. Install for the current user. The default directory is `%LOCALAPPDATA%\Programs\WinBox`.
+3. Installation starts immediately, shows progress, and launches WinBox automatically. There are no Next, directory-selection or Finish steps. Updates use the same visible automatic flow.
 
-WinBox stores user data outside the installation directory, normally at
-`%LOCALAPPDATA%\com.leovikii.winbox\`. Updates replace application files only.
-The installation directory contains only the application and installer-generated
-runtime/uninstall files; profiles, settings, logs and the sing-box core stay in
-the data directory.
-The installer does not automatically migrate data from the old single-file
-portable version. Old portable users should follow the backup and copy steps below to keep
-their profiles and settings.
+User data lives in `%LOCALAPPDATA%\com.leovikii.winbox`: subscriptions, settings, logs, WebView data and the downloaded sing-box core. Application updates preserve this directory. Interactive uninstall checks **Delete app data** by default; clear the checkbox to retain it.
 
-For a manual upgrade from the old portable version:
+**Alpha.4 requires a fresh installation.** In alpha.3, disable startup and exit; uninstall it and manually remove any remaining WinBox user data before installing alpha.4. There is no data migration, old-task cleanup or compatibility code, and an in-place update from alpha.3 is not supported. Import your subscriptions again.
 
-1. Exit the old WinBox completely and back up its `data` directory.
-2. Install the NSIS version; if it starts automatically, exit it before setup.
-3. Confirm the new data directory has no user data, then copy the contents of
-   the old `data` directory into `%LOCALAPPDATA%\com.leovikii.winbox\`.
-4. Keep the backup until the new installation has been verified.
+TUN/Mixed authorization uses the same Windows account; entering a different administrator account is not supported. Once authorized, this WinBox instance remains elevated until exit. UWP changes also require authorization and retain the draft for confirmation after restart. Updates from an elevated instance first restart WinBox without elevation.
 
 ## Quick Start
 
@@ -93,10 +82,7 @@ artifacts.
 The in-app updater uses the existing pre-release setting when checking release
 metadata; no separate update channel is created.
 
-The backend and React + Fluent UI migrations are complete. After manual testing,
-the maintainer closed the refactor phase on 2026-09-22. Development continues in `3.0.0-alpha.3`, addressing mode-switch rendering and
-Windows startup tasks. Publication follows the maintainer's `dev` → `main` pull
-request and the existing signed release workflow.
+Development of `3.0.0-alpha.4` is complete, including reduced default privileges and current-user installation. Publication follows the maintainer's `dev` → `main` pull request and the existing signed release workflow.
 
 Development guides: [Architecture](docs/architecture.md),
 [Frontend design](docs/frontend.md), [Backend contracts](docs/backend.md),

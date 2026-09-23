@@ -10,7 +10,14 @@ export interface ProfileDto {
   [key: string]: unknown
 }
 
+export type HandoffAction = { kind: 'connect'; tunMode: boolean; sysProxy: boolean } | { kind: 'uwp'; selected: string[]; resume?: [boolean, boolean] | null } | { kind: 'update'; version: string; mirror: string }
+
 export interface InitDataDto {
+  elevated: boolean
+  permissionPending: boolean
+  proxyError: string | null
+  autostart: boolean
+  handoffAction: HandoffAction | null
   running: boolean
   coreBusy: boolean
   coreExists: boolean
@@ -64,6 +71,7 @@ const errorText = (error: unknown): string => {
   if (typeof error === 'string') return error
   if (error && typeof error === 'object') {
     const typed = error as BackendError
+    if (typed.code === 'permission_required') return 'permission-required'
     if (typed.code === 'config_missing') return 'config-missing'
     if (typed.message) return typed.message
     if (typed.code) return typed.code
@@ -230,3 +238,6 @@ export async function waitForEventsReady(): Promise<void> {
     await Promise.all([...pendingListenerRegistrations])
   }
 }
+
+export const Authorize = (selected?: string[]) => invokeOrThrow<void>('authorize', { selected: selected ?? null })
+export const ContinueHandoff = () => invokeOrThrow<void>('continue_handoff')

@@ -60,6 +60,13 @@ for (const file of (await readdir(resolve('frontend/src'), { recursive: true }))
 const sourceSha256 = sourceHash.digest('hex')
 const check = (name, value) => { assert(value, name); results.push(name) }
 const settle = () => page.waitForTimeout(350)
+const settleToast = () => page.waitForFunction(() => {
+  const body = document.querySelector('.app-toast-body')
+  const container = body?.closest('.fui-ToastContainer')
+  if (!container || getComputedStyle(container).opacity !== '1') return false
+  const rect = body.getBoundingClientRect()
+  return rect.top >= 0 && rect.bottom <= innerHeight && !container.getAnimations({ subtree: true }).some(animation => animation.playState === 'running')
+})
 const capture = async name => {
   const badSurfaces = await page.locator('[role="dialog"], [role="listbox"]').evaluateAll(nodes => nodes.filter(e => e.checkVisibility()).filter(e => {
     const r = e.getBoundingClientRect();
@@ -69,6 +76,10 @@ const capture = async name => {
   await page.screenshot({ path: resolve(evidence, `${name}.png`) });
 }
 const button = name => page.getByRole('button', { name, exact: true })
+const dismissError = async () => {
+  await button('Dismiss error').click()
+  await button('Dismiss error').waitFor({ state: 'hidden' })
+}
 const visibleOverflow = () => page.evaluate(() => [...document.querySelectorAll('button,[role=combobox],.setting-label')]
   .filter(e => e.checkVisibility() && !e.closest('[inert]') && e.getBoundingClientRect().width > 0 && e.scrollWidth > e.clientWidth + 2)
   .map(e => e.textContent))
@@ -486,13 +497,23 @@ try {
   await button('Dismiss error').click()
   await settle()
 
-  for (const [name, option] of [['Auto connect', 'On'], ['On close action', 'Ask'], ['Log level', 'Debug']]) {
-    const control = page.getByRole('combobox', { name, exact: true })
-    await control.click()
-    await page.getByRole('option', { name: option, exact: true }).click()
-    await control.click()
-    check(`${name} selection persists on reopen`, await page.getByRole('option', { name: option, exact: true }).getAttribute('aria-selected') === 'true')
-    await page.keyboard.press('Escape')
+  for (const [name, field, options] of [
+    ['Auto connect', 'autoConnectState', [['Always', 'always'], ['Off', 'off'], ['Smart', 'smart']]],
+    ['On close action', 'closeBehavior', [['Minimize', 'tray'], ['Quit', 'quit'], ['Ask', 'ask']]],
+    ['Log level', 'logLevel', [['Trace', 'trace'], ['Debug', 'debug'], ['Info', 'info'], ['Warn', 'warn'], ['Error', 'error'], ['Fatal', 'fatal'], ['Panic', 'panic'], ['Default', '']]],
+    ['Theme', 'themeMode', [['Light', 'light'], ['System', 'system'], ['Dark', 'dark']]],
+  ]) {
+    for (const [option, value] of options) {
+      const control = page.getByRole('combobox', { name, exact: true })
+      await control.click()
+      await page.getByRole('option', { name: option, exact: true }).click()
+      await settle()
+      check(`${name} ${option} saves the backend value`, await page.evaluate(field => window.visualTest.state[field], field) === value)
+      check(`${name} ${option} saves without error`, !await button('Dismiss error').isVisible())
+      await control.click()
+      check(`${name} selection persists on reopen`, await page.getByRole('option', { name: option, exact: true }).getAttribute('aria-selected') === 'true')
+      await page.keyboard.press('Escape')
+    }
   }
   await scroll.evaluate(e => { e.scrollTop = 0 })
   await page.evaluate(() => window.visualTest.holdNext('update_program'))
@@ -637,6 +658,7 @@ try {
   check('kernel progress belongs to kernel download', Number(await page.getByRole('progressbar', { name: 'Kernel download' }).getAttribute('aria-valuenow')) === .5);
   await page.evaluate(() => window.visualTest.release()); await settle();
   check('missing kernel failure retains Not Installed and exposes retry', (await kernelRow.innerText()).includes('Not Installed') && await kernelRow.getByRole('button', { name: 'Failed' }).isEnabled() && await page.getByText('Network request failed', {exact:true}).isVisible());
+  await dismissError();
   await page.evaluate(() => { window.visualTest.setKernelRelease('1.14.1'); window.visualTest.holdNext('update_kernel') });
   await kernelRow.getByRole('button', { name: 'Failed' }).click();
   await page.getByRole('progressbar', { name: 'Kernel download' }).waitFor();
@@ -658,6 +680,7 @@ try {
   await kernelRow.getByRole('button', {name:'Update',exact:true}).click(); await settle();
   await button('Update now').click(); await settle();
   check('changed release is not silently installed', await kernelRow.getByRole('button', {name:'Failed'}).isVisible() && await page.getByText('The available release changed. Check for updates and confirm again.', {exact:true}).isVisible());
+  await dismissError();
   await kernelRow.getByRole('button', {name:'Failed'}).click(); await settle();
   await kernelRow.getByRole('button', {name:'Update',exact:true}).click(); await settle();
   await button('Update now').click(); await settle();
@@ -665,12 +688,15 @@ try {
 
   await openUpdateSettings('unknown-program');
   check('unknown application version is a visible failure rather than Latest', await programRow.getByRole('button', { name: 'Failed' }).isVisible() && await page.getByText('Could not read the application version', { exact: true }).isVisible());
+  await dismissError();
   await page.evaluate(() => { window.visualTest.setProgramVersion('3.0.0-alpha.3'); window.visualTest.setProgramRelease('invalid') });
   await programRow.getByRole('button', { name: 'Failed' }).click(); await settle();
   check('invalid application release is not Latest', await programRow.getByRole('button', { name: 'Failed' }).isVisible() && await page.getByText('The release service returned an invalid application version', { exact: true }).isVisible());
+  await dismissError();
   await page.evaluate(() => { window.visualTest.setProgramRelease('3.0.0-alpha.4', 'Visual regression fixture.\n\n[Release details](https://example.com/release) [unsafe](javascript:alert%281%29)'); window.visualTest.failNext('check_program_update', 'The release service returned HTTP 429') });
   await programRow.getByRole('button', { name: 'Failed' }).click(); await settle();
   check('application check shows server failure', await page.getByText('The release service returned HTTP 429', { exact: true }).isVisible());
+  await dismissError();
   await page.evaluate(() => window.visualTest.holdNext('check_program_update'));
   await programRow.getByRole('button', { name: 'Failed' }).click();
   await page.waitForTimeout(3200);
@@ -693,6 +719,7 @@ try {
   check('program install locks channel and kernel download', await preReleaseSwitch.isDisabled() && await kernelRow.getByRole('button').isDisabled());
   await page.evaluate(() => window.visualTest.release()); await settle();
   check('program signature failure is visible and retryable', await programRow.getByRole('button', {name:'Failed'}).isEnabled() && await page.getByText('Signature verification failed', {exact:true}).isVisible());
+  await dismissError();
   await programRow.getByRole('button', {name:'Failed'}).click(); await settle();
   await programRow.getByRole('button', {name:'Update'}).click(); await settle();
   await button('Update now').click(); await settle();
@@ -727,6 +754,136 @@ try {
     check(`browser scale ${deviceScaleFactor} fits`, await scaledPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     await scaled.close()
   }
+  await page.goto(`${baseURL}/?scenario=permission-autostart`)
+  await page.getByText('Authorization required', { exact: true }).waitFor()
+  check('autostart waits without opening authorization dialog', await page.getByRole('dialog').count() === 0)
+  await button('Start').click()
+  await page.getByRole('dialog', { name: 'Administrator permission' }).waitFor()
+  await settle()
+  await capture('permission-autostart')
+  const permissionButtons = await page.getByRole('dialog').getByRole('button').filter({ hasText: /^(Cancel|Continue)$/ }).evaluateAll(nodes => nodes.map(e => e.getBoundingClientRect().top))
+  check('permission actions share one row', permissionButtons.length === 2 && Math.abs(permissionButtons[0] - permissionButtons[1]) < 1)
+  check('permission dialog is compact', await page.getByRole('dialog').evaluate(e => e.getBoundingClientRect().height < 280))
+  await page.getByRole('dialog').getByRole('button', { name: 'Continue' }).click()
+  await settle()
+  check('cancelled UAC keeps disconnected UI available', await page.getByRole('dialog').count() === 0 && await button('Start').isEnabled())
+  check('authorization never reports a running kernel', await page.evaluate(() => !window.visualTest.state.running))
+  await page.goto(`${baseURL}/?scenario=permission`)
+  await button('Start').waitFor()
+  await button('Start').click()
+  await page.getByRole('dialog', { name: 'Administrator permission' }).waitFor()
+  await page.keyboard.press('Escape')
+  await settle()
+  check('permission dialog Escape preserves pending connection', await button('Start').isEnabled() && await page.getByRole('dialog').count() === 0)
+  await page.goto(`${baseURL}/?scenario=slow-init`)
+  await page.waitForFunction(() => window.visualTest.calls.includes('get_init_data'))
+  await page.evaluate(async () => {
+    await window.visualTest.emit('permission-required', { pending: true, prompt: false })
+    window.visualTest.release()
+  })
+  await page.getByText('Authorization required', { exact: true }).waitFor()
+  check('early autostart permission event cannot open a dialog or be overwritten by snapshot', await page.getByRole('dialog').count() === 0)
+  for (const savedMode of ['tun', 'mixed']) {
+    await page.goto(`${baseURL}/?scenario=slow-init&savedMode=${savedMode}`)
+    await page.waitForFunction(() => window.visualTest.calls.includes('get_init_data'))
+    await page.evaluate(async () => {
+      await window.visualTest.emit('core-starting')
+      await window.visualTest.emit('permission-required', { pending: true, prompt: false })
+      await window.visualTest.emit('status', false)
+      window.visualTest.release()
+    })
+    await settle()
+    check(`${savedMode} snapshot still initializes the selected mode`, await page.getByRole('radio', { name: savedMode === 'tun' ? 'TUN' : 'Mixed', exact: true }).isChecked())
+    check(`${savedMode} survives early startup events without rewriting mode`, await page.evaluate(() => !window.visualTest.calls.includes('save_mode')))
+    check(`${savedMode} still waits for approval`, await page.getByText('Authorization required', { exact: true }).isVisible())
+  }
+  await page.goto(`${baseURL}/?scenario=slow-init&savedMode=tun`)
+  await page.waitForFunction(() => window.visualTest.calls.includes('get_init_data'))
+  await page.evaluate(async () => {
+    await window.visualTest.emit('state-sync', { tunMode: true, sysProxy: true })
+    window.visualTest.release()
+  })
+  await settle()
+  check('newer mode event wins over stale TUN snapshot', await page.getByRole('radio', { name: 'Mixed', exact: true }).isChecked())
+  await page.goto(`${baseURL}/?scenario=uwp-resume`)
+  await page.getByRole('dialog').waitFor()
+  await settle()
+  check('UWP handoff restores draft rather than saving it automatically', await page.getByRole('checkbox', { name: 'Windows application' }).isChecked() && await page.evaluate(() => !window.visualTest.calls.includes('set_uwp_loopback_exemptions')))
+  await capture('permission-uwp-resume')
+  await page.goto(baseURL)
+  const adminStatus = page.getByRole('img', { name: 'Running as administrator' })
+  await adminStatus.waitFor()
+  await adminStatus.focus()
+  await page.getByRole('tooltip').filter({ hasText: 'Running as administrator' }).waitFor()
+  check('administrator indicator is keyboard accessible without changing titlebar height', await page.locator('.winbox-titlebar').evaluate(e => e.getBoundingClientRect().height === 48))
+  await button('Settings').click()
+  await button('About auto connect').waitFor()
+  check('settings do not contain a process permission row', await page.getByText('Process permissions', { exact: true }).count() === 0)
+  for (const width of [320, 400, 480]) {
+    await page.setViewportSize({ width, height: 720 })
+    const help = button('About auto connect')
+    await help.blur()
+    await help.focus()
+    await page.getByRole('tooltip').filter({ hasText: 'TUN / Mixed needs approval to auto-connect.' }).waitFor()
+    check(`auto-connect help stays in its compact row at ${width}`, await help.locator('xpath=ancestor::*[contains(@class,"setting-row")]').evaluate(e => e.getBoundingClientRect().height <= 44))
+    await settle()
+    await capture(`auto-connect-help-${width}`)
+    await page.keyboard.press('Escape')
+    await page.getByRole('tooltip').waitFor({ state: 'hidden' })
+  }
+  await button('About auto connect').blur()
+  await button('About auto connect').hover()
+  await page.getByRole('tooltip').filter({ hasText: 'TUN / Mixed needs approval to auto-connect.' }).waitFor()
+  check('auto-connect help is also available on hover', await page.getByRole('tooltip').isVisible())
+  await page.goto(`${baseURL}/?scenario=permission`)
+  await button('Start').waitFor()
+  check('standard-user titlebar has no administrator badge', await page.getByRole('img', { name: 'Running as administrator' }).count() === 0)
+  await page.goto(`${baseURL}/?scenario=proxy-recovery-failed`)
+  await button('Start').waitFor()
+  await button('Dismiss error').waitFor()
+  check('startup proxy recovery failure is visible from the initial snapshot', await page.locator('.app-toast-body').filter({ hasText: 'System proxy recovery failed. Auto-connect paused.' }).isVisible())
+  check('startup proxy recovery failure leaves manual retry available', await button('Start').isEnabled())
+  check('startup recovery failure pauses automatic update requests', !await page.evaluate(() => window.visualTest.calls.includes('check_program_update')))
+  await settleToast()
+  await capture('proxy-recovery-failed')
+  check('toast is centered below the titlebar', await page.locator('.app-toast-body').evaluate(e => {
+    const rect = e.closest('.fui-ToastContainer').getBoundingClientRect()
+    const titlebar = document.querySelector('.winbox-titlebar').getBoundingClientRect()
+    return Math.abs(rect.top - titlebar.bottom - 16) <= 1 && Math.abs(rect.left + rect.width / 2 - innerWidth / 2) <= 1
+  }))
+  const frameWithToast = await page.locator('.winbox-page-frame').boundingBox()
+  await button('Dismiss error').click()
+  await settle()
+  check('error toast does not change page layout', JSON.stringify(await page.locator('.winbox-page-frame').boundingBox()) === JSON.stringify(frameWithToast))
+  await page.setViewportSize({ width: 320, height: 640 })
+  const longError = `Connection failed: ${'endpoint/'.repeat(120)}\n${'The original English error is retained.\n'.repeat(20)}`.trim()
+  await page.evaluate(message => window.visualTest.failNext('get_start_on_boot', message), longError)
+  await button('Settings').click()
+  await button('Dismiss error').waitFor()
+  await settleToast()
+  check('long toast preserves the full original English error', await page.locator('.app-toast-body').textContent() === longError)
+  metrics.longToast = await page.locator('.app-toast-body').evaluate(e => ({ rect: e.getBoundingClientRect().toJSON(), clientWidth: e.clientWidth, scrollWidth: e.scrollWidth, clientHeight: e.clientHeight, scrollHeight: e.scrollHeight }))
+  await capture('error-toast-long-narrow')
+  check('narrow long toast keeps window controls clear', await page.locator('.app-toast-body').evaluate(e => {
+    const rect = e.closest('.fui-ToastContainer').getBoundingClientRect()
+    const titlebar = document.querySelector('.winbox-titlebar').getBoundingClientRect()
+    return rect.top >= titlebar.bottom + 8 && rect.bottom <= innerHeight && Math.abs(rect.left + rect.width / 2 - innerWidth / 2) <= 1
+  }))
+  check('long error wraps and scrolls within the narrow window', await page.locator('.app-toast-body').evaluate(e => {
+    const r = e.getBoundingClientRect()
+    return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight && e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight > e.clientHeight
+  }))
+  await page.waitForTimeout(3200)
+  check('error toast stays visible until acknowledged', await button('Dismiss error').isVisible())
+  await page.evaluate(() => window.visualTest.failNext('save_theme', 'Another original English error'))
+  await page.getByRole('combobox', { name: 'Theme', exact: true }).click()
+  await page.getByRole('option', { name: 'Dark', exact: true }).click()
+  await settle()
+  check('new error updates one toast instead of stacking', await page.locator('.app-toast-body').count() === 1 && await page.locator('.app-toast-body').textContent() === 'Another original English error')
+  await button('Dismiss error').focus()
+  await page.keyboard.press('Enter')
+  await button('Dismiss error').waitFor({ state: 'hidden' })
+  check('error toast can be dismissed with the keyboard', !await button('Dismiss error').isVisible())
   check('no uncaught browser errors', failures.length === 0)
 } catch (error) {
   failures.push(error.message)

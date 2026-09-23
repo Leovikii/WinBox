@@ -126,6 +126,9 @@ async fn log_command_failure(
     operation: &str,
     error: &AppError,
 ) {
+    if error.code == "permission_required" {
+        return;
+    }
     let message = format!(
         "{operation} failed [{}]: {}",
         error.code,
@@ -157,6 +160,11 @@ impl From<StorageError> for AppError {
 pub struct InitDataDto {
     pub running: bool,
     pub core_busy: bool,
+    pub elevated: bool,
+    pub permission_pending: bool,
+    pub proxy_error: Option<String>,
+    pub autostart: bool,
+    pub handoff_action: Option<crate::handoff::Action>,
     pub core_exists: bool,
     pub local_version: String,
     pub tun_mode: bool,
@@ -232,6 +240,11 @@ async fn init_data_from_snapshot(
     InitDataDto {
         running: runtime.core().await.is_some(),
         core_busy: runtime.core_busy(),
+        elevated: crate::platform::privileges::is_elevated().unwrap_or(false),
+        permission_pending: runtime.permission_pending(),
+        proxy_error: runtime.proxy_error().await,
+        autostart: crate::startup::StartupOptions::from_environment().autostart,
+        handoff_action: None,
         core_exists,
         local_version: local_version(&storage.paths().core_dir),
         tun_mode: snapshot.state.tun_mode,
@@ -253,11 +266,19 @@ async fn init_data_from_snapshot(
 
 #[tauri::command]
 pub async fn get_init_data(
+    app: AppHandle,
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
 ) -> Result<InitDataDto, AppError> {
     let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    Ok(init_data_from_snapshot(&storage, &runtime, snapshot).await)
+    let mut data = init_data_from_snapshot(&storage, &runtime, snapshot).await;
+    data.handoff_action = app
+        .state::<crate::handoff::HandoffState>()
+        .initial
+        .lock()
+        .map_err(|_| AppError::operation_failed())?
+        .clone();
+    Ok(data)
 }
 
 #[tauri::command]
@@ -356,7 +377,7 @@ pub async fn get_start_on_boot() -> Result<bool, AppError> {
     .map_err(|error| {
         AppError::detailed(
             "autostart_query_failed",
-            format!("Could not read startup task: {error}"),
+            format!("Could not read startup entry: {error}"),
         )
     })
 }
@@ -378,14 +399,14 @@ pub async fn set_start_on_boot(
             AppError::detailed(
                 "autostart_failed",
                 format!(
-                    "Could not {} startup task: {error}",
+                    "Could not {} startup entry: {error}",
                     if enabled { "enable" } else { "remove" }
                 ),
             )
         })
     }
     .await;
-    log_failed_result(&runtime, &app, "Change startup task", result).await
+    log_failed_result(&runtime, &app, "Change startup entry", result).await
 }
 
 #[tauri::command]
@@ -445,11 +466,22 @@ pub fn set_window_theme(app: AppHandle, mode: String) -> Result<(), AppError> {
 
 #[tauri::command(rename_all = "camelCase")]
 pub async fn save_mode(
+    app: AppHandle,
     tun_mode: bool,
     sys_proxy: bool,
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
+    if app
+        .state::<crate::handoff::HandoffState>()
+        .busy
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err(AppError::new(
+            "handoff_in_progress",
+            "Privilege change is in progress",
+        ));
+    }
     // Serialize with tray/startup operations without announcing an offline save
     // as a kernel restart. A running kernel must change mode through apply_state.
     let _operation = runtime.operation().await;
@@ -458,6 +490,11 @@ pub async fn save_mode(
             "The kernel started while saving mode; retry the mode change",
         ));
     }
+    runtime.set_permission_pending(&app, false);
+    *app.state::<crate::handoff::HandoffState>()
+        .pending_mode
+        .lock()
+        .map_err(|_| AppError::operation_failed())? = None;
     let storage = storage.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         storage
@@ -494,7 +531,7 @@ pub fn set_log_config(
     if !level.is_empty()
         && !matches!(
             level.as_str(),
-            "trace" | "debug" | "info" | "warn" | "error" | "fatal"
+            "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic"
         )
     {
         return Err(AppError::invalid_input("Log level is invalid"));
@@ -542,6 +579,16 @@ async fn apply_state_impl(
     storage: &Storage,
     runtime: &RuntimeState,
 ) -> Result<String, AppError> {
+    if app
+        .state::<crate::handoff::HandoffState>()
+        .busy
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err(AppError::new(
+            "handoff_in_progress",
+            "Privilege change is in progress",
+        ));
+    }
     let _operation = runtime.core_operation(app).await;
     let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
 
@@ -578,6 +625,29 @@ async fn apply_state_impl(
     let previous = snapshot.clone();
     snapshot.state.tun_mode = target_tun;
     snapshot.state.sys_proxy = target_proxy;
+    if config_needs_admin(&build_runtime_config(
+        &active_profile_path(&snapshot, storage.paths())?,
+        &snapshot,
+    )?) && !crate::platform::privileges::is_elevated()
+        .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
+    {
+        *app.state::<crate::handoff::HandoffState>()
+            .pending_mode
+            .lock()
+            .map_err(|_| AppError::operation_failed())? = Some((target_tun, target_proxy));
+        if !was_running {
+            storage.save(&snapshot).map_err(map_storage_write_error)?;
+            let _ = app.emit(
+                "state-sync",
+                json!({"tunMode": target_tun, "sysProxy": target_proxy}),
+            );
+        }
+        runtime.set_permission_pending(app, true);
+        return Err(AppError::new(
+            "permission_required",
+            "Administrator authorization is required",
+        ));
+    }
     storage.save(&snapshot).map_err(map_storage_write_error)?;
     if !needs_restart {
         let _ = app.emit(
@@ -642,11 +712,38 @@ async fn restart_core_impl(
     storage: &Storage,
     runtime: &RuntimeState,
 ) -> Result<String, AppError> {
+    if app
+        .state::<crate::handoff::HandoffState>()
+        .busy
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err(AppError::new(
+            "handoff_in_progress",
+            "Privilege change is in progress",
+        ));
+    }
     let _operation = runtime.core_operation(app).await;
     if runtime.core().await.is_none() {
         return Ok("Error: Core is not running".to_owned());
     }
     let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+    if config_needs_admin(&build_runtime_config(
+        &active_profile_path(&snapshot, storage.paths())?,
+        &snapshot,
+    )?) && !crate::platform::privileges::is_elevated()
+        .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
+    {
+        *app.state::<crate::handoff::HandoffState>()
+            .pending_mode
+            .lock()
+            .map_err(|_| AppError::operation_failed())? =
+            Some((snapshot.state.tun_mode, snapshot.state.sys_proxy));
+        runtime.set_permission_pending(app, true);
+        return Err(AppError::new(
+            "permission_required",
+            "Administrator authorization is required",
+        ));
+    }
     let _ = app.emit("core-restarting", ());
     let stop_result = stop_core_impl(app, runtime).await;
     if stop_result.starts_with("Error") {
@@ -685,6 +782,14 @@ fn report_tray_result(app: &AppHandle, result: Result<String, AppError>) {
             return
         }
         Ok(message) => message,
+        Err(error) if error.code == "permission_required" => {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            let _ = app.emit("show-authorization", ());
+            return;
+        }
         Err(error) => error.message,
     };
     let _ = app.emit(
@@ -955,6 +1060,14 @@ pub fn get_uwp_apps() -> Result<Vec<UwpAppDto>, AppError> {
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn set_uwp_loopback_exemptions(selected_sids: Vec<String>) -> Result<String, AppError> {
+    if !crate::platform::privileges::is_elevated()
+        .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
+    {
+        return Err(AppError::new(
+            "permission_required",
+            "Administrator authorization is required",
+        ));
+    }
     let apps = platform_get_uwp_apps().map_err(|_| AppError::operation_failed())?;
     let current: BTreeSet<_> = apps
         .iter()
@@ -1005,6 +1118,9 @@ pub fn show(app: AppHandle) -> Result<(), AppError> {
         .get_webview_window("main")
         .ok_or_else(AppError::operation_failed)?;
     window.show().map_err(|_| AppError::operation_failed())?;
+    window
+        .unminimize()
+        .map_err(|_| AppError::operation_failed())?;
     window.set_focus().map_err(|_| AppError::operation_failed())
 }
 
@@ -1031,6 +1147,11 @@ pub(crate) fn refresh_tray(app: &AppHandle, running: bool, tun_mode: bool, sys_p
             include_bytes!("../../frontend/icon/tray.ico"),
             "WinBox - Stopped",
         ),
+    };
+    let tooltip = if app.state::<RuntimeState>().permission_pending() {
+        "WinBox - Needs approval"
+    } else {
+        tooltip
     };
     if let Some(tray) = app.tray_by_id("main") {
         if let Ok(icon) = Image::from_bytes(icon_bytes) {
@@ -1398,6 +1519,20 @@ pub async fn update_program(
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
     let result = async {
+        if crate::platform::privileges::is_elevated()
+            .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
+        {
+            return crate::handoff::begin(
+                app.clone(),
+                crate::handoff::Action::Update {
+                    version: expected_version.clone(),
+                    mirror: mirror.clone(),
+                },
+            )
+            .await
+            .map(|()| "Success".to_owned())
+            .map_err(|e| AppError::detailed("handoff_failed", e));
+        }
         let tag = format!("v{}", expected_version.trim_start_matches('v'));
         let updater = build_program_updater(&app, true, Some(&tag))?;
         let _operation = runtime.core_operation(&app).await;
@@ -1469,9 +1604,43 @@ async fn start_core_impl(
     runtime: &RuntimeState,
     snapshot: &DataSnapshot,
 ) -> Result<(), AppError> {
+    if runtime.core().await.is_none() {
+        runtime.restore_proxy_if_owned().await.map_err(|error| {
+            AppError::detailed(
+                "proxy_recovery_failed",
+                format!("System proxy recovery failed: {error}"),
+            )
+        })?;
+    }
+    if app
+        .state::<crate::handoff::HandoffState>()
+        .busy
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err(AppError::new(
+            "handoff_in_progress",
+            "Privilege change is in progress",
+        ));
+    }
     let profile = active_profile_path(snapshot, storage.paths())?;
     let config_path = storage.paths().core_dir.join("config.json");
     let mut config = build_runtime_config(&profile, snapshot)?;
+    if config_needs_admin(&config)
+        && !crate::platform::privileges::is_elevated()
+            .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
+    {
+        *app.state::<crate::handoff::HandoffState>()
+            .pending_mode
+            .lock()
+            .map_err(|_| AppError::operation_failed())? =
+            Some((snapshot.state.tun_mode, snapshot.state.sys_proxy));
+        runtime.set_permission_pending(app, true);
+        return Err(AppError::new(
+            "permission_required",
+            "Administrator authorization is required",
+        ));
+    }
+    runtime.set_permission_pending(app, false);
     let api_address = prepare_control_api(&mut config)?;
     let bytes = serde_json::to_vec_pretty(&config).map_err(|_| AppError::operation_failed())?;
     write_atomic(&config_path, &bytes).map_err(|_| AppError::operation_failed())?;
@@ -1590,6 +1759,15 @@ async fn stop_core_impl(app: &AppHandle, runtime: &RuntimeState) -> String {
     result
 }
 
+pub async fn prepare_handoff(app: &AppHandle, runtime: &RuntimeState) -> Result<(), String> {
+    let _operation = runtime.core_operation(app).await;
+    let result = stop_core_impl(app, runtime).await;
+    if result.starts_with("Error") {
+        return Err(result);
+    }
+    Ok(())
+}
+
 pub async fn shutdown_runtime(app: &AppHandle, runtime: &RuntimeState) {
     let _operation = runtime.core_operation(app).await;
     let _ = stop_core_impl(app, runtime).await;
@@ -1599,7 +1777,6 @@ pub async fn shutdown_runtime(app: &AppHandle, runtime: &RuntimeState) {
 }
 
 pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
-    let _ = runtime.restore_proxy_if_owned().await;
     let storage = app.state::<Storage>();
     let Ok(snapshot) = storage.load() else {
         let _ = app.emit("status", false);
@@ -1731,7 +1908,9 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
         );
     } else {
         let _ = app.emit("status", false);
-        let _ = app.emit("log", "AutoStart Failed");
+        if !runtime.permission_pending() {
+            let _ = app.emit("log", "AutoStart Failed");
+        }
         refresh_tray(
             &app,
             false,
@@ -2427,6 +2606,25 @@ mod tests {
     }
 
     #[test]
+    fn log_level_override_preserves_default_and_kernel_values() {
+        let directory = temp_dir();
+        let profile = directory.join("profile.json");
+        fs::write(&profile, r#"{"log":{"level":"warn"}}"#).unwrap();
+        let mut snapshot = DataSnapshot::default();
+        for level in [
+            "", "trace", "debug", "info", "warn", "error", "fatal", "panic",
+        ] {
+            snapshot.settings.log_level = level.to_owned();
+            let config = super::build_runtime_config(&profile, &snapshot).unwrap();
+            assert_eq!(
+                config["log"]["level"],
+                if level.is_empty() { "warn" } else { level }
+            );
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn api_url_preserves_explicit_controller_and_maps_wildcards() {
         assert_eq!(
             extract_api_url(&json!({"experimental":{"clash_api":{"external_controller":":9090"}}})),
@@ -2747,5 +2945,145 @@ mod tests {
         assert_eq!(fs::read(&target).expect("restored core"), b"old core");
 
         fs::remove_dir_all(root).expect("cleanup");
+    }
+}
+
+fn config_needs_admin(config: &Value) -> bool {
+    config
+        .get("inbounds")
+        .and_then(Value::as_array)
+        .is_some_and(|inbounds| {
+            inbounds
+                .iter()
+                .any(|inbound| inbound.get("type").and_then(Value::as_str) == Some("tun"))
+        })
+}
+
+#[tauri::command]
+pub async fn authorize(app: AppHandle, selected: Option<Vec<String>>) -> Result<(), AppError> {
+    if crate::platform::privileges::is_elevated()
+        .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
+    {
+        return Err(AppError::new(
+            "already_elevated",
+            "WinBox already has administrator permission",
+        ));
+    }
+    let action = match selected {
+        Some(selected) => {
+            if selected.len() > 4096
+                || selected.iter().any(|sid| {
+                    !sid.starts_with("S-1-")
+                        || !sid
+                            .chars()
+                            .all(|c| c == 'S' || c == '-' || c.is_ascii_digit())
+                })
+            {
+                return Err(AppError::new("invalid_input", "Invalid UWP selection"));
+            }
+            let snapshot = app
+                .state::<Storage>()
+                .load()
+                .map_err(|_| AppError::storage_load())?;
+            let resume = app
+                .state::<RuntimeState>()
+                .core()
+                .await
+                .is_some()
+                .then_some((snapshot.state.tun_mode, snapshot.state.sys_proxy));
+            crate::handoff::Action::Uwp { selected, resume }
+        }
+        None => {
+            let mut snapshot = app
+                .state::<Storage>()
+                .load()
+                .map_err(|_| AppError::storage_load())?;
+            let (tun_mode, sys_proxy) = app
+                .state::<crate::handoff::HandoffState>()
+                .pending_mode
+                .lock()
+                .map_err(|_| AppError::operation_failed())?
+                .unwrap_or((snapshot.state.tun_mode, snapshot.state.sys_proxy));
+            snapshot.state.tun_mode = tun_mode;
+            snapshot.state.sys_proxy = sys_proxy;
+            let storage = app.state::<Storage>();
+            let config =
+                build_runtime_config(&active_profile_path(&snapshot, storage.paths())?, &snapshot)?;
+            if !config_needs_admin(&config) {
+                return Err(AppError::new("permission_not_required", "This configuration no longer needs administrator permission. Start it normally."));
+            }
+            crate::handoff::Action::Connect {
+                tun_mode,
+                sys_proxy,
+            }
+        }
+    };
+    crate::handoff::begin(app, action)
+        .await
+        .map_err(|e| AppError::detailed("handoff_failed", e))
+}
+
+#[tauri::command]
+pub async fn continue_handoff(app: AppHandle) -> Result<(), AppError> {
+    let initial = app
+        .state::<crate::handoff::HandoffState>()
+        .initial
+        .lock()
+        .map_err(|_| AppError::operation_failed())?
+        .take();
+    match initial {
+        Some(crate::handoff::Action::Connect {
+            tun_mode,
+            sys_proxy,
+        }) => {
+            let result = apply_state_impl(
+                &app,
+                tun_mode,
+                sys_proxy,
+                &app.state::<Storage>(),
+                &app.state::<RuntimeState>(),
+            )
+            .await?;
+            if result != "Success" {
+                return Err(AppError::detailed("connect_failed", result));
+            }
+        }
+        Some(crate::handoff::Action::Update { version, mirror }) => {
+            update_program(app.clone(), mirror, version, app.state::<RuntimeState>()).await?;
+        }
+        Some(crate::handoff::Action::Uwp {
+            resume: Some((tun_mode, sys_proxy)),
+            ..
+        }) => {
+            let result = apply_state_impl(
+                &app,
+                tun_mode,
+                sys_proxy,
+                &app.state::<Storage>(),
+                &app.state::<RuntimeState>(),
+            )
+            .await?;
+            if result != "Success" {
+                return Err(AppError::detailed("connect_failed", result));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod privilege_tests {
+    #[test]
+    fn generated_inbound_controls_privilege_requirement() {
+        assert!(!super::config_needs_admin(
+            &serde_json::json!({"inbounds":[{"type":"mixed"}]})
+        ));
+        assert!(super::config_needs_admin(
+            &serde_json::json!({"inbounds":[{"type":"mixed"},{"type":"tun"}]})
+        ));
+        assert!(!super::config_needs_admin(
+            &serde_json::json!({"outbounds":[{"type":"tun"}]})
+        ));
     }
 }
