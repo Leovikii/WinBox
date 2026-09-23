@@ -295,9 +295,7 @@ button.update-action-button { width: 112px; min-width: 112px; min-height: 32px; 
 .version-row > span { overflow-wrap: anywhere; }
 .setting-control { max-width: 62%; }
 .expand-content { overflow: hidden; }
-.message-presence { overflow: hidden; }
-.message-presence > .product-message-bar { margin-bottom: 16px; }
-.settings-content > .message-presence { margin-bottom: -16px; }
+.app-toast-body { min-width: 0; max-height: min(35vh, 240px); overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; }
 .editor-input.editor-input { font-family: var(--fontFamilyMonospace); font-size: 12px; line-height: 18px; }
 @media (max-width: 360px) {
   .settings-card { padding: 16px; }
@@ -336,3 +334,5 @@ button.update-available:not(:disabled) { color: var(--colorBrandForeground1); }
 @media (forced-colors: active) {
   button.update-available:not(:disabled) { color: ButtonText; }
 }
+
+.winbox-admin-status { display: inline-flex; color: var(--colorNeutralForeground3); }

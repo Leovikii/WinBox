@@ -1,6 +1,6 @@
 # WinBox agent 工作规则
 
-2026-09-22：用户完成一系列人工测试，确认前后端迁移基本完成并关闭重构阶段。当前开发版本 `3.0.0-alpha.3`；不再执行历史迁移台账。开发入口见 [架构](docs/architecture.md)，按改动阅读 [前端设计](docs/frontend.md)、[后端规范与契约](docs/backend.md)、[验证与发布](docs/development.md)。
+`3.0.0-alpha.4` 开发已结束，用户确认本轮问题修复。当前按正常维护流程开发，不维护历史迁移台账。开发入口见 [架构](docs/architecture.md)，按改动阅读 [前端设计](docs/frontend.md)、[后端规范与契约](docs/backend.md)、[验证与发布](docs/development.md)。
 
 ## 边界
 

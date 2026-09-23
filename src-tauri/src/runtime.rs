@@ -34,13 +34,14 @@ struct RuntimeInner {
     core: Mutex<Option<Arc<Mutex<CoreProcess>>>>,
     operation: Mutex<()>,
     stopping: AtomicBool,
+    permission_pending: AtomicBool,
+    permission_notified: AtomicBool,
     busy: AtomicBool,
     app_log_lock: Mutex<()>,
     kernel_log: Mutex<VecDeque<String>>,
     traffic_cancel: Mutex<Option<oneshot::Sender<()>>>,
     traffic_task: Mutex<Option<JoinHandle<()>>>,
-    proxy_restore: Mutex<Option<SystemProxySettings>>,
-    proxy_owned: Mutex<Option<SystemProxySettings>>,
+    proxy_error: Mutex<Option<String>>,
 }
 
 #[derive(Clone)]
@@ -69,22 +70,20 @@ impl Drop for CoreOperation<'_> {
 
 impl RuntimeState {
     pub fn new(paths: AppPaths) -> Self {
-        let persisted_proxy = load_proxy_state(&paths);
         Self {
             inner: Arc::new(RuntimeInner {
                 paths,
                 core: Mutex::new(None),
                 operation: Mutex::new(()),
                 stopping: AtomicBool::new(false),
+                permission_pending: AtomicBool::new(false),
+                permission_notified: AtomicBool::new(false),
                 busy: AtomicBool::new(false),
                 app_log_lock: Mutex::new(()),
                 kernel_log: Mutex::new(VecDeque::with_capacity(MAX_KERNEL_LOG_LINES)),
                 traffic_cancel: Mutex::new(None),
                 traffic_task: Mutex::new(None),
-                proxy_restore: Mutex::new(
-                    persisted_proxy.as_ref().map(|state| state.restore.clone()),
-                ),
-                proxy_owned: Mutex::new(persisted_proxy.map(|state| state.owned)),
+                proxy_error: Mutex::new(None),
             }),
         }
     }
@@ -105,6 +104,41 @@ impl RuntimeState {
             _lock: lock,
             busy: &self.inner.busy,
             app: app.clone(),
+        }
+    }
+
+    pub fn permission_pending(&self) -> bool {
+        self.inner.permission_pending.load(Ordering::Acquire)
+    }
+
+    pub fn set_permission_pending(&self, app: &AppHandle, pending: bool) {
+        if self
+            .inner
+            .permission_pending
+            .swap(pending, Ordering::AcqRel)
+            == pending
+        {
+            return;
+        }
+        let _ = app.emit(
+            "permission-required",
+            serde_json::json!({
+                "pending": pending,
+                "prompt": pending && !crate::startup::StartupOptions::from_environment().autostart
+            }),
+        );
+        if let Some(tray) = app.tray_by_id("main") {
+            let _ = tray.set_tooltip(Some(if pending {
+                "WinBox - Needs approval"
+            } else {
+                "WinBox"
+            }));
+        }
+        if pending
+            && crate::startup::StartupOptions::from_environment().autostart
+            && !self.inner.permission_notified.swap(true, Ordering::AcqRel)
+        {
+            crate::platform::notifications::notify_permission(app);
         }
     }
 
@@ -146,34 +180,25 @@ impl RuntimeState {
             restore: restore.clone(),
             owned: owned.clone(),
         };
-        persist_proxy_state(&self.inner.paths, &persisted)?;
-        *self.inner.proxy_restore.lock().await = Some(restore);
-        *self.inner.proxy_owned.lock().await = Some(owned);
-        Ok(())
+        persist_proxy_state(&self.inner.paths, &persisted)
     }
 
-    async fn clear_proxy_state(&self) -> io::Result<()> {
-        *self.inner.proxy_restore.lock().await = None;
-        *self.inner.proxy_owned.lock().await = None;
-        match fs::remove_file(self.inner.paths.system_proxy_file()) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error),
-        }
+    pub async fn proxy_error(&self) -> Option<String> {
+        self.inner.proxy_error.lock().await.clone()
     }
 
     pub async fn restore_proxy_if_owned(&self) -> io::Result<()> {
-        let restore = self.inner.proxy_restore.lock().await.clone();
-        let owned = self.inner.proxy_owned.lock().await.clone();
-        let result = match (restore, owned) {
-            (Some(restore), Some(owned)) => match read_system_proxy()? {
-                current if current == owned => restore_system_proxy(&restore),
-                _ => Ok(()),
-            },
-            _ => Ok(()),
-        };
-        result?;
-        self.clear_proxy_state().await
+        let paths = self.inner.paths.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            recover_proxy(&paths, read_system_proxy, restore_system_proxy)
+        })
+        .await
+        .map_err(io::Error::other)
+        .and_then(|result| result);
+        *self.inner.proxy_error.lock().await = result.as_ref().err().map(|error| {
+            format!("System proxy recovery failed. Auto-connect paused. Retry Start or check Windows proxy settings. {error}")
+        });
+        result
     }
 
     pub fn request_stop(&self, requested: bool) {
@@ -438,9 +463,29 @@ impl RuntimeState {
     }
 }
 
-fn load_proxy_state(paths: &AppPaths) -> Option<PersistedProxyState> {
-    let bytes = fs::read(paths.system_proxy_file()).ok()?;
-    serde_json::from_slice(&bytes).ok()
+fn load_proxy_state(paths: &AppPaths) -> io::Result<Option<PersistedProxyState>> {
+    match fs::read(paths.system_proxy_file()) {
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(io::Error::other),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn recover_proxy(
+    paths: &AppPaths,
+    read: impl FnOnce() -> io::Result<SystemProxySettings>,
+    restore: impl FnOnce(&SystemProxySettings) -> io::Result<()>,
+) -> io::Result<()> {
+    let Some(state) = load_proxy_state(paths)? else {
+        return Ok(());
+    };
+    if read()? == state.owned {
+        restore(&state.restore)?;
+    }
+    // Keep the recovery record on failure so a retry cannot lose the original settings.
+    fs::remove_file(paths.system_proxy_file())
 }
 
 fn persist_proxy_state(paths: &AppPaths, state: &PersistedProxyState) -> io::Result<()> {
@@ -575,7 +620,57 @@ mod tests {
         };
 
         persist_proxy_state(&paths, &state).expect("persist marker");
-        assert_eq!(load_proxy_state(&paths), Some(state));
+        assert_eq!(load_proxy_state(&paths).unwrap(), Some(state.clone()));
+
+        assert!(super::recover_proxy(
+            &paths,
+            || Err(std::io::Error::other("registry read failed")),
+            |_| panic!("must not restore without reading current settings")
+        )
+        .is_err());
+        assert_eq!(load_proxy_state(&paths).unwrap(), Some(state.clone()));
+
+        // Failed recovery must preserve the marker across a process restart.
+        assert!(super::recover_proxy(
+            &paths,
+            || Ok(state.owned.clone()),
+            |_| { Err(std::io::Error::other("registry write failed")) }
+        )
+        .is_err());
+        assert_eq!(load_proxy_state(&paths).unwrap(), Some(state.clone()));
+        let mut restored = false;
+        super::recover_proxy(
+            &paths,
+            || Ok(state.owned.clone()),
+            |previous| {
+                assert_eq!(previous, &state.restore);
+                restored = true;
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(restored);
+        assert!(!paths.system_proxy_file().exists());
+
+        // A newer setting owned by another app must remain untouched.
+        persist_proxy_state(&paths, &state).unwrap();
+        super::recover_proxy(
+            &paths,
+            || Ok(state.restore.clone()),
+            |_| panic!("must not overwrite another proxy"),
+        )
+        .unwrap();
+        assert!(!paths.system_proxy_file().exists());
+
+        // An unreadable/corrupt record is a visible error, not 'nothing to recover'.
+        fs::write(paths.system_proxy_file(), b"invalid json").unwrap();
+        assert!(super::recover_proxy(
+            &paths,
+            || panic!("invalid marker"),
+            |_| panic!("invalid marker")
+        )
+        .is_err());
+        assert!(paths.system_proxy_file().exists());
 
         fs::remove_dir_all(root).expect("test cleanup");
     }

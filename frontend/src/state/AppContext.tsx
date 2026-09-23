@@ -26,6 +26,14 @@ export interface ProfileDraft extends ProfileDto {
 }
 
 interface AppContextValue {
+  elevated: boolean
+  permissionPending: boolean
+  permissionDialog: 'connect' | 'uwp' | null
+  setPermissionDialog: (value: 'connect' | 'uwp' | null) => void
+  authorizing: boolean
+  authorize: () => Promise<void>
+  initialHandoff: Backend.HandoffAction | null
+  continueHandoff: () => Promise<void>
   initialized: boolean
   running: boolean
   coreExists: boolean
@@ -34,7 +42,6 @@ interface AppContextValue {
   sysProxy: boolean
   isProcessing: boolean
   isModeSaving: boolean
-  errorLog: string
   showErrorAlert: boolean
   errorAlertMessage: string
   autoConnectState: string
@@ -52,7 +59,6 @@ interface AppContextValue {
   controlColor: string
   refreshData: () => Promise<InitDataDto>
   handleServiceToggle: () => Promise<{ error: string } | undefined>
-  handleToggle: (target: 'tun' | 'proxy') => Promise<{ error: string } | undefined>
   handleSwitchMode: (target: { tunMode: boolean; sysProxy: boolean }) => Promise<{ error: string } | undefined>
   handleRestartCore: () => Promise<void>
   handleMirrorToggle: () => Promise<void>
@@ -125,7 +131,7 @@ interface AppContextValue {
   uwpLoading: boolean
   uwpSaving: boolean
   uwpHasChanges: boolean
-  loadUwpApps: () => Promise<void>
+  loadUwpApps: (draft?: string[]) => Promise<void>
   toggleUwpApp: (sid: string) => void
   selectAllUwp: () => void
   deselectAllUwp: () => void
@@ -158,6 +164,7 @@ const initialTheme = typeof window === 'undefined' ? 'system' : localStorage.get
 export function AppProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false)
   const lifecycleRevision = useRef(0)
+  const modeRevision = useRef(0)
   const [running, setRunning] = useState(false)
   const [coreExists, setCoreExists] = useState(true)
   const [msg, setMsg] = useState('READY')
@@ -168,10 +175,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const modeSaveInFlight = useRef(false)
   const [coreBusy, setCoreBusy] = useState(false)
   const [coreLocked, setCoreLocked] = useState(false)
-  const isProcessing = localProcessing || coreBusy || coreLocked
-  const [errorLog, setErrorLog] = useState('')
   const [showErrorAlert, setShowErrorAlert] = useState(false)
   const [errorAlertMessage, setErrorAlertMessage] = useState('')
+  const [elevated, setElevated] = useState(false)
+  const [permissionPending, setPermissionPending] = useState(false)
+  const [permissionDialog, setPermissionDialog] = useState<'connect' | 'uwp' | null>(null)
+  const [authorizing, setAuthorizing] = useState(false)
+  const isProcessing = localProcessing || coreBusy || coreLocked || authorizing
+  const [initialHandoff, setInitialHandoff] = useState<Backend.HandoffAction | null>(null)
+  const authorizationInFlight = useRef(false)
   const [autoConnectState, setAutoConnectState] = useState('smart')
   const [mirrorUrl, setMirrorUrl] = useState('')
   const [mirrorEnabled, setMirrorEnabled] = useState(false)
@@ -257,17 +269,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const result = await Backend.SaveMode(tun, proxy)
     if (result !== 'Success') {
       setMsg('Error')
-      setErrorLog(result)
       setErrorAlert(result)
       return false
     }
     return true
   }, [setErrorAlert])
 
-  const applyInitData = useCallback(async (data: InitDataDto, revision: number) => {
+  const applyInitData = useCallback(async (data: InitDataDto, revision: number, modeVersion: number) => {
     let nextTun = data.tunMode
     let nextProxy = data.sysProxy
-    if (revision === lifecycleRevision.current && !nextTun && !nextProxy) {
+    if (modeVersion === modeRevision.current && !nextTun && !nextProxy) {
       nextProxy = true
       if (!defaultModePersisted.current) {
         defaultModePersisted.current = true
@@ -277,12 +288,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // A delayed snapshot must not overwrite newer lifecycle events.
     if (revision === lifecycleRevision.current) {
+      setPermissionPending(Boolean(data.permissionPending))
+      if (data.permissionPending && !data.autostart) setPermissionDialog('connect')
       setCoreBusy(data.coreBusy)
       setRunning(data.running)
       setMsg(data.coreExists ? (data.coreBusy ? 'Working...' : data.running ? 'Running' : 'Offline') : 'Kernel Missing')
+    }
+    if (modeVersion === modeRevision.current) {
       setTunMode(nextTun)
       setSysProxy(nextProxy)
     }
+    setElevated(Boolean(data.elevated))
+    if (data.proxyError) setErrorAlert(data.proxyError)
+    setInitialHandoff(data.handoffAction ?? null)
     setCoreExists(data.coreExists)
     setLocalVer(data.localVersion || 'Unknown')
     setProfiles(data.profiles || [])
@@ -297,12 +315,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCloseBehavior(data.closeBehavior || 'ask')
     setAccentColor(data.accentColor || '#0090FF')
     setThemeModeState(data.themeMode || 'system')
-  }, [persistMode])
+  }, [persistMode, setErrorAlert])
 
   const refreshData = useCallback(async () => {
     const revision = lifecycleRevision.current
+    const modeVersion = modeRevision.current
     const data = await Backend.getInitData()
-    await applyInitData(data, revision)
+    await applyInitData(data, revision, modeVersion)
     return data
   }, [applyInitData])
 
@@ -319,6 +338,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const unlisten = [
       EventsOn<TrafficUpdateDto>('traffic-update', (data) => {
         setTrafficHistory(history => appendTraffic(history, data.upload, data.download))
+      }),
+      EventsOn('show-authorization', () => setPermissionDialog('connect')),
+      EventsOn<{ pending: boolean; prompt: boolean }>('permission-required', ({ pending, prompt }) => {
+        lifecycleRevision.current++
+        setPermissionPending(pending)
+        setMsg('Stopped')
+        if (pending && prompt) setPermissionDialog('connect')
       }),
       EventsOn('window-close-requested', () => setWindowCloseRequested(true)),
       EventsOn('core-starting', () => {
@@ -351,6 +377,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }),
       EventsOn<StateSyncDto>('state-sync', (state) => {
         lifecycleRevision.current++
+        modeRevision.current++
         setTunMode(state.tunMode)
         setSysProxy(state.sysProxy)
         if (!state.tunMode && !state.sysProxy && !defaultModePersisted.current) {
@@ -363,7 +390,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const cleaned = cleanLog(logMessage)
         if (cleaned.startsWith('Error:') || cleaned.includes('failed')) {
           setMsg('Error')
-          setErrorLog(cleaned)
         } else {
           setMsg(cleaned)
         }
@@ -390,9 +416,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       try {
         const revision = lifecycleRevision.current
+        const modeVersion = modeRevision.current
         const data = await Backend.getInitData()
         if (!cancelled) {
-          await applyInitData(data, revision)
+          await applyInitData(data, revision, modeVersion)
           setInitialized(true)
         }
         const logVersion = logRevision.current
@@ -401,7 +428,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (!cancelled) {
           setMsg('Error')
-          setErrorLog(error instanceof Error ? error.message : String(error))
         }
       }
     })()
@@ -436,66 +462,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [initialized, themeMode])
 
   const handleServiceToggle = useCallback(async () => {
-    if (isProcessing || modeSaveInFlight.current) return undefined
+    if (isProcessing || modeSaveInFlight.current || authorizationInFlight.current) return undefined
     if (!coreExists) {
       setMsg('KERNEL MISSING!')
       return { error: 'kernel-missing' }
     }
 
+    setErrorAlert('')
     setIsProcessing(true)
     const willStart = !running
     setMsg(willStart ? 'Starting...' : 'Stopping...')
     try {
       const result = await Backend.ApplyState(willStart ? tunMode : false, willStart ? sysProxy : false)
+      if (result === 'permission-required') { setPermissionDialog('connect'); setMsg('Stopped'); return undefined }
       if (!['Success', 'Stopped', 'Already stopped'].includes(result)) {
         setMsg('Error')
-        setErrorLog(cleanLog(result))
+        if (result !== 'config-missing') setErrorAlert(result)
         return result === 'config-missing' ? { error: 'config-missing' } : undefined
       }
       return undefined
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Error')
-      setErrorLog(message)
       setErrorAlert(message)
       return undefined
     } finally {
       setIsProcessing(false)
     }
   }, [coreExists, isProcessing, running, setErrorAlert, sysProxy, tunMode])
-
-  const handleToggle = useCallback(async (target: 'tun' | 'proxy') => {
-    if (isProcessing || modeSaveInFlight.current) return undefined
-    if (!coreExists) {
-      setMsg('KERNEL MISSING!')
-      return { error: 'kernel-missing' }
-    }
-    const nextTun = target === 'tun' ? !tunMode : tunMode
-    const nextProxy = target === 'proxy' ? !sysProxy : sysProxy
-    const previous = { tun: tunMode, proxy: sysProxy }
-    setIsProcessing(true)
-    setMsg(nextTun || nextProxy ? 'Starting...' : 'Stopping...')
-    try {
-      const result = await Backend.ApplyState(nextTun, nextProxy)
-      if (!['Success', 'Stopped', 'Already stopped'].includes(result)) {
-        setTunMode(previous.tun)
-        setSysProxy(previous.proxy)
-        setMsg('Error')
-        setErrorLog(cleanLog(result))
-      }
-      return result === 'config-missing' ? { error: 'config-missing' } : undefined
-    } catch (error) {
-      const message = cleanLog(error instanceof Error ? error.message : String(error))
-      setTunMode(previous.tun)
-      setSysProxy(previous.proxy)
-      setMsg('Error')
-      setErrorLog(message)
-      setErrorAlert(message)
-      return undefined
-    } finally {
-      setIsProcessing(false)
-    }
-  }, [coreExists, isProcessing, setErrorAlert, sysProxy, tunMode])
 
   const handleSwitchMode = useCallback(async (target: { tunMode: boolean; sysProxy: boolean }) => {
     if (isProcessing || modeSaveInFlight.current) return undefined
@@ -510,9 +504,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     else setIsModeSaving(true)
     try {
       if (!running) {
-        const revision = lifecycleRevision.current
+        const revision = modeRevision.current
         const saved = await persistMode(target.tunMode, target.sysProxy)
-        if (saved && revision === lifecycleRevision.current) {
+        if (saved && revision === modeRevision.current) {
+          modeRevision.current++
           setTunMode(target.tunMode)
           setSysProxy(target.sysProxy)
         }
@@ -520,11 +515,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       setMsg('Restarting...')
       const result = await Backend.ApplyState(target.tunMode, target.sysProxy)
+      if (result === 'permission-required') { setPermissionDialog('connect'); setMsg('Stopped'); return undefined }
       if (!['Success', 'Stopped', 'Already stopped'].includes(result)) {
         setTunMode(previous.tun)
         setSysProxy(previous.proxy)
         setMsg('Error')
-        setErrorLog(cleanLog(result))
       }
       return result === 'config-missing' ? { error: 'config-missing' } : undefined
     } catch (error) {
@@ -532,7 +527,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTunMode(previous.tun)
       setSysProxy(previous.proxy)
       setMsg('Error')
-      setErrorLog(message)
       setErrorAlert(message)
       return undefined
     } finally {
@@ -548,15 +542,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMsg('Restarting...')
     try {
       const result = await Backend.RestartCore()
+      if (result === 'permission-required') { setPermissionDialog('connect'); setMsg('Stopped'); return }
       if (result !== 'Success') {
         setMsg('Error')
-        setErrorLog(cleanLog(result))
         setErrorAlert(result)
       }
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Error')
-      setErrorLog(message)
       setErrorAlert(message)
     } finally {
       setIsProcessing(false)
@@ -631,12 +624,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await refreshData()
       } else {
         setMsg('Error')
-        setErrorLog(cleanLog(result))
       }
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Error')
-      setErrorLog(message)
       setErrorAlert(message)
     } finally {
       setIsProcessing(false)
@@ -655,12 +646,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await refreshData()
       } else {
         setMsg('Error')
-        setErrorLog(cleanLog(result))
       }
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Error')
-      setErrorLog(message)
       setErrorAlert(message)
     } finally {
       setIsUpdatingProfile(false)
@@ -785,7 +774,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Check Failed')
-      setErrorLog(message)
       setErrorAlert(message)
       setUpdateState('error')
     } finally {
@@ -814,7 +802,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Update Failed')
-      setErrorLog(message)
       setErrorAlert(message)
       setUpdateState('error')
     } finally {
@@ -916,7 +903,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Update Check Failed')
-      setErrorLog(message)
       setErrorAlert(message)
       setProgramUpdateState('error')
     } finally {
@@ -936,7 +922,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const message = cleanLog(error instanceof Error ? error.message : String(error))
       setMsg('Update Failed')
-      setErrorLog(message)
       setErrorAlert(message)
       setProgramUpdateState('error')
     }
@@ -956,12 +941,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (result !== 'Success') setErrorAlert(result)
   }, [accentColor, setErrorAlert])
 
-  const loadUwpApps = useCallback(async () => {
+  const loadUwpApps = useCallback(async (draft?: string[]) => {
     setUwpLoading(true)
     try {
       const apps = await Backend.GetUWPApps()
       setUwpApps(apps || [])
-      setUwpSelectedSIDs((apps || []).filter((app) => app.isExempt).map((app) => app.sid))
+      setUwpSelectedSIDs(draft ? draft.filter(sid => apps.some(app => app.sid === sid)) : (apps || []).filter((app) => app.isExempt).map((app) => app.sid))
     } catch (error) {
       setUwpApps([])
       setErrorAlert(error instanceof Error ? error.message : 'Failed to load UWP applications')
@@ -983,9 +968,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [uwpApps, uwpSelectedSIDs])
 
   const saveExemptions = useCallback(async () => {
+    if (!elevated) { setPermissionDialog('uwp'); return false }
     setUwpSaving(true)
     try {
       const result = await Backend.SetUWPLoopbackExemptions(uwpSelectedSIDs)
+      if (result === 'permission-required') { setPermissionDialog('uwp'); return false }
       if (result !== 'Success') { setErrorAlert(result); return false }
       setUwpApps((current) => current.map((app) => ({ ...app, isExempt: uwpSelectedSIDs.includes(app.sid) })))
       return true
@@ -995,11 +982,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setUwpSaving(false)
     }
-  }, [setErrorAlert, uwpSelectedSIDs])
+  }, [elevated, setErrorAlert, uwpSelectedSIDs])
+
+  const continueHandoff = useCallback(async () => {
+    const updating = initialHandoff?.kind === 'update'
+    if (updating) {
+      setProgramRemoteVer(initialHandoff.version)
+      setProgramUpdateState('updating')
+      setProgramDownloadProgress(0)
+    }
+    try {
+      if (updating) setProgramLocalVer(await Backend.getProductVersion())
+      await Backend.ContinueHandoff()
+      if (updating) setProgramUpdateState('success')
+      else setInitialHandoff(null)
+    } catch (error) {
+      if (updating) setProgramUpdateState('error')
+      setErrorAlert(error instanceof Error ? error.message : String(error))
+    }
+  }, [initialHandoff, setErrorAlert, setProgramUpdateState])
+
+  const authorize = useCallback(async () => {
+    if (authorizationInFlight.current) return
+    authorizationInFlight.current = true
+    setAuthorizing(true)
+    try {
+      await Backend.Authorize(permissionDialog === 'uwp' ? uwpSelectedSIDs : undefined)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.includes('Authorization cancelled')) setErrorAlert(message)
+    } finally {
+      authorizationInFlight.current = false
+      setAuthorizing(false)
+      setPermissionDialog(null)
+    }
+  }, [permissionDialog, setErrorAlert, uwpSelectedSIDs])
 
   const statusText = useMemo(() => {
     if (!coreExists) return 'Warning'
     if (msg === 'Error') return 'Error'
+    if (permissionPending && !running) return 'Authorization required'
     if (isProcessing && ['Starting...', 'Stopping...', 'Restarting...', 'Updating...', 'Working...'].includes(msg)) return msg
     if (['Detecting', 'Standby', 'Net Timeout'].includes(msg)) return msg
     if (!running) return 'Offline'
@@ -1007,7 +1029,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (tunMode) return 'TUN adapter'
     if (sysProxy) return 'System Proxy'
     return 'Online'
-  }, [coreExists, isProcessing, msg, running, sysProxy, tunMode])
+  }, [permissionPending, coreExists, isProcessing, msg, running, sysProxy, tunMode])
 
   const statusColor = useMemo(() => {
     if (!coreExists) return 'var(--status-warning)'
@@ -1019,17 +1041,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (tunMode) return 'var(--status-tun)'
     if (sysProxy) return 'var(--status-proxy)'
     return 'var(--status-default)'
-  }, [coreExists, isProcessing, msg, running, sysProxy, tunMode])
+  }, [permissionPending, coreExists, isProcessing, msg, running, sysProxy, tunMode])
 
   const controlColor = useMemo(() => getModeColor(tunMode, sysProxy, msg === 'Error' || !coreExists || msg === 'Net Timeout', running).hex, [coreExists, msg, running, sysProxy, tunMode])
   const isEditorChanged = editorContent !== editorOriginalContent
   const isManageProfilesChanged = useMemo(() => JSON.stringify(profiles) !== JSON.stringify(manageProfilesList), [profiles, manageProfilesList])
 
   const value = useMemo<AppContextValue>(() => ({
-    initialized, running, coreExists, msg, tunMode, sysProxy, isProcessing, isModeSaving, errorLog, showErrorAlert, errorAlertMessage,
+    initialized, running, coreExists, msg, tunMode, sysProxy, isProcessing, isModeSaving, showErrorAlert, errorAlertMessage,
+    elevated, permissionPending, permissionDialog, setPermissionDialog, authorizing, authorize, initialHandoff, continueHandoff,
     autoConnectState, mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile, closeBehavior,
     windowCloseRequested, setWindowCloseRequested, statusText, statusColor, controlColor,
-    refreshData, handleServiceToggle, handleToggle, handleSwitchMode, handleRestartCore, handleMirrorToggle,
+    refreshData, handleServiceToggle, handleSwitchMode, handleRestartCore, handleMirrorToggle,
     handleAutoConnectChange, handleIPv6Toggle, handlePreReleaseToggle, handleLogLevelChange, handleLogToFileToggle,
     handleCloseBehaviorChange, setErrorAlert,
     profiles, activeProfile, switchProfile, updateActiveProfile, isUpdatingProfile, showManageProfilesModal,
@@ -1043,11 +1066,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     uwpApps, uwpSelectedSIDs, uwpLoading, uwpSaving, uwpHasChanges, loadUwpApps, toggleUwpApp, selectAllUwp,
     deselectAllUwp, saveExemptions,
   }), [
+    elevated, permissionPending, permissionDialog, authorizing, authorize, initialHandoff, continueHandoff,
     accentColor, activeProfile, autoConnectState, closeBehavior, controlColor,
     coreExists, downloadProgress, editorContent, editorDefaultContent, editorError,
     handleAutoConnectChange, handleCloseBehaviorChange, handleIPv6Toggle, handleLogLevelChange, handleLogToFileToggle,
     handleMirrorToggle, handlePreReleaseToggle, handleServiceToggle, handleSwitchMode, handleRestartCore,
-    handleToggle, initialized, isDark, isEditorChanged, isManageProfilesChanged, isProcessing, isModeSaving, isSavingProfiles,
+    initialized, isDark, isEditorChanged, isManageProfilesChanged, isProcessing, isModeSaving, isSavingProfiles,
     isUpdatingProfile, loadUwpApps, localVer, manageProfilesError, manageProfilesList, mirrorEnabled,
     mirrorUrl, msg, openEditor, openManageProfiles, performProgramUpdate, performUpdate, preRelease, profiles,
     programChangelog, programDownloadProgress, programLocalVer, programRemoteVer, programUpdateState, refreshData,
@@ -1055,7 +1079,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setErrorAlert, showEditor, showErrorAlert, showManageProfilesModal, showResetConfirm,
     statusColor, statusText, switchEditorTab, switchProfile, sysProxy, themeMode, tunMode, updateActiveProfile,
     updateState, uwpApps, uwpHasChanges, uwpLoading, uwpSaving, uwpSelectedSIDs, windowCloseRequested,
-    ipv6Enabled, logLevel, logToFile, errorAlertMessage, errorLog, setShowManageProfilesModal,
+    ipv6Enabled, logLevel, logToFile, errorAlertMessage, setShowManageProfilesModal,
     setShowResetConfirm, setWindowCloseRequested, setThemeColor, setThemeMode,
     deselectAllUwp, selectAllUwp, toggleUwpApp, confirmReset,
   ])

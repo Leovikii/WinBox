@@ -7,6 +7,7 @@ const profiles = [
   { id: 'two', name: '办公室 · Long profile name for overflow verification', url: 'https://example.invalid/work', updated: '2026-09-22 09:00' },
 ]
 const state = {
+  elevated: true, permissionPending: false, proxyError: null as string | null, autostart: false, handoffAction: null as any,
   running: false, coreBusy: false, coreExists: true, localVersion: '1.12.0', tunMode: false, sysProxy: true,
   profiles, activeProfile: profiles[0], mirror: '', mirrorEnabled: false, startOnBoot: false,
   autoConnectState: 'smart', themeMode: localStorage.getItem('themeMode') || 'light',
@@ -14,9 +15,20 @@ const state = {
   preRelease: false, logLevel: '', logToFile: true, closeBehavior: 'ask',
 }
 const scenario = new URLSearchParams(location.search).get('scenario')
+const savedMode = new URLSearchParams(location.search).get('savedMode')
+if (savedMode === 'tun' || savedMode === 'mixed') {
+  state.tunMode = true; state.sysProxy = savedMode === 'mixed'
+}
+if (scenario === 'proxy-recovery-failed') state.proxyError = 'System proxy recovery failed. Auto-connect paused. Retry Start or check Windows proxy settings.'
 if (scenario === 'empty' || scenario === 'missing') { state.profiles = []; state.activeProfile = null as any }
 if (scenario === 'missing') { state.coreExists = false; state.localVersion = 'Not Installed' }
 if (scenario === 'unknown-kernel') state.localVersion = 'Unknown'
+if (scenario === 'permission' || scenario === 'permission-autostart') {
+  state.elevated = false; state.tunMode = true
+  state.autostart = scenario === 'permission-autostart'
+  state.permissionPending = state.autostart
+}
+if (scenario === 'uwp-resume') state.handoffAction = { kind: 'uwp', selected: ['test-1'] }
 const calls: string[] = []
 let failure = ''
 let failureMessage = 'Fixture: requested operation failed'
@@ -41,6 +53,11 @@ async function phase(name: string) {
   }
 }
 async function applyLifecycle(targetTun: boolean, targetProxy: boolean, restart = false) {
+  if (targetTun && !state.elevated) {
+    state.permissionPending = true
+    await emit('permission-required', { pending: true, prompt: !state.autostart })
+    throw { code: 'permission_required', message: 'Administrator authorization is required' }
+  }
   state.coreBusy = true
   await emit('core-busy', true)
   const starting = targetTun || targetProxy
@@ -89,8 +106,19 @@ mockIPC(async (command, args: any) => {
   if (failure === command) { failure = ''; throw { code: 'fixture_failure', message: failureMessage } }
   switch (command) {
     case 'get_init_data': return initSnapshot
+    case 'authorize': throw { message: 'Authorization cancelled' }
+    case 'continue_handoff': state.handoffAction = null; return null
     case 'get_start_on_boot': return state.startOnBoot
     case 'set_start_on_boot': state.startOnBoot = args.enabled; return state.startOnBoot
+    case 'set_auto_connect':
+      if (!['off', 'smart', 'always'].includes(args.state)) throw { message: 'Auto-connect state must be off, smart, or always' }
+      state.autoConnectState = args.state; return 'Success'
+    case 'set_close_behavior':
+      if (!['ask', 'tray', 'quit'].includes(args.behavior)) throw { message: 'Close behavior is invalid' }
+      state.closeBehavior = args.behavior; return 'Success'
+    case 'set_log_config':
+      if (!['', 'trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(args.level)) throw { message: 'Log level is invalid' }
+      state.logLevel = args.level; state.logToFile = args.toFile; return 'Success'
     case 'get_product_version': return programVersion
     case 'get_app_log': return '[10:00:00] Ready\n[10:00:01] Profile loaded\n'
     case 'get_kernel_log': case 'get_log_file': return 'Kernel log fixture\n'
@@ -102,7 +130,9 @@ mockIPC(async (command, args: any) => {
     case 'restart_core': return applyLifecycle(state.tunMode, state.sysProxy, true)
     case 'select_profile': state.activeProfile = profiles.find(profile => profile.id === args.id) || state.activeProfile; return 'Success'
     case 'save_mode': state.tunMode = args.tunMode; state.sysProxy = args.sysProxy; return 'Success'
-    case 'save_theme': state.themeMode = args.mode; state.accentColor = args.accentColor; return 'Success'
+    case 'save_theme':
+      if (!['light', 'dark', 'system'].includes(args.mode)) throw { message: 'Theme mode is invalid' }
+      state.themeMode = args.mode; state.accentColor = args.accentColor; return 'Success'
     case 'get_override': case 'get_default_override': return '{\n  "inbounds": []\n}'
     case 'get_uwp_apps': return [
       { sid: 'test-1', displayName: 'Windows application', packageName: 'Microsoft.Example_1.0_x64', isExempt: false },

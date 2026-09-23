@@ -1,6 +1,6 @@
 import { Activity, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Checkbox, Spinner } from '@fluentui/react-components'
-import { ArrowLeft16Regular, Dismiss16Regular, Settings16Regular, Subtract16Regular } from '@fluentui/react-icons'
+import { Button, Checkbox, Spinner, Toast, ToastBody, Toaster, ToastTitle, Tooltip, useToastController } from '@fluentui/react-components'
+import { ArrowLeft16Regular, Dismiss16Regular, Settings16Regular, Shield16Regular, Subtract16Regular } from '@fluentui/react-icons'
 import { renderChangelog } from './utils/changelog'
 import * as Backend from './api/backend'
 import { useApp } from './state/AppContext'
@@ -25,17 +25,51 @@ export default function App() {
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false)
   const updateCheckStarted = useRef(false)
+  const handoffStarted = useRef(false)
+  const errorToastId = useRef<string | null>(null)
+  const toastSequence = useRef(0)
+  const { dispatchToast, updateToast, dismissToast } = useToastController('app-notifications')
+
+  useEffect(() => {
+    if (!app.showErrorAlert) {
+      if (errorToastId.current) dismissToast(errorToastId.current)
+      errorToastId.current = null
+      return
+    }
+    const content = <Toast>
+      <ToastTitle action={<Button appearance="transparent" size="small" icon={<Dismiss16Regular />} onClick={() => app.setErrorAlert('')} aria-label="Dismiss error" />}>Error</ToastTitle>
+      <ToastBody className="app-toast-body" tabIndex={0} aria-label="Error details">{app.errorAlertMessage}</ToastBody>
+    </Toast>
+    if (errorToastId.current) updateToast({ toastId: errorToastId.current, content })
+    else {
+      errorToastId.current = `app-error-${++toastSequence.current}`
+      dispatchToast(content, { toastId: errorToastId.current, intent: 'error', timeout: -1 })
+    }
+  }, [app.showErrorAlert, app.errorAlertMessage, app.setErrorAlert, dispatchToast, updateToast, dismissToast])
 
   const reportBackendError = (error: unknown) => {
     app.setErrorAlert(error instanceof Error ? error.message : String(error))
   }
 
   useEffect(() => {
-    if (app.initialized && !updateCheckStarted.current) {
+    if (app.initialized && !app.showErrorAlert && !app.initialHandoff && !updateCheckStarted.current) {
       updateCheckStarted.current = true
       void app.checkProgramUpdate()
     }
-  }, [app.checkProgramUpdate, app.initialized])
+  }, [app.checkProgramUpdate, app.initialized, app.initialHandoff, app.showErrorAlert])
+
+  useEffect(() => {
+    if (!app.initialized || !app.initialHandoff || handoffStarted.current) return
+    handoffStarted.current = true
+    if (app.initialHandoff.kind === 'uwp') {
+      openSettings()
+      setShowUwpModal(true)
+      void app.loadUwpApps(app.initialHandoff.selected).then(() => app.continueHandoff()).catch(reportBackendError)
+    } else {
+      if (app.initialHandoff.kind === 'update') openSettings()
+      void app.continueHandoff()
+    }
+  }, [app.initialized, app.initialHandoff])
 
   const requestQuit = () => {
     if (app.closeBehavior === 'tray') {
@@ -87,6 +121,7 @@ export default function App() {
         <div data-tauri-drag-region className="winbox-drag-region">
           <img src={TrayIconUrl} className="winbox-logo" alt="WinBox" />
           <span>WinBox</span>
+          {app.elevated ? <Tooltip content="Running as administrator" relationship="label"><span className="winbox-admin-status" role="img" tabIndex={0} aria-label="Running as administrator"><Shield16Regular /></span></Tooltip> : null}
         </div>
         <div className="winbox-window-actions">
           <Button
@@ -104,6 +139,8 @@ export default function App() {
         </div>
       </header>
 
+      <Toaster toasterId="app-notifications" position="top" limit={1} offset={{ vertical: 48 }} style={{ width: 'min(360px, calc(100vw - 32px))' }} />
+
       <main className="winbox-page-frame">
         <Activity mode={showSettings ? 'hidden' : 'visible'}>
           <PageMotion visible appear>
@@ -116,7 +153,7 @@ export default function App() {
           <PageMotion visible appear>
             <div className="winbox-page winbox-page-settings">
               <Suspense fallback={<div className="page-loading"><Spinner size="tiny" label="Loading settings…" /></div>}>
-                <SettingsPage showUwpModal={showUwpModal}
+                <SettingsPage showUwpModal={showUwpModal && app.permissionDialog !== 'uwp'}
                   onOpenUwp={() => { setShowUwpModal(true); void app.loadUwpApps() }}
                   onCloseUwp={() => setShowUwpModal(false)} onOpenChangelog={kind => { setUpdateDialog(kind); setShowUpdateDialog(true) }} />
               </Suspense>
@@ -124,6 +161,20 @@ export default function App() {
           </PageMotion>
         </Activity> : null}
       </main>
+
+      <ProductDialog
+        open={app.permissionDialog !== null}
+        title="Administrator permission"
+        onOpenChange={open => { if (!open && !app.authorizing) app.setPermissionDialog(null) }}
+        footer={<div className="dialog-actions-stretch">
+          <Button appearance="secondary" disabled={app.authorizing} onClick={() => app.setPermissionDialog(null)}>Cancel</Button>
+          <Button appearance="primary" disabled={app.authorizing} icon={app.authorizing ? <Spinner size="tiny" /> : undefined} onClick={() => void app.authorize()}>
+            {app.authorizing ? 'Authorizing' : 'Continue'}
+          </Button>
+        </div>}
+      >
+        <span>{app.permissionDialog === 'uwp' ? 'Restart WinBox as administrator to edit UWP exemptions. Your selection will be kept.' : 'Restart WinBox as administrator to connect in TUN / Mixed mode.'}</span>
+      </ProductDialog>
 
       <ProductDialog
         open={showQuitConfirm}
