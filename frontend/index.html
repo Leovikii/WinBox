@@ -4,19 +4,32 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>WinBox</title>
+    <style>
+        :root { color-scheme: light; }
+        :root.dark { color-scheme: dark; }
+        html:not([data-ui-ready]) { background: #f3f3f3; }
+        html.dark:not([data-ui-ready]) { background: #202020; }
+        #startup-message { margin: 48px 24px; font: 14px/1.5 "Segoe UI", sans-serif; }
+        html[data-ui-ready] #startup-message { display: none; }
+        @media (forced-colors: active) {
+            html:not([data-ui-ready]) { background: Canvas; }
+        }
+    </style>
     <script>
         (function() {
+            var theme = 'system';
             try {
-                var theme = localStorage.getItem('themeMode') || 'system';
-                var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                if (isDark) {
-                    document.documentElement.classList.add('dark');
-                }
+                theme = localStorage.getItem('themeMode') || 'system';
             } catch (e) {}
+            if (theme !== 'light' && theme !== 'dark') theme = 'system';
+            var root = document.documentElement;
+            root.dataset.themeMode = theme;
+            root.classList.toggle('dark', theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches));
         })();
     </script>
 </head>
 <body>
+<p id="startup-message" role="status">Loading WinBox… If this persists, choose Quit from the tray menu and reopen WinBox.</p>
 <div id="app"></div>
 <script src="./src/main.tsx" type="module"></script>
 </body>

@@ -21,10 +21,11 @@ export function ManageProfilesDialog() {
     <ProductDialog
       open={app.showManageProfilesModal}
       title="Manage profiles"
-      onOpenChange={app.setShowManageProfilesModal}
+      onOpenChange={open => { if (!app.isSavingProfiles) app.setShowManageProfilesModal(open) }}
+      busy={app.isSavingProfiles}
       footer={(
         <div className="manage-dialog-footer">
-          <Button ref={addButtonRef} appearance="subtle" className="winbox-subtle-button" icon={<Add16Regular />} onClick={app.addNewDraftProfile}>Add profile</Button>
+          <Button ref={addButtonRef} disabled={app.isSavingProfiles} appearance="subtle" className="winbox-subtle-button" icon={<Add16Regular />} onClick={app.addNewDraftProfile}>Add profile</Button>
           <div className="dialog-actions-right">
             <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowManageProfilesModal(false)} disabled={app.isSavingProfiles}>Cancel</Button>
             <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => void app.saveManageProfiles()} disabled={!app.isManageProfilesChanged || app.isSavingProfiles} icon={app.isSavingProfiles ? <Spinner size="tiny" /> : undefined}>Save</Button>
@@ -50,6 +51,7 @@ export function ManageProfilesDialog() {
               <div className="profile-edit-fields">
                 <Field label="Name" required>
                   <Input
+                    disabled={app.isSavingProfiles}
                     ref={index === app.manageProfilesList.length - 1 ? lastInputRef : undefined}
                     value={profile.name}
                     placeholder="Profile name"
@@ -63,6 +65,7 @@ export function ManageProfilesDialog() {
                 </Field>
                 <Field label="Subscription URL" required>
                   <Input
+                    disabled={app.isSavingProfiles}
                     value={profile.url}
                     placeholder="https://..."
                     type="url"
@@ -74,7 +77,7 @@ export function ManageProfilesDialog() {
                   />
                 </Field>
               </div>
-              <Button appearance="subtle" className="winbox-subtle-button winbox-icon-button danger-icon-button" icon={<Delete16Regular />} aria-label={`Delete ${profile.name || 'profile'}`} onClick={(event) => {
+              <Button appearance="subtle" className="winbox-subtle-button winbox-icon-button danger-icon-button" icon={<Delete16Regular />} disabled={app.isSavingProfiles} aria-label={`Delete ${profile.name || 'profile'}`} onClick={(event) => {
                 const row = event.currentTarget.closest('.profile-presence')
                 const neighbor = row?.nextElementSibling || row?.previousElementSibling
                 const target = neighbor?.querySelector('input') || addButtonRef.current

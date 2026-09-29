@@ -150,8 +150,8 @@ async fn log_failed_result<T>(
 }
 
 impl From<StorageError> for AppError {
-    fn from(_: StorageError) -> Self {
-        Self::storage_load()
+    fn from(error: StorageError) -> Self {
+        map_storage_write_error(error)
     }
 }
 
@@ -160,6 +160,7 @@ impl From<StorageError> for AppError {
 pub struct InitDataDto {
     pub running: bool,
     pub core_busy: bool,
+    pub startup_status: Option<crate::runtime::StartupStatus>,
     pub elevated: bool,
     pub permission_pending: bool,
     pub proxy_error: Option<String>,
@@ -240,6 +241,7 @@ async fn init_data_from_snapshot(
     InitDataDto {
         running: runtime.core().await.is_some(),
         core_busy: runtime.core_busy(),
+        startup_status: runtime.startup_status().await,
         elevated: crate::platform::privileges::is_elevated().unwrap_or(false),
         permission_pending: runtime.permission_pending(),
         proxy_error: runtime.proxy_error().await,
@@ -359,10 +361,11 @@ pub fn save_settings(
     if enabled {
         validate_http_url(&mirror)?;
     }
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.mirror = mirror;
-    snapshot.settings.mirror_enabled = enabled;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.mirror = mirror;
+        snapshot.settings.mirror_enabled = enabled;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
@@ -416,9 +419,10 @@ pub fn set_auto_connect(state: String, storage: State<'_, Storage>) -> Result<St
             "Auto-connect state must be off, smart, or always",
         ));
     }
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.auto_connect_state = state;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.auto_connect_state = state;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
@@ -434,10 +438,11 @@ pub fn save_theme(
     if !is_hex_color(&accent_color) {
         return Err(AppError::invalid_input("Accent color is invalid"));
     }
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.theme_mode = mode;
-    snapshot.settings.accent_color = accent_color;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.theme_mode = mode;
+        snapshot.settings.accent_color = accent_color;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
@@ -508,17 +513,19 @@ pub async fn save_mode(
 
 #[tauri::command]
 pub fn toggle_ipv6(enabled: bool, storage: State<'_, Storage>) -> Result<String, AppError> {
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.ipv6_enabled = enabled;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.ipv6_enabled = enabled;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
 #[tauri::command]
 pub fn set_pre_release(enabled: bool, storage: State<'_, Storage>) -> Result<String, AppError> {
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.pre_release = enabled;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.pre_release = enabled;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
@@ -536,10 +543,11 @@ pub fn set_log_config(
     {
         return Err(AppError::invalid_input("Log level is invalid"));
     }
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.log_level = level;
-    snapshot.settings.log_to_file = to_file;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.log_level = level;
+        snapshot.settings.log_to_file = to_file;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
@@ -551,9 +559,10 @@ pub fn set_close_behavior(
     if !matches!(behavior.as_str(), "ask" | "tray" | "quit") {
         return Err(AppError::invalid_input("Close behavior is invalid"));
     }
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    snapshot.settings.close_behavior = behavior;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|snapshot| {
+        snapshot.settings.close_behavior = behavior;
+        Ok::<_, AppError>(())
+    })?;
     Ok("Success".to_owned())
 }
 
@@ -636,7 +645,9 @@ async fn apply_state_impl(
             .lock()
             .map_err(|_| AppError::operation_failed())? = Some((target_tun, target_proxy));
         if !was_running {
-            storage.save(&snapshot).map_err(map_storage_write_error)?;
+            storage
+                .save_mode(target_tun, target_proxy)
+                .map_err(map_storage_write_error)?;
             let _ = app.emit(
                 "state-sync",
                 json!({"tunMode": target_tun, "sysProxy": target_proxy}),
@@ -648,7 +659,9 @@ async fn apply_state_impl(
             "Administrator authorization is required",
         ));
     }
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage
+        .save_mode(target_tun, target_proxy)
+        .map_err(map_storage_write_error)?;
     if !needs_restart {
         let _ = app.emit(
             "state-sync",
@@ -668,7 +681,7 @@ async fn apply_state_impl(
     if was_running {
         let stop_result = stop_core_impl(app, runtime).await;
         if stop_result.starts_with("Error") {
-            let _ = storage.save(&previous);
+            let _ = storage.save_mode(previous.state.tun_mode, previous.state.sys_proxy);
             let _ = app.emit("status", runtime.core().await.is_some());
             let _ = app.emit(
                 "state-sync",
@@ -691,7 +704,7 @@ async fn apply_state_impl(
             Ok("Success".to_owned())
         }
         Err(error) => {
-            let _ = storage.save(&previous);
+            let _ = storage.save_mode(previous.state.tun_mode, previous.state.sys_proxy);
             let _ = app.emit("status", false);
             Ok(format!("Error: {}", error.message))
         }
@@ -783,10 +796,7 @@ fn report_tray_result(app: &AppHandle, result: Result<String, AppError>) {
         }
         Ok(message) => message,
         Err(error) if error.code == "permission_required" => {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            let _ = show(app.clone());
             let _ = app.emit("show-authorization", ());
             return;
         }
@@ -815,62 +825,92 @@ pub async fn restart_core_from_tray(app: AppHandle) {
 #[tauri::command]
 pub async fn add_profile(
     app: AppHandle,
+    id: String,
     name: String,
     url: String,
     storage: State<'_, Storage>,
     runtime: State<'_, RuntimeState>,
-) -> Result<String, AppError> {
+) -> Result<Profile, AppError> {
     let result = async {
         validate_profile_fields(&name, &url)?;
-        let snapshot = storage.load().map_err(|_| AppError::storage_load())?;
+        Uuid::parse_str(&id).map_err(|_| AppError::invalid_input("Profile id must be a UUID"))?;
+        if let Some(existing) = storage
+            .load()?
+            .profiles
+            .into_iter()
+            .find(|profile| profile.id == id)
+        {
+            if existing.name == name && existing.url == url {
+                return Ok(existing);
+            }
+            return Err(AppError::invalid_input("Profile id is already in use"));
+        }
         if !storage.paths().core_dir.join("sing-box.exe").is_file() {
             let error = AppError::new("kernel_missing", "Kernel is not installed");
             log_command_failure(runtime.inner(), &app, "Profile add", &error).await;
-            return Ok("Error: Kernel is not installed".to_owned());
+            return Err(error);
         }
         let content = download_bytes(&url, MAX_PROFILE_BYTES).await?;
         validate_profile_json(&content)?;
-        let id = Uuid::new_v4().to_string();
+        let _operation = runtime.operation().await;
         let path = storage
             .paths()
             .profile_file(&id)
             .map_err(|_| AppError::invalid_input("Profile id is invalid"))?;
-        write_atomic(&path, &content).map_err(|_| AppError::operation_failed())?;
-        if let Err(error) = run_core_check(&storage.paths().core_dir, &path) {
-            let _ = fs::remove_file(&path);
+        let staged = path.with_extension(format!("tmp-{}", Uuid::new_v4()));
+        write_atomic(&staged, &content).map_err(|_| AppError::operation_failed())?;
+        if let Err(error) = run_core_check(&storage.paths().core_dir, &staged) {
+            let _ = fs::remove_file(&staged);
             return Err(error);
         }
-        let mut next = snapshot;
-        next.profiles.push(Profile {
+        let profile = Profile {
             id: id.clone(),
             name,
             url,
             path: format!("profiles/{id}.json"),
             updated: current_time_string(),
             ..Profile::default()
+        };
+        let committed = storage.update(|next| {
+            if let Some(existing) = next.profiles.iter().find(|item| item.id == id) {
+                if existing.name == profile.name && existing.url == profile.url {
+                    return Ok(existing.clone());
+                }
+                return Err(AppError::invalid_input("Profile id is already in use"));
+            }
+            fs::rename(&staged, &path).map_err(|_| AppError::operation_failed())?;
+            next.profiles.push(profile.clone());
+            if next.state.active_id.is_empty() {
+                next.state.active_id = id.clone();
+            }
+            Ok::<_, AppError>(profile)
         });
-        if next.state.active_id.is_empty() {
-            next.state.active_id = id;
-        }
-        storage.save(&next).map_err(map_storage_write_error)?;
+        let _ = fs::remove_file(&staged);
+        let committed = committed?;
         let _ = app.emit("log", "Profile added");
-        Ok("Success".to_owned())
+        Ok(committed)
     }
     .await;
     log_failed_result(runtime.inner(), &app, "Profile add", result).await
 }
 
 #[tauri::command]
-pub async fn delete_profile(id: String, storage: State<'_, Storage>) -> Result<(), AppError> {
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    if !snapshot.profiles.iter().any(|profile| profile.id == id) {
-        return Ok(());
-    }
-    snapshot.profiles.retain(|profile| profile.id != id);
-    if snapshot.state.active_id == id {
-        snapshot.state.active_id.clear();
-    }
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+pub async fn delete_profile(
+    id: String,
+    storage: State<'_, Storage>,
+    runtime: State<'_, RuntimeState>,
+) -> Result<(), AppError> {
+    let _operation = runtime.operation().await;
+    storage.update(|snapshot| {
+        if !snapshot.profiles.iter().any(|profile| profile.id == id) {
+            return Ok(());
+        }
+        snapshot.profiles.retain(|profile| profile.id != id);
+        if snapshot.state.active_id == id {
+            snapshot.state.active_id.clear();
+        }
+        Ok::<_, AppError>(())
+    })?;
     if let Ok(path) = storage.paths().profile_file(&id) {
         let _ = fs::remove_file(path);
     }
@@ -885,18 +925,18 @@ pub fn edit_profile(
     storage: State<'_, Storage>,
 ) -> Result<String, AppError> {
     validate_profile_fields(&name, &url)?;
-    let mut snapshot = storage.load().map_err(|_| AppError::storage_load())?;
-    let Some(profile) = snapshot
-        .profiles
-        .iter_mut()
-        .find(|profile| profile.id == id)
-    else {
-        return Ok("Error: Profile not found".to_owned());
-    };
-    profile.name = name;
-    profile.url = url;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
-    Ok("Success".to_owned())
+    storage.update(|snapshot| {
+        let Some(profile) = snapshot
+            .profiles
+            .iter_mut()
+            .find(|profile| profile.id == id)
+        else {
+            return Ok("Error: Profile not found".to_owned());
+        };
+        profile.name = name;
+        profile.url = url;
+        Ok("Success".to_owned())
+    })
 }
 
 #[tauri::command]
@@ -913,13 +953,24 @@ pub async fn select_profile(
     }
     let was_running = runtime.core().await.is_some();
     let previous = snapshot.clone();
-    snapshot.state.active_id = id;
-    storage.save(&snapshot).map_err(map_storage_write_error)?;
+    storage.update(|current| {
+        if !current.profiles.iter().any(|profile| profile.id == id) {
+            return Err(AppError::invalid_input("Profile no longer exists"));
+        }
+        current.state.active_id = id.clone();
+        snapshot = current.clone();
+        Ok::<_, AppError>(())
+    })?;
     if was_running {
         let _ = app.emit("core-restarting", ());
         let stop_result = stop_core_impl(&app, &runtime).await;
         if stop_result.starts_with("Error") {
-            let _ = storage.save(&previous);
+            let _ = storage.update(|current| {
+                if current.state.active_id == id {
+                    current.state.active_id = previous.state.active_id.clone();
+                }
+                Ok::<_, AppError>(())
+            });
             let _ = app.emit(
                 "state-sync",
                 json!({
@@ -930,7 +981,12 @@ pub async fn select_profile(
             return Ok(stop_result);
         }
         if let Err(error) = start_core_impl(&app, &storage, &runtime, &snapshot).await {
-            let _ = storage.save(&previous);
+            let _ = storage.update(|current| {
+                if current.state.active_id == id {
+                    current.state.active_id = previous.state.active_id.clone();
+                }
+                Ok::<_, AppError>(())
+            });
             if start_core_impl(&app, &storage, &runtime, &previous)
                 .await
                 .is_ok()
@@ -951,6 +1007,31 @@ pub async fn select_profile(
         let _ = app.emit("status", true);
     }
     Ok("Success".to_owned())
+}
+
+fn commit_profile_update(
+    storage: &Storage,
+    profile: &Profile,
+    temp: &Path,
+) -> Result<(), AppError> {
+    let path = storage
+        .paths()
+        .profile_file(&profile.id)
+        .map_err(|_| AppError::invalid_input("Profile id is invalid"))?;
+    storage.update(|next| {
+        let current = next
+            .profiles
+            .iter_mut()
+            .find(|item| item.id == profile.id)
+            .filter(|item| item.url == profile.url)
+            .ok_or_else(|| {
+                AppError::invalid_input("Profile changed while downloading. Retry the update.")
+            })?;
+        fs::rename(temp, &path).map_err(|_| AppError::operation_failed())?;
+        current.updated = current_time_string();
+        current.path = format!("profiles/{}.json", current.id);
+        Ok::<_, AppError>(())
+    })
 }
 
 #[tauri::command]
@@ -974,6 +1055,7 @@ pub async fn update_active_profile(
         validate_profile_fields(&profile.name, &profile.url)?;
         let content = download_bytes(&profile.url, MAX_PROFILE_BYTES).await?;
         validate_profile_json(&content)?;
+        let _operation = runtime.operation().await;
         let path = storage
             .paths()
             .profile_file(&profile.id)
@@ -984,18 +1066,9 @@ pub async fn update_active_profile(
             let _ = fs::remove_file(&temp);
             return Err(error);
         }
-        fs::rename(&temp, &path).map_err(|_| AppError::operation_failed())?;
-        let mut next = snapshot;
-        let active_id = next.state.active_id.clone();
-        if let Some(profile) = next
-            .profiles
-            .iter_mut()
-            .find(|profile| profile.id == active_id)
-        {
-            profile.updated = current_time_string();
-            profile.path = format!("profiles/{}.json", profile.id);
-        }
-        storage.save(&next).map_err(map_storage_write_error)?;
+        let committed = commit_profile_update(&storage, &profile, &temp);
+        let _ = fs::remove_file(&temp);
+        committed?;
         let _ = app.emit("log", "Profile updated");
         Ok("Success".to_owned())
     }
@@ -1113,7 +1186,28 @@ pub fn minimize_to_tray(app: AppHandle) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+pub fn frontend_ready(app: AppHandle) -> Result<(), AppError> {
+    let show_requested = app
+        .state::<std::sync::Mutex<crate::startup::StartupWindow>>()
+        .lock()
+        .unwrap()
+        .release(true);
+    if show_requested {
+        show(app)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn show(app: AppHandle) -> Result<(), AppError> {
+    if !app
+        .state::<std::sync::Mutex<crate::startup::StartupWindow>>()
+        .lock()
+        .unwrap()
+        .request_show()
+    {
+        return Ok(());
+    }
     let window = app
         .get_webview_window("main")
         .ok_or_else(AppError::operation_failed)?;
@@ -1798,13 +1892,15 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
     }
 
     if snapshot.settings.auto_connect_state == "smart" {
-        let _ = app.emit("core-lock", true);
-        let _ = app.emit("log", "Detecting");
+        runtime
+            .set_startup_status(&app, Some(crate::runtime::StartupStatus::Detecting))
+            .await;
         let client = match Client::builder().timeout(Duration::from_secs(2)).build() {
             Ok(client) => client,
             Err(_) => {
-                let _ = app.emit("core-lock", false);
-                let _ = app.emit("log", "Net Timeout");
+                runtime
+                    .set_startup_status(&app, Some(crate::runtime::StartupStatus::NetTimeout))
+                    .await;
                 let _ = app.emit("status", false);
                 refresh_tray(
                     &app,
@@ -1830,8 +1926,9 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
             sleep(Duration::from_secs(2)).await;
         }
         if !network_ready {
-            let _ = app.emit("core-lock", false);
-            let _ = app.emit("log", "Net Timeout");
+            runtime
+                .set_startup_status(&app, Some(crate::runtime::StartupStatus::NetTimeout))
+                .await;
             let _ = app.emit("status", false);
             refresh_tray(
                 &app,
@@ -1847,8 +1944,9 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
             .await
         {
             if response.status().as_u16() == 204 {
-                let _ = app.emit("core-lock", false);
-                let _ = app.emit("log", "Standby");
+                runtime
+                    .set_startup_status(&app, Some(crate::runtime::StartupStatus::Standby))
+                    .await;
                 let _ = app.emit("status", false);
                 refresh_tray(
                     &app,
@@ -1863,13 +1961,13 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
 
     let _operation = runtime.core_operation(&app).await;
     if runtime.core().await.is_some() {
-        let _ = app.emit("core-lock", false);
+        runtime.set_startup_status(&app, None).await;
         return;
     }
     let snapshot = match storage.load() {
         Ok(snapshot) => snapshot,
         Err(_) => {
-            let _ = app.emit("core-lock", false);
+            runtime.set_startup_status(&app, None).await;
             let _ = app.emit("status", false);
             refresh_tray(&app, false, false, false);
             return;
@@ -1879,7 +1977,7 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
         || !storage.paths().core_dir.join("sing-box.exe").is_file()
         || active_profile_path(&snapshot, storage.paths()).is_err()
     {
-        let _ = app.emit("core-lock", false);
+        runtime.set_startup_status(&app, None).await;
         let _ = app.emit("status", false);
         refresh_tray(
             &app,
@@ -1889,7 +1987,7 @@ pub async fn startup_runtime(app: AppHandle, runtime: RuntimeState) {
         );
         return;
     }
-    let _ = app.emit("core-lock", false);
+    runtime.set_startup_status(&app, None).await;
     let _ = app.emit("core-starting", ());
     if start_core_impl(&app, &storage, &runtime, &snapshot)
         .await
@@ -2582,6 +2680,58 @@ fn limit_log_lines(content: &str, max_lines: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn downloaded_profile_commit_preserves_new_settings_and_rejects_changed_targets() {
+        let root = temp_dir();
+        let storage = crate::storage::Storage::new(crate::paths::AppPaths::from_data_dir(&root));
+        let original = crate::models::Profile {
+            id: "one".into(),
+            name: "Original".into(),
+            url: "https://example.invalid/one".into(),
+            ..Default::default()
+        };
+        storage
+            .update(|next| {
+                next.profiles.push(original.clone());
+                Ok::<_, super::AppError>(())
+            })
+            .unwrap();
+        let staged = root.join("download.tmp");
+        std::fs::create_dir_all(&storage.paths().profiles_dir).unwrap();
+        std::fs::write(&staged, b"downloaded").unwrap();
+        storage
+            .update(|next| {
+                next.settings.theme_mode = "dark".into();
+                next.profiles[0].name = "Renamed".into();
+                Ok::<_, super::AppError>(())
+            })
+            .unwrap();
+        super::commit_profile_update(&storage, &original, &staged).unwrap();
+        let current = storage.load().unwrap();
+        assert_eq!(current.settings.theme_mode, "dark");
+        assert_eq!(current.profiles[0].name, "Renamed");
+        std::fs::write(&staged, b"stale download").unwrap();
+        storage
+            .update(|next| {
+                next.profiles[0].url = "https://example.invalid/changed".into();
+                Ok::<_, super::AppError>(())
+            })
+            .unwrap();
+        assert!(super::commit_profile_update(&storage, &original, &staged).is_err());
+        assert_eq!(
+            std::fs::read(storage.paths().profile_file("one").unwrap()).unwrap(),
+            b"downloaded"
+        );
+        storage
+            .update(|next| {
+                next.profiles.clear();
+                Ok::<_, super::AppError>(())
+            })
+            .unwrap();
+        assert!(super::commit_profile_update(&storage, &original, &staged).is_err());
+        assert!(storage.load().unwrap().profiles.is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
     use super::{
         current_time_string, extract_api_secret, extract_api_url, http_client, install_staged_file,
         is_hex_color, limit_log_lines, mirrored_url, program_update_endpoint,

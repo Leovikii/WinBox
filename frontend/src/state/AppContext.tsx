@@ -13,7 +13,6 @@ import { EventsOn } from '../api/backend'
 import type { InitDataDto, ProfileDto, StateSyncDto, TrafficUpdateDto, UWPAppDto } from '../api/backend'
 import { appendTraffic, emptyTrafficHistory, type SpeedPoint } from '../utils/trafficHistory'
 import { appendLog, cleanLog } from '../utils/logUtils'
-import { getModeColor } from '../utils/modeColors'
 import { isNewerVersion, isVersion } from '../utils/versionCompare'
 
 export type UpdateState = 'idle' | 'checking' | 'available' | 'updating' | 'success' | 'latest' | 'error'
@@ -35,6 +34,7 @@ interface AppContextValue {
   initialHandoff: Backend.HandoffAction | null
   continueHandoff: () => Promise<void>
   initialized: boolean
+  retryInitialization: () => void
   running: boolean
   coreExists: boolean
   msg: string
@@ -56,7 +56,6 @@ interface AppContextValue {
   setWindowCloseRequested: (requested: boolean) => void
   statusText: string
   statusColor: string
-  controlColor: string
   refreshData: () => Promise<InitDataDto>
   handleServiceToggle: () => Promise<{ error: string } | undefined>
   handleSwitchMode: (target: { tunMode: boolean; sysProxy: boolean }) => Promise<{ error: string } | undefined>
@@ -106,6 +105,7 @@ interface AppContextValue {
   showResetConfirm: boolean
   setShowResetConfirm: (open: boolean) => void
   editorError: string
+  editorBusy: boolean
   switchEditorTab: (type: 'tun' | 'mixed') => Promise<void>
   openEditor: (type: EditingType) => Promise<void>
   saveEditor: () => Promise<void>
@@ -159,10 +159,12 @@ const TrafficContext = createContext<TrafficContextValue | null>(null)
 const LogContext = createContext<LogContextValue | null>(null)
 const ThemeContext = createContext<{ isDark: boolean; accentColor: string } | null>(null)
 
-const initialTheme = typeof window === 'undefined' ? 'system' : localStorage.getItem('themeMode') || 'system'
+const initialTheme = document.documentElement.dataset.themeMode || 'system'
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false)
+  const [initializationAttempt, setInitializationAttempt] = useState(0)
+  const retryInitialization = useCallback(() => setInitializationAttempt(value => value + 1), [])
   const lifecycleRevision = useRef(0)
   const modeRevision = useRef(0)
   const [running, setRunning] = useState(false)
@@ -181,7 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [permissionPending, setPermissionPending] = useState(false)
   const [permissionDialog, setPermissionDialog] = useState<'connect' | 'uwp' | null>(null)
   const [authorizing, setAuthorizing] = useState(false)
-  const isProcessing = localProcessing || coreBusy || coreLocked || authorizing
+  const isProcessing = !initialized || localProcessing || coreBusy || coreLocked || authorizing
   const [initialHandoff, setInitialHandoff] = useState<Backend.HandoffAction | null>(null)
   const authorizationInFlight = useRef(false)
   const [autoConnectState, setAutoConnectState] = useState('smart')
@@ -202,6 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [showManageProfilesModal, setShowManageProfilesModal] = useState(false)
   const [manageProfilesList, setManageProfilesList] = useState<ProfileDraft[]>([])
   const [isSavingProfiles, setIsSavingProfiles] = useState(false)
+  const profilesSaving = useRef(false)
   const [manageProfilesError, setManageProfilesError] = useState('')
 
   const [appLogContent, setAppLogContent] = useState('')
@@ -216,7 +219,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [remoteVer, setRemoteVer] = useState('Unknown')
   const [updateState, setUpdateStateValue] = useState<UpdateState>('idle')
   const [downloadProgress, setDownloadProgress] = useState(0)
-  const [showEditor, setShowEditor] = useState(false)
+  const [showEditor, setShowEditorState] = useState(false)
+  const editorRevision = useRef(0)
+  const editorInFlight = useRef(false)
+  const [editorBusy, setEditorBusy] = useState(false)
+  const setShowEditor = useCallback((open: boolean) => {
+    editorRevision.current++
+    editorInFlight.current = false
+    setEditorBusy(false)
+    setShowEditorState(open)
+  }, [])
   const [editingType, setEditingType] = useState<EditingType>('tun')
   const [editorContent, setEditorContent] = useState('')
   const [editorOriginalContent, setEditorOriginalContent] = useState('')
@@ -233,7 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [accentColor, setAccentColor] = useState('#0090FF')
   const [themeMode, setThemeModeState] = useState(initialTheme)
-  const [isDark, setIsDark] = useState(false)
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
 
   const [uwpApps, setUwpApps] = useState<UWPAppDto[]>([])
   const [uwpSelectedSIDs, setUwpSelectedSIDs] = useState<string[]>([])
@@ -291,8 +303,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPermissionPending(Boolean(data.permissionPending))
       if (data.permissionPending && !data.autostart) setPermissionDialog('connect')
       setCoreBusy(data.coreBusy)
+      setCoreLocked(data.startupStatus === 'Detecting')
       setRunning(data.running)
-      setMsg(data.coreExists ? (data.coreBusy ? 'Working...' : data.running ? 'Running' : 'Offline') : 'Kernel Missing')
+      setMsg(data.coreExists ? (data.coreBusy ? 'Working...' : data.running ? 'Running' : data.startupStatus || 'Offline') : 'Kernel Missing')
     }
     if (modeVersion === modeRevision.current) {
       setTunMode(nextTun)
@@ -335,6 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    setInitialized(false)
     const unlisten = [
       EventsOn<TrafficUpdateDto>('traffic-update', (data) => {
         setTrafficHistory(history => appendTraffic(history, data.upload, data.download))
@@ -359,7 +373,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lifecycleRevision.current++
         setMsg('Restarting...')
       }),
-      EventsOn<boolean>('core-lock', setCoreLocked),
+      EventsOn<Backend.StartupStatus>('startup-status', status => {
+        lifecycleRevision.current++
+        setCoreLocked(status === 'Detecting')
+        if (status) setMsg(status)
+        else setMsg(previous => ['Detecting', 'Standby', 'Net Timeout'].includes(previous) ? 'Stopped' : previous)
+      }),
       EventsOn<boolean>('core-busy', busy => {
         lifecycleRevision.current++
         setCoreBusy(busy)
@@ -412,9 +431,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ]
 
     void (async () => {
-      await Backend.waitForEventsReady()
-      if (cancelled) return
       try {
+        await Backend.waitForEventsReady()
+        if (cancelled) return
         const revision = lifecycleRevision.current
         const modeVersion = modeRevision.current
         const data = await Backend.getInitData()
@@ -428,6 +447,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (!cancelled) {
           setMsg('Error')
+          setErrorAlert(error instanceof Error ? error.message : String(error))
         }
       }
     })()
@@ -440,10 +460,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unlisten.forEach((remove) => remove())
       timeoutRefs.current.splice(0).forEach((timeout) => window.clearTimeout(timeout))
     }
-  }, [applyInitData, applyLogSnapshot, persistMode])
+  }, [applyInitData, applyLogSnapshot, persistMode, initializationAttempt, setErrorAlert])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
+    // Cache the authoritative snapshot as well as user changes for the next launch.
+    try { localStorage.setItem('themeMode', themeMode) } catch { /* Storage may be unavailable. */ }
     const apply = () => {
       const dark = themeMode === 'dark' || (themeMode === 'system' && media.matches)
       setIsDark(dark)
@@ -673,58 +695,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const saveManageProfiles = useCallback(async () => {
-    setIsSavingProfiles(true)
-    let lastError = ''
-    const draftIds = new Set(manageProfilesList.map((profile) => profile.id))
-    for (const original of profiles) {
-      if (!draftIds.has(original.id)) {
+    if (profilesSaving.current) return
+    const drafts = manageProfilesList.map(profile => ({ ...profile, name: profile.name.trim(), url: profile.url.trim() }))
+    for (const draft of drafts) {
+      let error = ''
+      if (!draft.name || !draft.url) error = 'Name and URL cannot be empty'
+      else if ([...draft.name].length > 128) error = 'Profile name must be at most 128 characters'
+      else {
         try {
-          const result = await Backend.DeleteProfile(original.id)
-          if (result !== undefined) lastError = result
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : String(error)
+          const url = new URL(draft.url)
+          if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) error = 'Only HTTP and HTTPS URLs are supported'
+        } catch { error = 'Invalid subscription URL' }
+      }
+      if (error) { setManageProfilesError(error); return }
+    }
+    profilesSaving.current = true
+    setIsSavingProfiles(true)
+    setManageProfilesError('')
+    const errors: string[] = []
+    const confirmed = [...drafts]
+    try {
+      const draftIds = new Set(drafts.map(profile => profile.id))
+      for (const original of profiles) {
+        if (!draftIds.has(original.id)) {
+          try { await Backend.DeleteProfile(original.id) }
+          catch (error) { errors.push(error instanceof Error ? error.message : String(error)) }
         }
       }
-    }
-
-    for (const draft of manageProfilesList) {
-      if (!draft.name || !draft.url) {
-        lastError = 'Name and URL cannot be empty'
-        continue
+      for (const [index, draft] of drafts.entries()) {
+        try {
+          const original = profiles.find(profile => profile.id === draft.id)
+          if (original && (original.name !== draft.name || original.url !== draft.url)) {
+            const result = await Backend.EditProfile(draft.id, draft.name, draft.url)
+            if (result !== 'Success') throw new Error(result)
+          } else if (!original && draft.id.startsWith('new_')) {
+            setMsg('Downloading Config...')
+            confirmed[index] = await Backend.AddProfile(draft.id.slice(4), draft.name, draft.url)
+            setManageProfilesList([...confirmed])
+            const added = confirmed[index]
+            setProfiles(current => current.some(profile => profile.id === added.id) ? current : [...current, added])
+          }
+        } catch (error) { errors.push(error instanceof Error ? error.message : String(error)) }
       }
+      setManageProfilesList(confirmed)
       try {
-        new URL(draft.url)
-      } catch {
-        lastError = `Invalid URL: ${draft.name}`
-        continue
+        const data = await Backend.getInitData()
+        setProfiles(data.profiles)
+        setActiveProfile(data.activeProfile)
+      } catch (error) { errors.push(error instanceof Error ? error.message : String(error)) }
+      if (errors.length) {
+        setMsg('Error saving some changes')
+        setManageProfilesError(cleanLog([...new Set(errors)].join('\n')))
+      } else {
+        setMsg('Changes saved')
+        setShowManageProfilesModal(false)
       }
-      const original = profiles.find((profile) => profile.id === draft.id)
-      let result = 'Success'
-      if (original && (original.name !== draft.name || original.url !== draft.url)) {
-        result = await Backend.EditProfile(draft.id, draft.name, draft.url)
-      } else if (!original && draft.id.startsWith('new_')) {
-        setMsg('Downloading Config...')
-        result = await Backend.AddProfile(draft.name, draft.url)
-      }
-      if (result !== 'Success') lastError = result
+    } finally {
+      profilesSaving.current = false
+      setIsSavingProfiles(false)
     }
-
-    setIsSavingProfiles(false)
-    if (lastError) {
-      setMsg('Error saving some changes')
-      setManageProfilesError(cleanLog(lastError))
-    } else {
-      setMsg('Changes saved')
-      setManageProfilesError('')
-      setShowManageProfilesModal(false)
-    }
-    try {
-      await refreshData()
-    } catch (error) {
-      setManageProfilesError(cleanLog(error instanceof Error ? error.message : String(error)))
-      setMsg('Error refreshing profiles')
-    }
-  }, [manageProfilesList, profiles, refreshData])
+  }, [manageProfilesList, profiles])
 
   const loadAppLog = useCallback(async () => {
     try {
@@ -810,78 +840,94 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [coreExists, remoteVer, mirrorEnabled, mirrorUrl, refreshData, setErrorAlert, setUpdateState])
 
   const loadOverrideEditor = useCallback(async (type: 'tun' | 'mixed') => {
+    const revision = ++editorRevision.current
+    editorInFlight.current = true
+    setEditorBusy(true)
+    setEditingType(type)
+    setEditorError('')
+    setEditorContent('')
+    setEditorOriginalContent('')
+    setEditorDefaultContent('')
     try {
       const [content, defaultRaw] = await Promise.all([Backend.getOverride(type), Backend.getDefaultOverride(type)])
-      const format = (value: string) => {
-        try { return JSON.stringify(JSON.parse(value), null, 2) } catch { return value }
-      }
+      if (revision !== editorRevision.current) return
+      const format = (value: string) => { try { return JSON.stringify(JSON.parse(value), null, 2) } catch { return value } }
       setEditorContent(format(content))
       setEditorOriginalContent(format(content))
       setEditorDefaultContent(format(defaultRaw))
-      setEditorError('')
-      return true
+      setSaveBtnText('Save')
     } catch (error) {
-      setEditorError(error instanceof Error ? error.message : 'Failed to load override configuration')
-      return false
+      if (revision === editorRevision.current) setEditorError(error instanceof Error ? error.message : 'Failed to load override configuration')
+    } finally {
+      if (revision === editorRevision.current) { editorInFlight.current = false; setEditorBusy(false) }
     }
   }, [])
 
   const openEditor = useCallback(async (type: EditingType) => {
+    setShowEditor(true)
     setEditingType(type)
     setSaveBtnText('Save')
     setEditorError('')
-    setShowEditor(true)
+    setEditorContent('')
+    setEditorOriginalContent('')
     if (type === 'mirror') {
       setEditorContent(mirrorUrl)
       setEditorOriginalContent(mirrorUrl)
       setEditorDefaultContent('https://gh-proxy.com/')
-    } else {
-      await loadOverrideEditor(type)
-    }
-  }, [loadOverrideEditor, mirrorUrl])
+    } else await loadOverrideEditor(type)
+  }, [loadOverrideEditor, mirrorUrl, setShowEditor])
 
   const saveEditor = useCallback(async () => {
+    if (editorInFlight.current) return
     let savedContent = editorContent
-    if (editingType === 'mirror') {
-      try { new URL(editorContent) } catch { setEditorError('Invalid Mirror URL format'); return }
-      const result = await Backend.SaveSettings(editorContent, mirrorEnabled)
-      if (result !== 'Success') { setEditorError(result); return }
-      setMirrorUrl(editorContent)
-    } else {
-      try {
-        savedContent = JSON.stringify(JSON.parse(editorContent), null, 2)
-      } catch {
-        setEditorError('Invalid JSON format')
-        return
-      }
+    try {
+      if (editingType === 'mirror') {
+        const url = new URL(editorContent)
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error()
+      } else savedContent = JSON.stringify(JSON.parse(editorContent), null, 2)
+    } catch { setEditorError(editingType === 'mirror' ? 'Invalid Mirror URL format' : 'Invalid JSON format'); return }
+    const revision = editorRevision.current
+    editorInFlight.current = true
+    setEditorBusy(true)
+    setEditorError('')
+    try {
+      if (editingType === 'mirror') {
+        const result = await Backend.SaveSettings(savedContent, mirrorEnabled)
+        if (result !== 'Success') throw new Error(result)
+        setMirrorUrl(savedContent)
+      } else await Backend.saveOverride(editingType, savedContent)
+      if (revision !== editorRevision.current) return
       setEditorContent(savedContent)
-      try { await Backend.saveOverride(editingType, savedContent) } catch (error) { setEditorError(error instanceof Error ? error.message : String(error)); return }
+      setEditorOriginalContent(savedContent)
+      setSaveBtnText('Saved')
+      if (running && editingType !== 'mirror') setMsg('RESTART TO APPLY')
+      setShowEditor(false)
+    } catch (error) {
+      if (revision === editorRevision.current) setEditorError(error instanceof Error ? error.message : String(error))
+    } finally {
+      if (revision === editorRevision.current) { editorInFlight.current = false; setEditorBusy(false) }
     }
-    setEditorOriginalContent(savedContent)
-    setSaveBtnText('Saved')
-    if (running && editingType !== 'mirror') setMsg('RESTART TO APPLY')
-    timeoutRefs.current.push(window.setTimeout(() => setShowEditor(false), 800))
-  }, [editorContent, editingType, mirrorEnabled, running])
+  }, [editorContent, editingType, mirrorEnabled, running, setShowEditor])
 
   const confirmReset = useCallback(async () => {
+    if (editorInFlight.current) return
     setShowResetConfirm(false)
-    if (editingType === 'mirror') {
-      setEditorContent('https://gh-proxy.com/')
-      return
-    }
+    if (editingType === 'mirror') { setEditorContent('https://gh-proxy.com/'); return }
+    const revision = editorRevision.current
+    editorInFlight.current = true
+    setEditorBusy(true)
     try {
       await Backend.resetOverride(editingType)
-      await loadOverrideEditor(editingType)
+      if (revision === editorRevision.current) await loadOverrideEditor(editingType)
     } catch (error) {
-      setEditorError(error instanceof Error ? error.message : String(error))
+      if (revision === editorRevision.current) setEditorError(error instanceof Error ? error.message : String(error))
+    } finally {
+      if (revision === editorRevision.current) { editorInFlight.current = false; setEditorBusy(false) }
     }
   }, [editingType, loadOverrideEditor])
 
   const switchEditorTab = useCallback(async (type: 'tun' | 'mixed') => {
-    if (await loadOverrideEditor(type)) {
-      setEditingType(type)
-      setSaveBtnText('Save')
-    }
+    if (!editorInFlight.current) await loadOverrideEditor(type)
   }, [loadOverrideEditor])
 
   const checkProgramUpdate = useCallback(async () => {
@@ -936,7 +982,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setThemeMode = useCallback(async (mode: string) => {
     if (!['light', 'dark', 'system'].includes(mode)) return
     setThemeModeState(mode)
-    localStorage.setItem('themeMode', mode)
     const result = await Backend.SaveTheme(mode, accentColor)
     if (result !== 'Success') setErrorAlert(result)
   }, [accentColor, setErrorAlert])
@@ -1043,15 +1088,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return 'var(--status-default)'
   }, [permissionPending, coreExists, isProcessing, msg, running, sysProxy, tunMode])
 
-  const controlColor = useMemo(() => getModeColor(tunMode, sysProxy, msg === 'Error' || !coreExists || msg === 'Net Timeout', running).hex, [coreExists, msg, running, sysProxy, tunMode])
   const isEditorChanged = editorContent !== editorOriginalContent
   const isManageProfilesChanged = useMemo(() => JSON.stringify(profiles) !== JSON.stringify(manageProfilesList), [profiles, manageProfilesList])
 
   const value = useMemo<AppContextValue>(() => ({
-    initialized, running, coreExists, msg, tunMode, sysProxy, isProcessing, isModeSaving, showErrorAlert, errorAlertMessage,
+    initialized, retryInitialization, running, coreExists, msg, tunMode, sysProxy, isProcessing, isModeSaving, showErrorAlert, errorAlertMessage,
     elevated, permissionPending, permissionDialog, setPermissionDialog, authorizing, authorize, initialHandoff, continueHandoff,
     autoConnectState, mirrorUrl, mirrorEnabled, ipv6Enabled, preRelease, logLevel, logToFile, closeBehavior,
-    windowCloseRequested, setWindowCloseRequested, statusText, statusColor, controlColor,
+    windowCloseRequested, setWindowCloseRequested, statusText, statusColor,
     refreshData, handleServiceToggle, handleSwitchMode, handleRestartCore, handleMirrorToggle,
     handleAutoConnectChange, handleIPv6Toggle, handlePreReleaseToggle, handleLogLevelChange, handleLogToFileToggle,
     handleCloseBehaviorChange, setErrorAlert,
@@ -1060,18 +1104,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isSavingProfiles, isManageProfilesChanged, manageProfilesError, setManageProfilesError, openManageProfiles,
     localVer, remoteVer, kernelChangelog, updateState, downloadProgress, checkUpdate, performUpdate, showEditor, setShowEditor,
     editingType, editorContent, setEditorContent, editorDefaultContent, isEditorChanged, saveBtnText, showResetConfirm,
-    setShowResetConfirm, editorError, switchEditorTab, openEditor, saveEditor, confirmReset,
+    setShowResetConfirm, editorError, editorBusy, switchEditorTab, openEditor, saveEditor, confirmReset,
     programLocalVer, programRemoteVer, programUpdateState, programDownloadProgress, programChangelog, checkProgramUpdate,
     performProgramUpdate, isChangingUpdateChannel, accentColor, themeMode, isDark, setThemeColor, setThemeMode,
     uwpApps, uwpSelectedSIDs, uwpLoading, uwpSaving, uwpHasChanges, loadUwpApps, toggleUwpApp, selectAllUwp,
     deselectAllUwp, saveExemptions,
   }), [
     elevated, permissionPending, permissionDialog, authorizing, authorize, initialHandoff, continueHandoff,
-    accentColor, activeProfile, autoConnectState, closeBehavior, controlColor,
-    coreExists, downloadProgress, editorContent, editorDefaultContent, editorError,
+    accentColor, activeProfile, autoConnectState, closeBehavior,
+    coreExists, downloadProgress, editorContent, editorDefaultContent, editorError, editorBusy,
     handleAutoConnectChange, handleCloseBehaviorChange, handleIPv6Toggle, handleLogLevelChange, handleLogToFileToggle,
     handleMirrorToggle, handlePreReleaseToggle, handleServiceToggle, handleSwitchMode, handleRestartCore,
-    initialized, isDark, isEditorChanged, isManageProfilesChanged, isProcessing, isModeSaving, isSavingProfiles,
+    initialized, retryInitialization, isDark, isEditorChanged, isManageProfilesChanged, isProcessing, isModeSaving, isSavingProfiles,
     isUpdatingProfile, loadUwpApps, localVer, manageProfilesError, manageProfilesList, mirrorEnabled,
     mirrorUrl, msg, openEditor, openManageProfiles, performProgramUpdate, performUpdate, preRelease, profiles,
     programChangelog, programDownloadProgress, programLocalVer, programRemoteVer, programUpdateState, refreshData,

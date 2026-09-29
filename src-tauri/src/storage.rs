@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -69,6 +69,10 @@ impl Storage {
 
     pub fn load(&self) -> Result<DataSnapshot, StorageError> {
         let _guard = self.inner.lock.lock().expect("storage lock");
+        self.load_unlocked()
+    }
+
+    fn load_unlocked(&self) -> Result<DataSnapshot, StorageError> {
         let settings =
             read_json_or_default(&self.inner.paths.settings_file(), GlobalSettings::default())?;
         let state = read_json_or_default(&self.inner.paths.state_file(), AppState::default())?;
@@ -104,8 +108,29 @@ impl Storage {
         })
     }
 
+    pub fn update<T, E: From<StorageError>>(
+        &self,
+        change: impl FnOnce(&mut DataSnapshot) -> Result<T, E>,
+    ) -> Result<T, E> {
+        let _guard = self.inner.lock.lock().expect("storage lock");
+        let previous = self.load_unlocked()?;
+        let mut next = previous.clone();
+        let result = change(&mut next)?;
+        self.save_changed(&next, Some(&previous))?;
+        Ok(result)
+    }
+
+    #[cfg(test)]
     pub fn save(&self, snapshot: &DataSnapshot) -> Result<(), StorageError> {
         let _guard = self.inner.lock.lock().expect("storage lock");
+        self.save_changed(snapshot, None)
+    }
+
+    fn save_changed(
+        &self,
+        snapshot: &DataSnapshot,
+        previous: Option<&DataSnapshot>,
+    ) -> Result<(), StorageError> {
         let settings =
             serde_json::to_vec_pretty(&snapshot.settings).expect("settings are serializable");
         let state = serde_json::to_vec_pretty(&snapshot.state).expect("state is serializable");
@@ -116,9 +141,15 @@ impl Storage {
         validate_override("tun", &snapshot.tun_config)?;
         validate_override("mixed", &snapshot.mixed_config)?;
 
-        atomic_write(&self.inner.paths.settings_file(), &settings)?;
-        atomic_write(&self.inner.paths.state_file(), &state)?;
-        atomic_write(&self.inner.paths.profiles_file(), &profiles)?;
+        if previous.is_none_or(|old| old.settings != snapshot.settings) {
+            atomic_write(&self.inner.paths.settings_file(), &settings)?;
+        }
+        if previous.is_none_or(|old| old.state != snapshot.state) {
+            atomic_write(&self.inner.paths.state_file(), &state)?;
+        }
+        if previous.is_none_or(|old| old.profiles != snapshot.profiles) {
+            atomic_write(&self.inner.paths.profiles_file(), &profiles)?;
+        }
         let tun_path =
             self.inner
                 .paths
@@ -127,7 +158,9 @@ impl Storage {
                     path: self.inner.paths.overrides_dir.clone(),
                     source,
                 })?;
-        atomic_write(&tun_path, snapshot.tun_config.as_bytes())?;
+        if previous.is_none_or(|old| old.tun_config != snapshot.tun_config) {
+            atomic_write(&tun_path, snapshot.tun_config.as_bytes())?;
+        }
         let mixed_path =
             self.inner
                 .paths
@@ -136,7 +169,9 @@ impl Storage {
                     path: self.inner.paths.overrides_dir.clone(),
                     source,
                 })?;
-        atomic_write(&mixed_path, snapshot.mixed_config.as_bytes())?;
+        if previous.is_none_or(|old| old.mixed_config != snapshot.mixed_config) {
+            atomic_write(&mixed_path, snapshot.mixed_config.as_bytes())?;
+        }
         Ok(())
     }
 
@@ -154,10 +189,6 @@ impl Storage {
 
     pub fn save_override(&self, kind: &str, content: &str) -> Result<(), StorageError> {
         let _guard = self.inner.lock.lock().expect("storage lock");
-        self.save_override_unlocked(kind, content)
-    }
-
-    fn save_override_unlocked(&self, kind: &str, content: &str) -> Result<(), StorageError> {
         validate_override(kind, content)?;
         let path = self
             .inner
@@ -224,23 +255,30 @@ pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<(), StorageError>
     let temp_path = path.with_extension(format!("tmp-{}-{nonce}", std::process::id()));
     let backup_path = path.with_extension(format!("bak-{}-{nonce}", std::process::id()));
 
-    fs::write(&temp_path, data).map_err(|source| StorageError::Io {
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp_path)
+        .map_err(|source| StorageError::Io {
+            path: temp_path.clone(),
+            source,
+        })?;
+    let write_result = (|| {
+        file.write_all(data)?;
+        file.sync_all()
+    })();
+    drop(file);
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    write_result.map_err(|source| StorageError::Io {
         path: temp_path.clone(),
         source,
     })?;
 
-    let had_original = path.exists();
-    if had_original {
-        fs::rename(path, &backup_path).map_err(|source| StorageError::Io {
-            path: path.to_path_buf(),
-            source,
-        })?;
-    }
-
-    if let Err(source) = fs::rename(&temp_path, path) {
-        if had_original {
-            let _ = fs::rename(&backup_path, path);
-        }
+    if let Err(source) =
+        crate::platform::windows::replace_file_with_backup(&temp_path, path, &backup_path)
+    {
         let _ = fs::remove_file(&temp_path);
         return Err(StorageError::Io {
             path: path.to_path_buf(),
@@ -248,12 +286,9 @@ pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<(), StorageError>
         });
     }
 
-    if had_original {
-        fs::remove_file(&backup_path).map_err(|source| StorageError::Io {
-            path: backup_path,
-            source,
-        })?;
-    }
+    // The target is committed. Cleanup failure must not report the save as failed;
+    // leave the backup in place rather than rolling back an acknowledged write.
+    let _ = fs::remove_file(&backup_path);
     Ok(())
 }
 
@@ -265,6 +300,75 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn atomic_replace_preserves_old_file_when_windows_denies_replacement() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let root = temp_dir("atomic-replace");
+        let path = root.join("state.json");
+        super::atomic_write(&path, b"old").unwrap();
+        let held = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&path)
+            .unwrap();
+        assert!(super::atomic_write(&path, b"new").is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"old");
+        drop(held);
+        super::atomic_write(&path, b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn concurrent_updates_merge_current_fields_and_preserve_unrelated_file_bytes() {
+        let root = temp_dir("concurrent-commit");
+        let storage = Storage::new(AppPaths::from_data_dir(&root));
+        storage.save(&DataSnapshot::default()).unwrap();
+        fs::write(
+            storage.paths().override_file("tun").unwrap(),
+            "{  \"type\": \"tun\"  }",
+        )
+        .unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let threads: Vec<_> = (0..2)
+            .map(|index| {
+                let storage = storage.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    let _stale_download_snapshot = storage.load().unwrap();
+                    barrier.wait();
+                    storage
+                        .update(|latest| {
+                            latest.profiles.push(Profile {
+                                id: format!("profile-{index}"),
+                                ..Profile::default()
+                            });
+                            Ok::<_, StorageError>(())
+                        })
+                        .unwrap();
+                })
+            })
+            .collect();
+        storage
+            .update(|latest| {
+                latest.settings.theme_mode = "dark".into();
+                Ok::<_, StorageError>(())
+            })
+            .unwrap();
+        storage.save_mode(true, false).unwrap();
+        barrier.wait();
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        let saved = storage.load().unwrap();
+        assert_eq!(saved.profiles.len(), 2);
+        assert_eq!(saved.settings.theme_mode, "dark");
+        assert!(saved.state.tun_mode);
+        assert_eq!(saved.tun_config, "{  \"type\": \"tun\"  }");
+        fs::remove_dir_all(root).unwrap();
+    }
 
     fn temp_dir(label: &str) -> PathBuf {
         let nonce = SystemTime::now()

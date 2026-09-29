@@ -852,7 +852,9 @@ fn registry_value_utf16(key: &str, name: &str) -> Option<String> {
         return None;
     }
     let words = bytes[..size as usize]
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .take_while(|word| *word != 0)
         .collect::<Vec<_>>();

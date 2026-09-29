@@ -1,6 +1,6 @@
 # 架构与开发入口
 
-`3.0.0-alpha.4` 已完成开发，用户确认本轮问题修复。当前采用用户级 NSIS 安装、默认普通权限、TUN/mixed 按需整进程提权、用户级自启和可见自动更新；不使用服务，不开发 alpha.3 迁移或兼容逻辑。验证边界见 development.md；历史决策从 Git 查阅。
+`3.0.0-bata.1` 本轮维护整改已完成并获用户实机确认，交付 `dev` 后由维护者手动 PR 到 `main` 发布。修复范围及验证边界见 [审查与验证报告](review.md)。本阶段不新增产品功能或重做架构。沿用用户级 NSIS 安装、默认普通权限、TUN/mixed 按需整进程提权、用户级自启和可见自动更新；不使用服务，不开发 alpha.3 迁移或兼容逻辑。验证入口见 development.md；历史决策从 Git 查阅。
 
 ## 模块
 
@@ -24,7 +24,7 @@
 
 - Windows x64，普通权限 manifest，WebView2；NSIS 当前用户安装到 `%LOCALAPPDATA%\Programs\WinBox`，数据根为 `appLocalDataDir()`，通常 `%LOCALAPPDATA%\com.leovikii.winbox`。
 - `config/{settings,state,profiles}.json` 与 `config/overrides/{tun,mixed}.json`；`profiles/` 保存订阅；`core/` 保存 sing-box、生成配置和内核日志；根目录 app.log/轮转日志与 system-proxy.json 按需产生。
-- 安装目录不写用户数据。暂存/备份仅服务更新、原子替换和恢复，不保留无用途目录。alpha.4 只支持全新安装，不扫描、迁移或兼容旧版安装/数据/自启任务；手动清理步骤见根 README。
+- 安装目录不写用户数据。暂存/备份仅服务更新、原子替换和恢复，不保留无用途目录。alpha.4 只支持全新安装，不扫描、迁移或兼容旧版安装/数据/自启任务；手动清理步骤见 [用户指南](usage.md)。
 - 应用更新走官方 Tauri updater；内核下载/替换是独立流程。具体边界见 [后端](backend.md)，构建及发布见 [开发指南](development.md)。
 
 ## 当前技术选择

@@ -38,14 +38,16 @@ export default function App() {
     }
     const content = <Toast>
       <ToastTitle action={<Button appearance="transparent" size="small" icon={<Dismiss16Regular />} onClick={() => app.setErrorAlert('')} aria-label="Dismiss error" />}>Error</ToastTitle>
-      <ToastBody className="app-toast-body" tabIndex={0} aria-label="Error details">{app.errorAlertMessage}</ToastBody>
+      <ToastBody className="app-toast-body" tabIndex={0} aria-label="Error details">{app.errorAlertMessage}
+        {!app.initialized ? <Button onClick={() => { app.setErrorAlert(''); app.retryInitialization() }}>Retry initialization</Button> : null}
+      </ToastBody>
     </Toast>
     if (errorToastId.current) updateToast({ toastId: errorToastId.current, content })
     else {
       errorToastId.current = `app-error-${++toastSequence.current}`
       dispatchToast(content, { toastId: errorToastId.current, intent: 'error', timeout: -1 })
     }
-  }, [app.showErrorAlert, app.errorAlertMessage, app.setErrorAlert, dispatchToast, updateToast, dismissToast])
+  }, [app.showErrorAlert, app.errorAlertMessage, app.setErrorAlert, app.initialized, app.retryInitialization, dispatchToast, updateToast, dismissToast])
 
   const reportBackendError = (error: unknown) => {
     app.setErrorAlert(error instanceof Error ? error.message : String(error))
@@ -124,18 +126,19 @@ export default function App() {
           {app.elevated ? <Tooltip content="Running as administrator" relationship="label"><span className="winbox-admin-status" role="img" tabIndex={0} aria-label="Running as administrator"><Shield16Regular /></span></Tooltip> : null}
         </div>
         <div className="winbox-window-actions">
+          <Tooltip content={showSettings ? 'Back to Home' : 'Settings'} relationship="label">
           <Button
             appearance="subtle"
             icon={showSettings ? <ArrowLeft16Regular /> : <Settings16Regular />}
             aria-label={showSettings ? 'Back to Home' : 'Settings'}
-            title={showSettings ? 'Back to Home' : 'Settings'}
             onClick={() => showSettings ? setShowSettings(false) : openSettings()}
             className="winbox-window-button winbox-caption-button"
           >
             {app.programUpdateState === 'available' ? <span className="update-dot" aria-label="Update available" /> : null}
           </Button>
-          <Button appearance="subtle" icon={<Subtract16Regular />} aria-label="Minimize" title="Minimize" onClick={() => void Backend.Minimize().catch(reportBackendError)} className="winbox-window-button winbox-caption-button" />
-          <Button appearance="subtle" icon={<Dismiss16Regular />} aria-label="Close" title="Close" onClick={requestQuit} className="winbox-window-button winbox-caption-button winbox-close-button" />
+          </Tooltip>
+          <Tooltip content="Minimize" relationship="label"><Button appearance="subtle" icon={<Subtract16Regular />} aria-label="Minimize" onClick={() => void Backend.Minimize().catch(reportBackendError)} className="winbox-window-button winbox-caption-button" /></Tooltip>
+          <Tooltip content="Close" relationship="label"><Button appearance="subtle" icon={<Dismiss16Regular />} aria-label="Close" onClick={requestQuit} className="winbox-window-button winbox-caption-button winbox-close-button" /></Tooltip>
         </div>
       </header>
 

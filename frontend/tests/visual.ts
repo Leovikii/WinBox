@@ -8,13 +8,16 @@ const profiles = [
 ]
 const state = {
   elevated: true, permissionPending: false, proxyError: null as string | null, autostart: false, handoffAction: null as any,
-  running: false, coreBusy: false, coreExists: true, localVersion: '1.12.0', tunMode: false, sysProxy: true,
+  running: false, coreBusy: false, startupStatus: null as 'Detecting' | 'Standby' | 'Net Timeout' | null, coreExists: true, localVersion: '1.12.0', tunMode: false, sysProxy: true,
   profiles, activeProfile: profiles[0], mirror: '', mirrorEnabled: false, startOnBoot: false,
   autoConnectState: 'smart', themeMode: localStorage.getItem('themeMode') || 'light',
   accentColor: localStorage.getItem('accentColor') || '#0090ff', ipv6Enabled: true,
   preRelease: false, logLevel: '', logToFile: true, closeBehavior: 'ask',
 }
 const scenario = new URLSearchParams(location.search).get('scenario')
+if (scenario === 'startup-detecting') state.startupStatus = 'Detecting'
+if (scenario === 'startup-standby') state.startupStatus = 'Standby'
+if (scenario === 'startup-timeout') state.startupStatus = 'Net Timeout'
 const savedMode = new URLSearchParams(location.search).get('savedMode')
 if (savedMode === 'tun' || savedMode === 'mixed') {
   state.tunMode = true; state.sysProxy = savedMode === 'mixed'
@@ -44,6 +47,9 @@ let heldPhase = ''
 let phaseRelease: (() => void) | undefined
 let failStop = false
 let failStartup = false
+let failProfileName = ''
+let failListener = scenario === 'listener-failure'
+const overrides: Record<string, string> = { tun: '{"type":"tun"}', mixed: '{"type":"mixed"}' }
 let exitBeforeReturn = false
 async function phase(name: string) {
   lifecyclePhase = name
@@ -98,6 +104,7 @@ async function applyLifecycle(targetTun: boolean, targetProxy: boolean, restart 
 }
 mockIPC(async (command, args: any) => {
   const initSnapshot = command === 'get_init_data' ? structuredClone(state) : undefined
+  const overrideSnapshot = command === 'get_override' ? overrides[args.name] : undefined
   calls.push(command)
   if (heldCommand === command) {
     heldCommand = ''
@@ -105,6 +112,9 @@ mockIPC(async (command, args: any) => {
   }
   if (failure === command) { failure = ''; throw { code: 'fixture_failure', message: failureMessage } }
   switch (command) {
+    case 'frontend_ready':
+      if (!document.querySelector('.winbox-provider') || !document.documentElement.hasAttribute('data-ui-ready')) throw new Error('Frontend signaled readiness before commit')
+      return null
     case 'get_init_data': return initSnapshot
     case 'authorize': throw { message: 'Authorization cancelled' }
     case 'continue_handoff': state.handoffAction = null; return null
@@ -133,7 +143,28 @@ mockIPC(async (command, args: any) => {
     case 'save_theme':
       if (!['light', 'dark', 'system'].includes(args.mode)) throw { message: 'Theme mode is invalid' }
       state.themeMode = args.mode; state.accentColor = args.accentColor; return 'Success'
-    case 'get_override': case 'get_default_override': return '{\n  "inbounds": []\n}'
+    case 'add_profile': {
+      if (args.name === failProfileName) { failProfileName = ''; throw { message: 'Fixture: subscription download failed' } }
+      const existing = state.profiles.find(profile => profile.id === args.id)
+      if (existing) return existing
+      const profile = { id: args.id, name: args.name, url: args.url, updated: '2026-09-29 12:00' }
+      state.profiles.push(profile)
+      if (!state.activeProfile) state.activeProfile = profile
+      return profile
+    }
+    case 'edit_profile': {
+      const profile = state.profiles.find(profile => profile.id === args.id)
+      if (!profile) throw { message: 'Profile not found' }
+      profile.name = args.name; profile.url = args.url; return 'Success'
+    }
+    case 'delete_profile':
+      state.profiles = state.profiles.filter(profile => profile.id !== args.id)
+      if (state.activeProfile?.id === args.id) state.activeProfile = null as any
+      return undefined
+    case 'get_override': return overrideSnapshot
+    case 'get_default_override': return '{\n  "inbounds": []\n}'
+    case 'save_override': overrides[args.name] = args.content; return undefined
+    case 'reset_override': overrides[args.name] = '{\n  "inbounds": []\n}'; return undefined
     case 'get_uwp_apps': return [
       { sid: 'test-1', displayName: 'Windows application', packageName: 'Microsoft.Example_1.0_x64', isExempt: false },
       { sid: 'test-2', displayName: '长名称应用程序与缩放检查', packageName: 'Microsoft.LongPackageName_1.0.0_x64', isExempt: true },
@@ -141,7 +172,14 @@ mockIPC(async (command, args: any) => {
     default: return 'Success'
   }
 }, { shouldMockEvents: true })
+const mockInvoke = (window as any).__TAURI_INTERNALS__.invoke
+;(window as any).__TAURI_INTERNALS__.invoke = (command: string, args: any) => {
+  if (command === 'plugin:event|listen' && args.event === 'status' && failListener) return Promise.reject({ message: 'Fixture: event registration failed' })
+  return mockInvoke(command, args)
+}
 Object.assign(window, { visualTest: { state, calls, emit,
+  allowListeners: () => { failListener = false },
+  failProfile: (name: string) => { failProfileName = name },
   get phase() { return lifecyclePhase },
   holdPhase: (name: string) => { heldPhase = name },
   releasePhase: () => { phaseRelease?.(); phaseRelease = undefined },

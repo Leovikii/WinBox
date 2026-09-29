@@ -76,6 +76,14 @@ const capture = async name => {
   await page.screenshot({ path: resolve(evidence, `${name}.png`) });
 }
 const button = name => page.getByRole('button', { name, exact: true })
+const focusWithKeyboard = async target => {
+  // Fluent suppresses programmatic focus tooltips outside keyboard modality.
+  // Seed the position, then return with real keyboard navigation.
+  await target.focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  assert(await target.evaluate(e => e === document.activeElement), 'keyboard navigation returns to tooltip trigger')
+}
 const dismissError = async () => {
   await button('Dismiss error').click()
   await button('Dismiss error').waitFor({ state: 'hidden' })
@@ -84,6 +92,85 @@ const visibleOverflow = () => page.evaluate(() => [...document.querySelectorAll(
   .filter(e => e.checkVisibility() && !e.closest('[inert]') && e.getBoundingClientRect().width > 0 && e.scrollWidth > e.clientWidth + 2)
   .map(e => e.textContent))
 try {
+  // Inspect startup before the module runs, and the first React commit (not just settled UI).
+  for (const [mode, system] of [['light', 'dark'], ['dark', 'light'], ['system', 'light'], ['system', 'dark'], ['invalid', 'dark'], ['blocked', 'dark']]) {
+    const startup = await browser.newContext({ viewport: { width: 400, height: 720 }, colorScheme: system })
+    const dark = mode === 'dark' || (!['light', 'dark'].includes(mode) && system === 'dark')
+    await startup.addInitScript(`localStorage.setItem('themeMode', '${mode}');\n${initScript}`)
+    await startup.addInitScript(({ blocked }) => {
+      if (blocked) Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage unavailable') } })
+      window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        supportsFiber: true, inject: () => 1, onCommitFiberUnmount: () => {},
+        onCommitFiberRoot: () => {
+          const provider = document.querySelector('.winbox-provider')
+          if (provider && !window.firstTheme) window.firstTheme = getComputedStyle(provider).getPropertyValue('--colorNeutralForeground1').trim()
+        },
+      }
+    }, { blocked: mode === 'blocked' })
+    const boot = await startup.newPage()
+    const errors = []
+    boot.on('pageerror', error => errors.push(error.message))
+    let release
+    const gate = new Promise(resolve => { release = resolve })
+    await boot.route('**/assets/*.js', async route => { await gate; await route.continue() })
+    await boot.goto(`${baseURL}/?scenario=slow-init`, { waitUntil: 'commit' })
+    await boot.waitForFunction(() => document.querySelector('#app'))
+    check(`startup ${mode}/${system}: theme background before JS`, await boot.evaluate(expected =>
+      !document.querySelector('#app').hasChildNodes() && getComputedStyle(document.documentElement).backgroundColor === expected,
+      dark ? 'rgb(32, 32, 32)' : 'rgb(243, 243, 243)'))
+    // A different persisted backend theme must still replace the startup cache.
+    await boot.evaluate(() => { window.visualTest.state.themeMode = 'light' })
+    release()
+    await boot.waitForFunction(() => window.firstTheme)
+    check(`startup ${mode}/${system}: first commit matches early theme`, await boot.evaluate(() => window.firstTheme) === (dark ? '#ffffff' : '#242424'))
+    check(`startup ${mode}/${system}: committed UI restores transparency`, await boot.evaluate(() => getComputedStyle(document.documentElement).backgroundColor === 'rgba(0, 0, 0, 0)'))
+    await boot.waitForFunction(() => window.visualTest.calls.includes('get_init_data'))
+    await boot.waitForFunction(() => window.visualTest.calls.includes('frontend_ready'))
+    check(`startup ${mode}/${system}: readiness does not wait for snapshot`, await boot.locator('#startup-message').isHidden())
+    await boot.screenshot({ path: resolve(evidence, `startup-${mode}-${system}.png`) })
+    await boot.evaluate(() => window.visualTest.release())
+    await boot.waitForFunction(() => !document.documentElement.classList.contains('dark'))
+    if (mode !== 'blocked') check(`startup ${mode}/${system}: snapshot refreshes cache`, await boot.evaluate(() => localStorage.getItem('themeMode')) === 'light')
+    check(`startup ${mode}/${system}: no uncaught errors`, errors.length === 0)
+    await startup.close()
+  }
+  // Failed external resources still leave the inline theme surface intact.
+  const failedStartup = await browser.newContext({ colorScheme: 'dark' })
+  const failedPage = await failedStartup.newPage()
+  await failedPage.route('**/assets/*', route => route.abort())
+  await failedPage.goto(baseURL)
+  check('startup: failed JS/CSS retains system-dark fallback', await failedPage.evaluate(() =>
+    getComputedStyle(document.documentElement).backgroundColor === 'rgb(32, 32, 32)' && !document.documentElement.hasAttribute('data-ui-ready')))
+  check('startup: failed resources leave readable recovery guidance', await failedPage.locator('#startup-message').isVisible())
+  await failedStartup.close()
+  for (const [scenario, status] of [['detecting', 'Detecting'], ['standby', 'Standby'], ['timeout', 'Net Timeout']]) {
+    await page.goto(`${baseURL}/?scenario=startup-${scenario}`)
+    await page.getByText(status, { exact: true }).waitFor()
+    check(`autoconnect: pre-listener ${status} restored by snapshot`, await button('Start').isDisabled() === (scenario === 'detecting'))
+    await capture(`autoconnect-${scenario}`)
+  }
+  await page.goto(`${baseURL}/?scenario=slow-init`)
+  await page.waitForFunction(() => window.visualTest.calls.includes('get_init_data'))
+  await page.evaluate(async () => {
+    await window.visualTest.emit('startup-status', 'Detecting')
+    window.visualTest.release()
+  })
+  await page.getByText('Detecting', { exact: true }).waitFor()
+  await settle()
+  check('autoconnect: delayed idle snapshot cannot erase Detecting or unlock Start', await button('Start').isDisabled())
+  await page.evaluate(async () => {
+    await window.visualTest.emit('startup-status', 'Standby')
+    await window.visualTest.emit('status', false)
+  })
+  await page.getByText('Standby', { exact: true }).waitFor()
+  check('autoconnect: completed detection retains Standby and unlocks controls', await button('Start').isEnabled())
+  await page.evaluate(async () => {
+    await window.visualTest.emit('core-busy', true)
+    await window.visualTest.emit('startup-status', null)
+    await window.visualTest.emit('core-starting', null)
+  })
+  await page.getByText('Starting...', { exact: true }).waitFor()
+  check('autoconnect: starting replaces completed detection', await page.getByText('Standby', { exact: true }).count() === 0)
   await page.goto(baseURL)
   await button('Start').waitFor()
   await settle()
@@ -813,7 +900,7 @@ try {
   await page.goto(baseURL)
   const adminStatus = page.getByRole('img', { name: 'Running as administrator' })
   await adminStatus.waitFor()
-  await adminStatus.focus()
+  await focusWithKeyboard(adminStatus)
   await page.getByRole('tooltip').filter({ hasText: 'Running as administrator' }).waitFor()
   check('administrator indicator is keyboard accessible without changing titlebar height', await page.locator('.winbox-titlebar').evaluate(e => e.getBoundingClientRect().height === 48))
   await button('Settings').click()
@@ -822,8 +909,9 @@ try {
   for (const width of [320, 400, 480]) {
     await page.setViewportSize({ width, height: 720 })
     const help = button('About auto connect')
-    await help.blur()
-    await help.focus()
+    // Clear inherited keyboard modality so this also covers mouse-to-keyboard use.
+    await page.mouse.click(8, 80)
+    await focusWithKeyboard(help)
     await page.getByRole('tooltip').filter({ hasText: 'TUN / Mixed needs approval to auto-connect.' }).waitFor()
     check(`auto-connect help stays in its compact row at ${width}`, await help.locator('xpath=ancestor::*[contains(@class,"setting-row")]').evaluate(e => e.getBoundingClientRect().height <= 44))
     await settle()
@@ -884,9 +972,125 @@ try {
   await page.keyboard.press('Enter')
   await button('Dismiss error').waitFor({ state: 'hidden' })
   check('error toast can be dismissed with the keyboard', !await button('Dismiss error').isVisible())
+  // Maintenance regressions run against the same production bundle and MockIPC.
+  await page.goto(baseURL + '?scenario=listener-failure')
+  await button('Retry initialization').waitFor()
+  check('failed listener prevents initialized controls', await page.locator('.control-actions > button:enabled').count() === 0)
+  check('failed listener blocks the initial snapshot', !await page.evaluate(() => window.visualTest.calls.includes('get_init_data')))
+  await page.evaluate(() => window.visualTest.allowListeners())
+  await button('Retry initialization').click()
+  await page.waitForFunction(() => !document.querySelector('.control-actions > button').disabled)
+  await page.evaluate(() => window.visualTest.emit('status', true))
+  await button('Stop').waitFor()
+  check('initialization retry installs working status listener', await page.locator('.dashboard-running').count() === 1)
+
+  await page.goto(baseURL)
+  await button('Manage profiles').click()
+  await page.getByRole('dialog', { name: 'Manage profiles' }).waitFor()
+  await button('Delete Home profile').click()
+  await button('Add profile').click()
+  await settle()
+  await button('Save').click()
+  await page.getByText('Name and URL cannot be empty', { exact: true }).waitFor()
+  check('all drafts validate before any destructive writes', !await page.evaluate(() => window.visualTest.calls.includes('delete_profile')))
+  await button('Cancel').click()
+  await settle()
+  await button('Manage profiles').click()
+  for (const name of ['First new', 'Second new']) {
+    await button('Add profile').click()
+    await settle()
+    const row = page.locator('.profile-edit-row').last()
+    await row.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await row.getByRole('textbox', { name: 'Subscription URL', exact: true }).fill('https://example.invalid/' + name.replaceAll(' ', '-'))
+  }
+  await page.evaluate(() => { window.visualTest.failProfile('Second new'); window.visualTest.holdNext('add_profile') })
+  await button('Save').click()
+  await page.waitForFunction(() => window.visualTest.calls.includes('add_profile'))
+  check('profile save freezes drafts and close controls', await button('Add profile').isDisabled() && await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).isDisabled() && await page.getByRole('dialog').getByRole('textbox').evaluateAll(nodes => nodes.every(e => e.disabled)))
+  await page.keyboard.press('Escape')
+  check('profile save cannot be dismissed by Escape', await page.getByRole('dialog', { name: 'Manage profiles' }).isVisible())
+  await page.evaluate(() => window.visualTest.release())
+  await page.getByText('Fixture: subscription download failed', { exact: true }).waitFor()
+  await button('Save').click()
+  await page.getByRole('dialog', { name: 'Manage profiles' }).waitFor({ state: 'hidden' })
+  check('partial save retry does not duplicate successful additions', await page.evaluate(() => window.visualTest.state.profiles.filter(p => p.name === 'First new').length === 1 && window.visualTest.state.profiles.filter(p => p.name === 'Second new').length === 1 && window.visualTest.calls.filter(c => c === 'add_profile').length === 3))
+
+  await button('Settings').click()
+  const editInbound = page.locator('.setting-row').filter({ hasText: 'Inbound config' }).getByRole('button', { name: 'Edit', exact: true })
+  await page.evaluate(() => window.visualTest.holdNext('get_override'))
+  await editInbound.click()
+  await page.getByRole('dialog', { name: 'Edit inbound' }).waitFor()
+  check('override loading prevents typing into stale content', await page.getByRole('textbox', { name: 'Configuration JSON' }).isDisabled())
+  await button('Cancel').click()
+  await settle()
+  await editInbound.click()
+  await page.getByRole('tab', { name: 'Mixed', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Configuration JSON' })
+  await editor.fill('{"newDraft":true}')
+  await page.evaluate(() => window.visualTest.release())
+  await settle()
+  check('closed editor response cannot overwrite a new session', await editor.inputValue() === '{"newDraft":true}')
+  await page.evaluate(() => window.visualTest.failNext('save_override', 'Fixture: disk full'))
+  await button('Save').click()
+  await page.getByText('Fixture: disk full', { exact: true }).waitFor()
+  check('failed override save retains the draft and allows retry', await editor.inputValue() === '{"newDraft":true}' && await button('Save').isEnabled())
+  const beforeSaves = await page.evaluate(() => window.visualTest.calls.filter(c => c === 'save_override').length)
+  await page.evaluate(() => window.visualTest.holdNext('save_override'))
+  await button('Save').click()
+  check('pending editor save disables duplicate submit and typing', await button('Save').isDisabled() && await editor.isDisabled())
+  await page.evaluate(() => window.visualTest.release())
+  await page.getByRole('dialog', { name: 'Edit inbound' }).waitFor({ state: 'hidden' })
+  await editInbound.click()
+  await page.waitForTimeout(900)
+  check('completed save cannot later close a reopened editor', await page.getByRole('dialog', { name: 'Edit inbound' }).isVisible())
+  check('one pending editor save issues one backend write', await page.evaluate(() => window.visualTest.calls.filter(c => c === 'save_override').length) === beforeSaves + 1)
+  await button('Cancel').click()
+  await settle()
+  await button('Back to Home').click()
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => localStorage.setItem('themeMode', theme), theme)
+    await page.goto(baseURL)
+    await button('Start').waitFor()
+  for (const width of [320, 400, 480]) {
+    await page.setViewportSize({ width, height: 720 })
+    await settle()
+    check('idle status heading is vertically centered at ' + width + '/' + theme, await page.locator('.status-card').evaluate(e => { const card=e.getBoundingClientRect(); const row=e.querySelector('.card-heading').getBoundingClientRect(); return Math.abs(card.top+card.height/2-row.top-row.height/2)<=1 }))
+    await button('Start').click()
+    await button('Stop').waitFor()
+    await settle()
+    const centered = await page.locator('.profile-card').evaluate(e => {
+      const card=e.getBoundingClientRect(), row=e.querySelector('.card-heading').getBoundingClientRect(), control=e.querySelector('[role="combobox"]').getBoundingClientRect()
+      return { delta: Math.abs(card.top+card.height/2-row.top-row.height/2), controlDelta: Math.abs(card.top+card.height/2-control.top-control.height/2), fits: control.top>card.top && control.bottom<card.bottom }
+    })
+    check('collapsed profile controls are vertically centered at ' + width + '/' + theme, centered.delta<=1 && centered.controlDelta<=1 && centered.fits)
+    await capture('profile-centered-' + theme + '-' + width)
+    await button('Stop').click()
+    await button('Start').waitFor()
+    await settle()
+  }
+  }
+  await page.setViewportSize({ width: 320, height: 360 })
+  await page.goto(baseURL + '?scenario=permission')
+  await button('Start').click()
+  await page.getByRole('dialog', { name: 'Administrator permission' }).waitFor()
+  await settle()
+  await capture('permission-low-height')
+  check('low-height authorization dialog keeps full title and actions reachable', await page.getByRole('dialog').evaluate(e => {
+    const title = e.querySelector('.product-dialog-title'), footer = e.querySelector('.product-dialog-footer'), content=e.querySelector('.product-dialog-content')
+    const f=footer.getBoundingClientRect(), c=content.getBoundingClientRect()
+    return title.scrollWidth<=title.clientWidth+1 && f.bottom<=innerHeight && c.height>0 && getComputedStyle(content).overflowY==='auto'
+  }))
+  await page.keyboard.press('Escape')
+  await page.goto(baseURL)
+  await button('Settings').click()
+  await page.locator('.setting-row').filter({ hasText: 'UWP loopback' }).getByRole('button', { name: 'Edit', exact: true }).click()
+  await settle()
+  await capture('uwp-low-height')
+  check('low-height UWP dialog keeps footer in viewport', await page.locator('.product-dialog-footer').evaluate(e=>e.getBoundingClientRect().bottom<=innerHeight))
   check('no uncaught browser errors', failures.length === 0)
 } catch (error) {
   failures.push(error.message)
+  await page.screenshot({ path: resolve(evidence, 'failure.png') }).catch(() => {})
   throw error
 } finally {
   await writeFile(resolve(evidence, 'visual-results.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sourceSha256, browser: browser.version(), build: initScript ? 'production' : 'development', results, failures, metrics, viewport: '400x720 / 320x640', evidence: 'Browser fixture with Tauri mock; not a Windows WebView2/IPC pass' }, null, 2))
