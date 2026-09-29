@@ -41,6 +41,8 @@ struct RuntimeInner {
     paths: AppPaths,
     core: Mutex<Option<Arc<Mutex<CoreProcess>>>>,
     operation: Mutex<()>,
+    exit_requested: tokio::sync::watch::Sender<bool>,
+    exit_complete: AtomicBool,
     stopping: AtomicBool,
     permission_pending: AtomicBool,
     permission_notified: AtomicBool,
@@ -84,6 +86,8 @@ impl RuntimeState {
                 paths,
                 core: Mutex::new(None),
                 operation: Mutex::new(()),
+                exit_requested: tokio::sync::watch::channel(false).0,
+                exit_complete: AtomicBool::new(false),
                 stopping: AtomicBool::new(false),
                 permission_pending: AtomicBool::new(false),
                 permission_notified: AtomicBool::new(false),
@@ -100,6 +104,27 @@ impl RuntimeState {
 
     pub fn paths(&self) -> &AppPaths {
         &self.inner.paths
+    }
+
+    pub fn request_exit(&self) -> bool {
+        !self.inner.exit_requested.send_replace(true)
+    }
+
+    pub fn is_exiting(&self) -> bool {
+        *self.inner.exit_requested.borrow()
+    }
+
+    pub async fn cancelled(&self) {
+        let mut receiver = self.inner.exit_requested.subscribe();
+        let _ = receiver.wait_for(|requested| *requested).await;
+    }
+
+    pub fn exit_complete(&self) -> bool {
+        self.inner.exit_complete.load(Ordering::Acquire)
+    }
+
+    pub fn finish_exit(&self) {
+        self.inner.exit_complete.store(true, Ordering::Release);
     }
 
     pub async fn startup_status(&self) -> Option<StartupStatus> {
@@ -618,6 +643,32 @@ mod tests {
     use crate::platform::windows::SystemProxySettings;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[tokio::test]
+    async fn quit_cancels_pending_download_and_releases_operation_lock() {
+        let runtime = RuntimeState::new(AppPaths::from_data_dir(std::env::temp_dir()));
+        let download = async {
+            let _lock = runtime.operation().await;
+            assert!(runtime.request_exit());
+            std::future::pending::<()>().await;
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            tokio::select! {
+                biased;
+                _ = runtime.cancelled() => {},
+                _ = download => panic!("download must be cancelled"),
+            }
+            let _cleanup_lock = runtime.operation().await;
+            // Late subscribers see Quit as well; repeated Quit does not spawn cleanup twice.
+            runtime.cancelled().await;
+            assert!(!runtime.request_exit());
+            assert!(!runtime.exit_complete());
+            runtime.finish_exit();
+            assert!(runtime.exit_complete());
+        })
+        .await
+        .unwrap();
+    }
 
     #[test]
     fn persisted_proxy_marker_round_trips_atomically() {

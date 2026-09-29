@@ -24,9 +24,10 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build Windows x64 NSIS
+  package:
+    name: Test Rust and build Windows x64 NSIS
     runs-on: windows-latest
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:
@@ -58,85 +59,51 @@ jobs:
           targets: x86_64-pc-windows-msvc
           components: rustfmt, clippy
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v6.1.0
+      - name: Cache Rust compilation and Tauri tools
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-cargo-
-
-      - name: Cache Tauri CLI
-        id: tauri_cli_cache
-        uses: actions/cache@v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-tauri.exe
-          key: ${{ runner.os }}-${{ runner.arch }}-tauri-cli-2.11.4
+          workspaces: src-tauri -> target
+          cache-bin: false
+          cache-on-failure: true
+          cache-directories: |
+            ~/AppData/Local/tauri
 
       - name: Install frontend dependencies
-        run: npm ci --prefix frontend
+        run: npm ci --prefix frontend --no-audit --no-fund
 
-      - name: Check frontend and Rust regressions
+      - name: Build frontend and check logic
         shell: pwsh
         run: |
           npm run build --prefix frontend
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node --test frontend/tests/logic.test.mjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo fmt --manifest-path src-tauri/Cargo.toml --check
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo test --manifest-path src-tauri/Cargo.toml --locked
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: Check production UI in Edge
-        id: ui_checks
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Check Rust regressions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Check Rust Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+
+      - name: Reuse the checked frontend bundle
         shell: pwsh
         run: |
-          $browserTools = Join-Path $env:RUNNER_TEMP 'winbox-browser-tests'
-          npm install --prefix $browserTools --no-audit --no-fund --save-exact playwright@1.58.2
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          node "$browserTools/node_modules/playwright/cli.js" install ffmpeg
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $preview = Start-Process -FilePath (Get-Command node).Source -ArgumentList 'node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4173','--strictPort' -WorkingDirectory "$env:GITHUB_WORKSPACE/frontend" -WindowStyle Hidden -PassThru
-          try {
-            $ready = $false
-            for ($attempt = 0; $attempt -lt 30; $attempt++) {
-              try { Invoke-WebRequest http://127.0.0.1:4173 -TimeoutSec 1 | Out-Null; $ready = $true; break } catch { Start-Sleep -Seconds 1 }
-            }
-            if (-not $ready) { throw 'Preview server did not start' }
-            node frontend/tests/visual-checks.mjs "$browserTools/node_modules/playwright-core"
-            if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          } finally {
-            if (-not $preview.HasExited) { Stop-Process -Id $preview.Id }
-          }
-
-      - name: Upload UI failure evidence
-        if: failure() && steps.ui_checks.outcome == 'failure'
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: winbox-ui-failure
-          path: frontend/test-results/
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Install Tauri CLI
-        if: steps.tauri_cli_cache.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --version 2.11.4 --locked
+          # This runner already built dist above. Local Tauri builds keep their normal hook.
+          '{"build":{"beforeBuildCommand":""}}' | Set-Content -LiteralPath "$env:RUNNER_TEMP/winbox-ci.json" -Encoding utf8NoBOM
 
       - name: Build unsigned NSIS installer for pull request
         if: github.event_name == 'pull_request'
-        run: cargo tauri build --ci --target x86_64-pc-windows-msvc --bundles nsis --no-sign -- --locked
+        run: npm exec --prefix frontend -- tauri build --ci --config "$env:RUNNER_TEMP/winbox-ci.json" --target x86_64-pc-windows-msvc --bundles nsis --no-sign -- --locked
 
       - name: Build signed NSIS installer for main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: cargo tauri build --ci --target x86_64-pc-windows-msvc --bundles nsis -- --locked
+        run: npm exec --prefix frontend -- tauri build --ci --config "$env:RUNNER_TEMP/winbox-ci.json" --target x86_64-pc-windows-msvc --bundles nsis -- --locked
 
       - name: Validate x64 NSIS output
         shell: pwsh
@@ -177,6 +144,72 @@ jobs:
           name: winbox-nsis-x64-release
           path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*
           if-no-files-found: error
+
+  ui:
+    name: Check production UI in Edge
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24.14.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --no-audit --no-fund
+
+      - name: Build frontend for UI checks
+        run: npm run build --prefix frontend
+
+      - name: Check production UI in Edge
+        id: ui_checks
+        shell: pwsh
+        run: |
+          $browserTools = Join-Path $env:RUNNER_TEMP 'winbox-browser-tests'
+          npm install --prefix $browserTools --no-audit --no-fund --save-exact playwright@1.58.2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node "$browserTools/node_modules/playwright/cli.js" install ffmpeg
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $preview = Start-Process -FilePath (Get-Command node).Source -ArgumentList 'node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4173','--strictPort' -WorkingDirectory "$env:GITHUB_WORKSPACE/frontend" -WindowStyle Hidden -PassThru
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try { Invoke-WebRequest http://127.0.0.1:4173 -TimeoutSec 1 | Out-Null; $ready = $true; break } catch { Start-Sleep -Seconds 1 }
+            }
+            if (-not $ready) { throw 'Preview server did not start' }
+            node frontend/tests/visual-checks.mjs "$browserTools/node_modules/playwright-core"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          } finally {
+            if (-not $preview.HasExited) { Stop-Process -Id $preview.Id }
+          }
+
+      - name: Upload UI failure evidence
+        if: failure() && steps.ui_checks.outcome == 'failure'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: winbox-ui-failure
+          path: frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Preserve the existing required check name; neither a failed nor skipped job can pass it.
+  build:
+    name: Build Windows x64 NSIS
+    if: always()
+    needs: [package, ui]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require both checks to succeed
+        env:
+          PACKAGE_RESULT: ${{ needs.package.result }}
+          UI_RESULT: ${{ needs.ui.result }}
+        run: test "$PACKAGE_RESULT" = success && test "$UI_RESULT" = success
 
   release:
     name: Publish Windows x64 release

@@ -2,15 +2,11 @@
 
 ## 当前版本与验收
 
-`3.0.0-bata.1` 维护整改及本轮实机复验已获用户确认，包含启动白屏与自动连接检查 UI 修复。当前实现、自动检查及发布验证边界统一见 [审查与验证报告](review.md)。版本字符串沿用本轮的 bata 拼写。本次交付只推送 `dev`，维护者手动 PR 到 `main`，由现有 CI 构建并发布首个 beta；本地未签名测试包不作为发布资产。
+`3.0.0-beta.1` 修正 bata 拼写，保留管理员代理直到更新下载及验签完成，修复退出在 UI 线程等待下载操作锁的问题。当前自动检查与尚待实机验收范围见 [审查与验证报告](review.md)。错误预发布和 tag 已按用户要求删除；只交付 dev，由维护者 PR 到 main 后通过原工作流发布。
 
-本版采用当前用户 NSIS 可见自动安装、普通权限启动、TUN/mixed 按需提权、HKCU 自启和启动代理恢复。全局错误使用英文 Fluent Toast。具体行为见 architecture.md、frontend.md、backend.md；安装/卸载定制见 src-tauri/nsis/README.md。不实现 alpha.3 跨安装范围迁移，旧版升级步骤见 [用户指南](usage.md)。
+本版仍使用当前用户 NSIS、普通权限安装、按需提权和官方 updater。新增使用既有 Tauri 的 test feature（仅 dev-dependency，无新生产依赖）验证官方 updater 的本地包读取与错误签名拒绝。
 
-本轮已通过生产前端构建、逻辑检查、326 项生产 bundle 浏览器检查、Rust 52 项常规测试、两个单独执行的实机专项（真实内核启停和 UWP 只读枚举）、all-targets Clippy、rustfmt、未签名 x64 NSIS 构建、版本/PE 核对及文档/diff 检查。详细边界见报告。历史 alpha.4 验收不计入本轮成绩。截图与构建产物不入库。
-
-用户确认不等于所有发布故障矩阵均已逐项执行：跨账户拒绝、WebView2 缺失及异常断电等按下述发布范围复测。通知实测必须安装新包并点击新生成的通知；旧通知不自动更新激活方式。
-
-已知边界：交接验证进程身份、令牌和通信，WebView 在旧实例退出后初始化；此后若初始化失败需手动重开。恢复系统代理只处理仍匹配本应用记录的配置，不覆盖其他软件的新设置。权限优化不承诺消除 Defender 误报。
+更新专项实机验收：管理员运行 TUN/mixed 并依赖代理联网，确认外网下载/验签完成前不降权或停内核，交接后断开外网仍可安装；慢下载期间分别使用右上角 Quit/确认退出和托盘 Quit，确认窗口不冻结、下载取消、代理恢复；另测最小化到托盘继续下载、错误签名、交接失败保留原实例、正常安装后启动时无 --handoff 重放。不得以 MockIPC/单元测试代替这些实机结论。
 
 ## 本地验证
 
@@ -63,7 +59,15 @@ cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign -- --
 
 产物：`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe`。主程序 PE Machine 应为0x8664；NSIS引导器的x86 stub不是应用架构。禁止ARM64/MSI/portable；本地未签名包只供测试，不入库、不作为Release输入。
 
-`.github/workflows/build-and-release.yml` 在 NSIS 构建前执行前端逻辑/Rust 测试、rustfmt、all-targets Clippy 与 Edge 生产 UI 检查，失败阻止后续构建发布。UI 失败时上传 `winbox-ui-failure`（结果 JSON、截图、视频，保留7天）。检查 Tooltip 的键盘访问必须使用真实 Tab 导航，不以程序化 focus 等同键盘操作；Fluent 会按输入方式抑制部分程序化聚焦提示。完整本地通过不等同远端通过。
+`.github/workflows/build-and-release.yml` 将 Rust 测试/Clippy/NSIS 打包与 Edge 全量生产 UI 回归放在两个 Windows job 并行执行。保留前端构建与逻辑检查、Rust 常规/集成测试、rustfmt、all-targets Clippy、UI 失败证据、NSIS 产物及签名检查。原必需检查名称 Build Windows x64 NSIS 作为汇总门禁，仅两个 job 全部成功才通过；发布依赖此门禁，失败/取消/跳过均不能发布。UI失败仍上传 winbox-ui-failure（7天）。
+
+Rust 使用 [Swatinem/rust-cache v2.9.2](https://github.com/Swatinem/rust-cache/tree/v2.9.2)，固定提交6323deb102c322ba6fcbdcafc7e3dddab59af2b6；LGPL-3.0，维护活跃（2026-08-06发布），仅CI工具。缓存Cargo下载与debug/release依赖编译产物，按工具链、Cargo清单/锁文件及编译环境自动隔离，清理工作区应用产物和增量缓存；额外缓存Tauri下载的NSIS工具。失败也保存可复用依赖，缓存不是发布资产。GitHub分支作用域隔离PR缓存，main不从PR取缓存；工具链变化、首次运行和缓存淘汰仍会冷编译。
+
+[官方 @tauri-apps/cli 2.11.4](https://github.com/tauri-apps/tauri/tree/tauri-cli-v2.11.4) 作为锁定devDependency，MIT/Apache-2.0，Tauri官方持续维护；通过npm获取平台预编译CLI，替代cargo install。锁文件含上游多平台可选包，不改变产品只构建Windows x64的范围。CI使用 npm exec --prefix frontend -- tauri；同runner先构建前端，再通过临时配置清空beforeBuildCommand，避免打包重复构建，正常本地构建hook不变。UI runner独立构建同一提交，无跨job dist传递。
+
+基线运行36527913764的构建任务约19分24秒（回归6分53秒、UI2分31秒、打包7分49秒）。缓存及并行收益待首轮冷缓存和后续命中运行比较，不将估算当作实测；并行会增加少量runner安装开销，目标是缩短等待时间。
+
+本轮已通过 actionlint 1.7.12 工作流静态检查、npm ci 锁文件安装、前端构建/逻辑测试，以及新 npm CLI + 临时配置的未签名 x64 NSIS 实际构建。未为此修改产品代码或测试脚本；未执行远端签名发布，未宣称已测得缓存收益。
 
 发行以该 workflow 为准：PR到main构建未签名x64 NSIS；合并main后使用Actions secrets签名并发布 `*-setup.exe`、同名 `.sig`、`latest.json`（windows-x86_64-nsis），不生成 updater ZIP。密钥不入库，版本含连字符发布为prerelease。检查 Rust/tauri/frontend版本一致，锁文件齐全；不得跳过签名或从本地包代替CI资产。
 
