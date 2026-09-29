@@ -30,7 +30,9 @@
 
 ## 实机验收与限制
 
-上一轮启动白屏和自动连接检查 UI 已获用户确认；此确认不覆盖本轮更新修复。仍需使用维护者签名的测试资产完成：
+用户已使用最新源码 a3e3173、仅将版本覆盖为3.0.0-alpha.1的测试 EXE 实测，确认更新功能正常，检查更新报错问题已解决。远端 beta.1 更新元数据和安装包返回HTTP 200，签名资产与元数据一致；原报错未在最新源码复现，按旧 alpha 客户端问题关闭，未进一步证实旧版的具体网络失败根因。
+
+上一轮启动白屏和自动连接检查 UI 也已获用户确认。上述总体更新确认不等于下列专项均逐项执行；发布时按改动范围复验：
 
 1. 管理员 TUN/mixed 依赖代理联网，确认下载/验签完成前不降权、不停内核；交接后无外网也可安装并普通权限重启。
 2. 慢下载时右上角关闭并选择 Quit、直接 Quit、托盘 Quit，确认窗口不冻结、下载取消、内核退出并恢复属于 WinBox 的代理；tray 模式关闭只隐藏并继续下载。
@@ -39,7 +41,7 @@
 
 回归测试中的错误签名拒绝不等于真实签名安装成功；异步退出与锁取消测试不等于已经观察到原生窗口退出。未签名 NSIS 构建也不证明官方 updater 能安装它。不得将未执行矩阵标为通过。
 
-本机测试程序：src-tauri/target/x86_64-pc-windows-msvc/release/WinBox.exe。
+本轮用户验收测试程序：%TEMP%/winbox-update-check/WinBox.exe（源码a3e3173，版本覆盖3.0.0-alpha.1）。target目录的同名EXE也已被低版本构建覆盖；原beta.1 EXE备份为%TEMP%/winbox-update-check/WinBox-beta.1-original.exe。
 本机未签名安装包：src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-beta.1_x64-setup.exe。
 
-安装包 SHA-256：E590949725BD4E96ADC1BE6EF3660A2540EF0F6AB7E83DC56A9B0EA6A645C882。EXE ProductVersion/FileVersion 为3.0.0-beta.1，PE Machine为0x8664。
+安装包 SHA-256：E590949725BD4E96ADC1BE6EF3660A2540EF0F6AB7E83DC56A9B0EA6A645C882。该安装包构建时的EXE ProductVersion/FileVersion为3.0.0-beta.1，PE Machine为0x8664；低版本测试未重建此安装包。
