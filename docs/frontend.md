@@ -2,7 +2,7 @@
 
 `3.0.0-beta.2` 恢复 inbound 标签官方指示条与内容切换动效，左对齐标签组，并统一其他弹窗的间距、按钮顺序与忙碌关闭反馈；验证边界见 [审查与验证报告](review.md)。
 
-## 本阶段布局验收补充
+## 布局验收
 
 - 收起的单行卡片应让可见标题行和控件在卡片内容盒中垂直居中；高度预算包括边框、padding、控件 root/slot 的实际高度。稳定帧中心偏差目标不超过 1 CSS px，这是产品验收公差。展开卡片仍按标题/内容分区排版。
 - 隐藏内容的布局占位与 inert/aria-hidden 分别检查；修复不得只用透明度隐藏，或靠负 margin/translateY 补偿偏移。保持下方两卡和启停中间帧几何约束。
@@ -10,7 +10,7 @@
 - Profile 收起态通过 flex 居中，并将隐藏行移出正常布局；离线状态卡使用居中内容预算。通用弹窗内容可滚动、标题可换行，只有 JSON 编辑器内容区保留专用 overflow。标题栏提示统一使用 Fluent Tooltip。浏览器 deviceScaleFactor 不替代 Windows DPI 与文字缩放实测。
 - 下拉按钮的 12/16 与模式标签的 12/16 保留为紧凑密度例外，普通设置标签继续 14/20；控件交互、焦点、禁用和高对比度仍由 Fluent 公开 root/slot 承担。
 
-alpha.4 权限交互：复用 ProductDialog、状态卡、Start 和设置行；TUN/mixed 授权后自动重启连接，取消保持未连接。开机自动连接只记录等待授权，不抢焦点或主动弹 UAC；手动启动可显示授权确认。权限等待与内核 busy/running 分离，状态以后端为准。启动按钮始终使用 Start，不因取消授权改名；普通权限 TUN/mixed 从首次启动即显示盾牌。授权弹窗采用一句说明、并排 Cancel/Continue，复用 dialog-actions-stretch。UWP 授权保留草稿，重开后重新确认；不新增权限页面或通用弹窗框架。设置页不展示权限状态行；普通权限无标识，管理员运行仅在标题栏显示可聚焦盾牌及 Fluent Tooltip。Auto connect 保持单行，标签旁的 Fluent 帮助按钮通过悬停/键盘焦点显示简短 Tooltip，不常驻说明段落。
+权限交互：复用 ProductDialog、状态卡、Start 和设置行；TUN/mixed 授权后自动重启连接，取消保持未连接。开机自动连接只记录等待授权，不抢焦点或主动弹 UAC；手动启动可显示授权确认。权限等待与内核 busy/running 分离，状态以后端为准。启动按钮始终使用 Start，不因取消授权改名；普通权限 TUN/mixed 从首次启动即显示盾牌。授权弹窗采用一句说明、并排 Continue/Cancel，复用 dialog-actions-stretch。UWP 授权保留草稿，重开后重新确认；不新增权限页面或通用弹窗框架。设置页不展示权限状态行；普通权限无标识，管理员运行仅在标题栏显示可聚焦盾牌及 Fluent Tooltip。Auto connect 保持单行，标签旁的 Fluent 帮助按钮通过悬停/键盘焦点显示简短 Tooltip，不常驻说明段落。
 
 ## 依据
 
