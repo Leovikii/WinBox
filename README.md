@@ -23,7 +23,15 @@ WinBox is designed to provide a seamless and professional proxy management exper
 * **Three Routing Modes**: Choose Proxy, TUN (virtual network adapter), or Mixed (TUN and system proxy).
 * **Background Startup**: Starts minimized at sign-in. A Windows notification lets you open WinBox when automatic connection requires approval.
 
-## 3.0.0-alpha.4
+## 3.0.0-bata.1 (first beta)
+
+- Code audit and maintenance: safer configuration writes, subscription updates, editor sessions and bounded kernel logs.
+- More consistent card alignment, scrollable dialogs and Fluent tooltips.
+- Startup waits for the initial UI before showing the window, avoiding the blank white window.
+- Smart auto-connect restores its detection state even when the frontend loads after the check begins.
+- Automated frontend, backend and UI regression checks run before packaging. See [validation and release guidance](docs/development.md).
+
+The version identifier retains the spelling `3.0.0-bata.1`. This release keeps the installation and permission model introduced in alpha.4:
 
 - Current-user NSIS installation with visible installation/update progress.
 - WinBox starts without administrator privileges. TUN and Mixed request UAC authorization when needed, then restart and connect.
@@ -82,7 +90,7 @@ artifacts.
 The in-app updater uses the existing pre-release setting when checking release
 metadata; no separate update channel is created.
 
-Development of `3.0.0-alpha.4` is complete, including reduced default privileges and current-user installation. Publication follows the maintainer's `dev` → `main` pull request and the existing signed release workflow.
+`3.0.0-bata.1` is a maintenance build focused on persistence, async state handling, unused-code cleanup and WinUI 3 / Fluent design consistency. Automated checks, maintainer-confirmed manual fixes, and release validation boundaries are documented in the [review report](docs/review.md). This is not a published release. Publication follows the maintainer's `dev` → `main` pull request and the existing signed release workflow.
 
 Development guides: [Architecture](docs/architecture.md),
 [Frontend design](docs/frontend.md), [Backend contracts](docs/backend.md),

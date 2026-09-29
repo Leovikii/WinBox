@@ -12,6 +12,8 @@ export interface ProfileDto {
 
 export type HandoffAction = { kind: 'connect'; tunMode: boolean; sysProxy: boolean } | { kind: 'uwp'; selected: string[]; resume?: [boolean, boolean] | null } | { kind: 'update'; version: string; mirror: string }
 
+export type StartupStatus = 'Detecting' | 'Standby' | 'Net Timeout' | null
+
 export interface InitDataDto {
   elevated: boolean
   permissionPending: boolean
@@ -20,6 +22,7 @@ export interface InitDataDto {
   handoffAction: HandoffAction | null
   running: boolean
   coreBusy: boolean
+  startupStatus: StartupStatus
   coreExists: boolean
   localVersion: string
   tunMode: boolean
@@ -128,8 +131,8 @@ export const ApplyState = (targetTun: boolean, targetProxy: boolean) =>
 
 export const RestartCore = () => invokeText('restart_core')
 
-export const AddProfile = (name: string, url: string) =>
-  invokeText('add_profile', { name, url })
+export const AddProfile = (id: string, name: string, url: string) =>
+  invokeOrThrow<ProfileDto>('add_profile', { id, name, url })
 
 export const DeleteProfile = (id: string) =>
   invokeOrThrow<void>('delete_profile', { id })
@@ -188,16 +191,15 @@ export const Minimize = () =>
 export const MinimizeToTray = () =>
   invokeOrThrow<void>('minimize_to_tray')
 
-export const Show = () =>
-  invokeOrThrow<void>('show')
-
 export const Quit = () => invoke<void>('quit')
+export const FrontendReady = () => invokeOrThrow<void>('frontend_ready')
 
 export const SetWindowTheme = (mode: string) =>
   invokeOrThrow<void>('set_window_theme', { mode })
 
 const listenersByName = new Map<string, Set<() => void>>()
 const pendingListenerRegistrations = new Set<Promise<void>>()
+const failedListenerRegistrations = new Map<() => void, Error>()
 
 export function EventsOn<T>(
   eventName: string,
@@ -207,6 +209,7 @@ export function EventsOn<T>(
   let unlisten: UnlistenFn | undefined
   const remove = () => {
     active = false
+    failedListenerRegistrations.delete(remove)
     unlisten?.()
     unlisten = undefined
     const listeners = listenersByName.get(eventName)
@@ -224,8 +227,8 @@ export function EventsOn<T>(
       return
     }
     unlisten = listener
-  }).catch(() => {
-    remove()
+  }).catch((error: unknown) => {
+    if (active) failedListenerRegistrations.set(remove, new Error(`Could not listen for ${eventName}: ${errorText(error)}`))
   })
   pendingListenerRegistrations.add(registration)
   void registration.then(() => pendingListenerRegistrations.delete(registration))
@@ -237,6 +240,8 @@ export async function waitForEventsReady(): Promise<void> {
   while (pendingListenerRegistrations.size > 0) {
     await Promise.all([...pendingListenerRegistrations])
   }
+  const failure = failedListenerRegistrations.values().next().value
+  if (failure) throw failure
 }
 
 export const Authorize = (selected?: string[]) => invokeOrThrow<void>('authorize', { selected: selected ?? null })

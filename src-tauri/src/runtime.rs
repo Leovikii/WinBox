@@ -1,4 +1,4 @@
-use crate::core::CoreProcess;
+use crate::core::{CoreOutput, CoreProcess};
 use crate::paths::AppPaths;
 use crate::platform::windows::{read_system_proxy, restore_system_proxy, SystemProxySettings};
 use chrono::Local;
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout, Duration};
 use tokio_tungstenite::connect_async;
@@ -29,6 +29,14 @@ const MAX_APP_LOG_ARCHIVES: usize = 5;
 const TRAFFIC_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const TRAFFIC_RETRY_DELAY: Duration = Duration::from_secs(1);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub enum StartupStatus {
+    Detecting,
+    Standby,
+    #[serde(rename = "Net Timeout")]
+    NetTimeout,
+}
+
 struct RuntimeInner {
     paths: AppPaths,
     core: Mutex<Option<Arc<Mutex<CoreProcess>>>>,
@@ -42,6 +50,7 @@ struct RuntimeInner {
     traffic_cancel: Mutex<Option<oneshot::Sender<()>>>,
     traffic_task: Mutex<Option<JoinHandle<()>>>,
     proxy_error: Mutex<Option<String>>,
+    startup_status: Mutex<Option<StartupStatus>>,
 }
 
 #[derive(Clone)]
@@ -84,12 +93,23 @@ impl RuntimeState {
                 traffic_cancel: Mutex::new(None),
                 traffic_task: Mutex::new(None),
                 proxy_error: Mutex::new(None),
+                startup_status: Mutex::new(None),
             }),
         }
     }
 
     pub fn paths(&self) -> &AppPaths {
         &self.inner.paths
+    }
+
+    pub async fn startup_status(&self) -> Option<StartupStatus> {
+        *self.inner.startup_status.lock().await
+    }
+
+    pub async fn set_startup_status(&self, app: &AppHandle, status: Option<StartupStatus>) {
+        let mut current = self.inner.startup_status.lock().await;
+        *current = status;
+        let _ = app.emit("startup-status", status);
     }
 
     pub async fn operation(&self) -> tokio::sync::MutexGuard<'_, ()> {
@@ -100,6 +120,7 @@ impl RuntimeState {
         let lock = self.inner.operation.lock().await;
         self.inner.busy.store(true, Ordering::Release);
         let _ = app.emit("core-busy", true);
+        self.set_startup_status(app, None).await;
         CoreOperation {
             _lock: lock,
             busy: &self.inner.busy,
@@ -421,7 +442,7 @@ impl RuntimeState {
         &self,
         app: &AppHandle,
         core: Arc<Mutex<CoreProcess>>,
-        mut output: mpsc::UnboundedReceiver<String>,
+        mut output: CoreOutput,
     ) {
         let state = self.clone();
         let app = app.clone();

@@ -214,15 +214,15 @@ function EditorDialogs() {
       className="editor-dialog"
       footer={(
         <div className="dialog-actions-right">
-          {app.editorContent !== app.editorDefaultContent ? <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowResetConfirm(true)}>Reset</Button> : null}
+          {app.editorContent !== app.editorDefaultContent ? <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" disabled={app.editorBusy} onClick={() => app.setShowResetConfirm(true)}>Reset</Button> : null}
           <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowEditor(false)}>Cancel</Button>
-          <Button appearance={app.saveBtnText === 'Saved' ? 'secondary' : 'primary'} className={`${app.saveBtnText === 'Saved' ? 'winbox-secondary-button' : 'winbox-primary-button'} winbox-dialog-button`} onClick={() => void app.saveEditor()} disabled={!app.isEditorChanged}>{app.saveBtnText === 'Saved' ? 'Saved!' : 'Save'}</Button>
+          <Button appearance={app.saveBtnText === 'Saved' ? 'secondary' : 'primary'} className={`${app.saveBtnText === 'Saved' ? 'winbox-secondary-button' : 'winbox-primary-button'} winbox-dialog-button`} onClick={() => void app.saveEditor()} disabled={!app.isEditorChanged || app.editorBusy}>{app.saveBtnText === 'Saved' ? 'Saved!' : 'Save'}</Button>
         </div>
       )}
     >
       <ExpandMotion visible={!!app.editorError} unmountOnExit><div className="expand-content"><MessageBar intent="error" layout="multiline"><MessageBarBody>{app.editorError}</MessageBarBody></MessageBar></div></ExpandMotion>
-      {!isMirror ? <TabList selectedValue={app.editingType} onTabSelect={(_, data) => void app.switchEditorTab(data.value as 'tun' | 'mixed')} className="editor-tabs"><Tab value="tun">TUN</Tab><Tab value="mixed">Mixed</Tab></TabList> : null}
-      <Textarea textarea={{ className: 'editor-input' }} aria-label="Configuration JSON" className="editor-textarea" value={app.editorContent} onChange={(_, data) => app.setEditorContent(data.value)} resize="none" spellCheck={false} />
+      {!isMirror ? <TabList selectedValue={app.editingType} onTabSelect={(_, data) => void app.switchEditorTab(data.value as 'tun' | 'mixed')} className="editor-tabs"><Tab disabled={app.editorBusy} value="tun">TUN</Tab><Tab disabled={app.editorBusy} value="mixed">Mixed</Tab></TabList> : null}
+      <Textarea disabled={app.editorBusy} textarea={{ className: 'editor-input' }} aria-label="Configuration JSON" className="editor-textarea" value={app.editorContent} onChange={(_, data) => app.setEditorContent(data.value)} resize="none" spellCheck={false} />
     </ProductDialog>
     <ProductDialog open={app.showResetConfirm} title="Confirm reset" onOpenChange={app.setShowResetConfirm} width="md" footer={<div className="dialog-actions-right"><Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowResetConfirm(false)}>Cancel</Button><Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => void app.confirmReset()}>Reset</Button></div>}>
       <p>Reset to default configuration?</p>

@@ -2,11 +2,11 @@
 
 ## 当前版本与验收
 
-`3.0.0-alpha.4` 开发结束，用户已确认本轮问题修复，包括开机模式保持及通知中心点击唤起。2026-09-23，用户使用低版本测试程序完成应用内自更新实测，确认更新成功且本次未触发 Windows Defender 拦截。代码只推送 `dev`，由维护者手动 PR 到 `main`；发布由现有 CI 完成，不把本地测试包视为已发布资产。
+`3.0.0-bata.1` 维护整改及本轮实机复验已获用户确认，包含启动白屏与自动连接检查 UI 修复。当前实现、自动检查及发布验证边界统一见 [审查与验证报告](review.md)。版本字符串沿用本轮的 bata 拼写。本次交付只推送 `dev`，维护者手动 PR 到 `main`，由现有 CI 构建并发布首个 beta；本地未签名测试包不作为发布资产。
 
 本版采用当前用户 NSIS 可见自动安装、普通权限启动、TUN/mixed 按需提权、HKCU 自启和启动代理恢复。全局错误使用英文 Fluent Toast。具体行为见 architecture.md、frontend.md、backend.md；安装/卸载定制见 src-tauri/nsis/README.md。不实现 alpha.3 跨安装范围迁移，测试者按 README 全新安装。
 
-已执行：生产构建、前端逻辑检查、256 项生产 bundle 浏览器检查、Rust 47 项通过（2 项实机专项 ignored）、all-targets Clippy、rustfmt、diff 检查及未签名 Windows x64 NSIS 构建。浏览器检查覆盖权限等待、模式/快照竞态、设置枚举、UWP 草稿、顶部 Toast 长文本/键盘及更新失败重试；Rust 覆盖交接 OS 10035、代理恢复失败保留记录、通知 XML/协议契约。截图与构建产物不入库。
+本轮已通过生产前端构建、逻辑检查、326 项生产 bundle 浏览器检查、Rust 52 项常规测试、两个单独执行的实机专项（真实内核启停和 UWP 只读枚举）、all-targets Clippy、rustfmt、未签名 x64 NSIS 构建、版本/PE 核对及文档/diff 检查。详细边界见报告。历史 alpha.4 验收不计入本轮成绩。截图与构建产物不入库。
 
 用户确认不等于所有发布故障矩阵均已逐项执行：跨账户拒绝、WebView2 缺失及异常断电等按下述发布范围复测。通知实测必须安装新包并点击新生成的通知；旧通知不自动更新激活方式。
 
@@ -14,19 +14,19 @@
 
 ## 本地验证
 
-Windows x64，Rust 1.97+ MSVC、VS C++ Build Tools、WebView2、Node 20.19+（或22.12+）、Tauri CLI 2.11.4。在仓库根：
+Windows x64，Rust 1.97+ MSVC、VS C++ Build Tools、WebView2、Node 24.14.0（完整验证基线）、Tauri CLI 2.11.4。在仓库根：
 
 ```powershell
 npm ci --prefix frontend
 npm run build --prefix frontend
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline
-cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline -- -D warnings
+cargo clippy --manifest-path src-tauri/Cargo.toml --locked --offline --all-targets -- -D warnings
 node --test frontend/tests/logic.test.mjs
 git diff --check
 ```
 
-logic.test.mjs 直接加载 TypeScript，需支持类型擦除的 Node 22.18+ / 24+；生产构建与 CI 可继续 Node20。Rust 两个实机专项默认 ignored：
+logic.test.mjs 直接加载 TypeScript，需支持类型擦除的 Node 22.18+ / 24+；CI 固定 Node 24.14.0。Rust 两个实机专项默认 ignored：
 
 ```powershell
 $env:WINBOX_TEST_CORE='C:/path/to/sing-box.exe'
@@ -35,6 +35,8 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked --offline installed_uwp
 ```
 
 前者在临时目录运行真实内核，仅控制API，不配置系统代理/TUN；UWP测试只读当前用户注册表，需要已安装UWP应用，受限沙箱可能无读取权限。alpha.4 自启改为当前用户注册表项，实际登录启动仍需人工验收。进程超时/退出/端口归属故障注入在常规测试中。
+
+UI 回归使用工具目录安装的 Playwright 1.58.2（微软官方，Apache-2.0，持续维护；仅测试，不进入产品依赖），通过其 CLI 安装 ffmpeg 录屏组件，浏览器复用已安装 Edge。首次缺少 Cargo 缓存时先 `cargo fetch --manifest-path src-tauri/Cargo.toml --locked`，之后再用 offline 验证。
 
 UI 回归：构建后另开终端 `npm --prefix frontend run preview -- --host 127.0.0.1 --port 4173`；使用已有 playwright-core 和已安装 Edge，在根目录运行：
 
@@ -61,7 +63,9 @@ cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign -- --
 
 产物：`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe`。主程序 PE Machine 应为0x8664；NSIS引导器的x86 stub不是应用架构。禁止ARM64/MSI/portable；本地未签名包只供测试，不入库、不作为Release输入。
 
-`.github/workflows/build-and-release.yml` 为准：PR到main构建未签名x64 NSIS；合并main后使用Actions secrets签名并发布 `*-setup.exe`、同名 `.sig`、`latest.json`（windows-x86_64-nsis），不生成 updater ZIP。密钥不入库，版本含连字符发布为prerelease。检查 Rust/tauri/frontend版本一致，锁文件齐全；不得跳过签名或从本地包代替CI资产。
+`.github/workflows/build-and-release.yml` 在 NSIS 构建前执行前端逻辑/Rust 测试、rustfmt、all-targets Clippy 与 Edge 生产 UI 检查，失败阻止后续构建发布。新增 workflow 尚未在远端 Actions 执行，本地通过不等同远端通过。
+
+发行以该 workflow 为准：PR到main构建未签名x64 NSIS；合并main后使用Actions secrets签名并发布 `*-setup.exe`、同名 `.sig`、`latest.json`（windows-x86_64-nsis），不生成 updater ZIP。密钥不入库，版本含连字符发布为prerelease。检查 Rust/tauri/frontend版本一致，锁文件齐全；不得跳过签名或从本地包代替CI资产。
 
 每次发布按改动范围验证：安装/升级/卸载和数据保留、真实三模式/启停/代理恢复、UWP保存、托盘/自启、WebView2缺失、错误签名/断网/回滚、浅深/缩放/键盘。迁移阶段关闭不等于未来版本可跳过这些常规发布检查。
 

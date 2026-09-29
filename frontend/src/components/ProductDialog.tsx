@@ -10,9 +10,10 @@ interface ProductDialogProps {
   footer?: ReactNode
   width?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
+  busy?: boolean
 }
 
-export function ProductDialog({ open, title, onOpenChange, children, footer, width = 'md', className = '' }: ProductDialogProps) {
+export function ProductDialog({ open, title, onOpenChange, children, footer, width = 'md', className = '', busy = false }: ProductDialogProps) {
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const wasOpenRef = useRef(false)
 
@@ -47,7 +48,7 @@ export function ProductDialog({ open, title, onOpenChange, children, footer, wid
             className="product-dialog-title"
             action={{ className: 'product-dialog-title-action', children: (
               <DialogTrigger action="close">
-                <Button appearance="subtle" className="winbox-subtle-button winbox-dialog-close" icon={<Dismiss16Regular />} aria-label="Close" />
+                <Button disabled={busy} appearance="subtle" className="winbox-subtle-button winbox-dialog-close" icon={<Dismiss16Regular />} aria-label="Close" />
               </DialogTrigger>
             ) }}
           >

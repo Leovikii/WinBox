@@ -211,7 +211,7 @@ export default function Dashboard({ onSwitchMode, onRestartCore, onOpenSettings 
             </div>
           </>
         ) : (
-          <div className={`empty-card ${!app.coreExists ? 'empty-card-muted' : ''}`}>
+          <div className="empty-card">
             <Server24Regular />
             <Text weight="semibold">No profile found</Text>
             {app.coreExists ? <Button appearance="secondary" size="small" className="winbox-secondary-button winbox-small-button" onClick={app.openManageProfiles}>Add profile</Button> : null}

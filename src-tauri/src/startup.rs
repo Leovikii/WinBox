@@ -3,6 +3,50 @@ use std::time::Duration;
 
 pub const DELAY_START: Duration = Duration::from_millis(1_500);
 
+/// One-shot gate shared by startup, explicit Show requests and the failure watchdog.
+pub struct StartupWindow {
+    pub frontend_ready: bool,
+    configured: bool,
+    released: bool,
+    requested: bool,
+}
+
+impl StartupWindow {
+    pub fn new(visible: bool) -> Self {
+        Self {
+            frontend_ready: false,
+            configured: false,
+            released: false,
+            requested: visible,
+        }
+    }
+
+    pub fn request_show(&mut self) -> bool {
+        if self.released {
+            return true;
+        }
+        self.requested = true;
+        false
+    }
+
+    pub fn release(&mut self, frontend_ready: bool) -> bool {
+        self.frontend_ready |= frontend_ready;
+        if !self.configured {
+            return false;
+        }
+        if self.released {
+            return false;
+        }
+        self.released = true;
+        std::mem::take(&mut self.requested)
+    }
+
+    pub fn configure(&mut self) -> bool {
+        self.configured = true;
+        self.frontend_ready && self.release(true)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct StartupOptions {
     pub minimized: bool,
@@ -44,6 +88,45 @@ impl StartupOptions {
 #[cfg(test)]
 mod tests {
     use super::StartupOptions;
+
+    #[test]
+    fn window_waits_for_commit_and_releases_only_once() {
+        let mut normal = super::StartupWindow::new(true);
+        assert!(!normal.configure());
+        assert!(!normal.request_show());
+        assert!(normal.release(true));
+        assert!(!normal.release(true));
+        assert!(!normal.release(false));
+        assert!(normal.request_show());
+        assert!(normal.frontend_ready);
+
+        let mut minimized = super::StartupWindow::new(false);
+        assert!(!minimized.configure());
+        assert!(!minimized.release(true));
+        assert!(minimized.request_show());
+
+        let mut early_show = super::StartupWindow::new(false);
+        assert!(!early_show.configure());
+        assert!(!early_show.request_show());
+        assert!(early_show.release(true));
+
+        let mut failed = super::StartupWindow::new(true);
+        assert!(!failed.configure());
+        assert!(failed.release(false));
+        assert!(!failed.frontend_ready);
+        assert!(!failed.release(true));
+        assert!(failed.frontend_ready);
+
+        let mut hidden_failure = super::StartupWindow::new(false);
+        assert!(!hidden_failure.configure());
+        assert!(!hidden_failure.release(false));
+        assert!(hidden_failure.request_show());
+
+        let mut early_commit = super::StartupWindow::new(true);
+        assert!(!early_commit.release(true));
+        assert!(early_commit.configure());
+        assert!(!early_commit.configure());
+    }
 
     #[test]
     fn recognizes_startup_flags_and_ignores_unknown_args() {

@@ -1,9 +1,13 @@
 use std::io::{self, Error, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
@@ -16,11 +20,41 @@ pub const CORE_STOP_TIMEOUT: Duration = Duration::from_secs(2);
 
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+const LOG_QUEUE_LINES: usize = 256;
+const MAX_LOG_LINE_BYTES: usize = 8 * 1024;
+
+pub struct CoreOutput {
+    receiver: mpsc::Receiver<String>,
+    dropped: Arc<AtomicUsize>,
+}
+
+impl CoreOutput {
+    fn dropped_notice(&self) -> Option<String> {
+        let count = self.dropped.swap(0, Ordering::Relaxed);
+        (count > 0).then(|| {
+            format!("[WinBox] Dropped {count} kernel log lines because the log queue was full.")
+        })
+    }
+
+    pub async fn recv(&mut self) -> Option<String> {
+        if let Some(notice) = self.dropped_notice() {
+            return Some(notice);
+        }
+        self.receiver.recv().await.or_else(|| self.dropped_notice())
+    }
+
+    pub fn try_recv(&mut self) -> Result<String, mpsc::error::TryRecvError> {
+        if let Some(notice) = self.dropped_notice() {
+            return Ok(notice);
+        }
+        self.receiver.try_recv()
+    }
+}
 
 pub struct CoreProcess {
     child: Child,
     executable: PathBuf,
-    output: Option<mpsc::UnboundedReceiver<String>>,
+    output: Option<CoreOutput>,
 }
 
 impl CoreProcess {
@@ -49,21 +83,22 @@ impl CoreProcess {
             .creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
 
         let mut child = command.spawn()?;
-        let (output_sender, output) = mpsc::unbounded_channel();
+        let (output_sender, receiver) = mpsc::channel(LOG_QUEUE_LINES);
+        let dropped = Arc::new(AtomicUsize::new(0));
         if let Some(stdout) = child.stdout.take() {
             let sender = output_sender.clone();
-            std::mem::drop(tokio::spawn(drain_output(stdout, sender)));
+            std::mem::drop(tokio::spawn(drain_output(stdout, sender, dropped.clone())));
         }
         if let Some(stderr) = child.stderr.take() {
             let sender = output_sender.clone();
-            std::mem::drop(tokio::spawn(drain_output(stderr, sender)));
+            std::mem::drop(tokio::spawn(drain_output(stderr, sender, dropped.clone())));
         }
         drop(output_sender);
 
         Ok(Self {
             child,
             executable,
-            output: Some(output),
+            output: Some(CoreOutput { receiver, dropped }),
         })
     }
 
@@ -83,7 +118,7 @@ impl CoreProcess {
         self.child.try_wait()
     }
 
-    pub fn take_output(&mut self) -> Option<mpsc::UnboundedReceiver<String>> {
+    pub fn take_output(&mut self) -> Option<CoreOutput> {
         self.output.take()
     }
 
@@ -175,24 +210,90 @@ impl CoreProcess {
     }
 }
 
-async fn drain_output<R>(reader: R, sender: mpsc::UnboundedSender<String>) -> io::Result<()>
+async fn drain_output<R>(
+    mut reader: R,
+    sender: mpsc::Sender<String>,
+    dropped: Arc<AtomicUsize>,
+) -> io::Result<()>
 where
     R: AsyncRead + Unpin,
 {
-    let mut reader = BufReader::new(reader);
-    let mut line = String::new();
-    while reader.read_line(&mut line).await? != 0 {
-        let text = line.trim_end_matches(['\r', '\n']).to_owned();
-        if sender.send(text).is_err() {
-            break;
+    let mut chunk = [0u8; 4096];
+    let mut line = Vec::with_capacity(MAX_LOG_LINE_BYTES);
+    let mut truncated = false;
+    let send = |line: &[u8], truncated: bool| {
+        let mut text = String::from_utf8_lossy(line)
+            .trim_end_matches('\r')
+            .to_owned();
+        if truncated {
+            text.push_str(" [WinBox: line truncated]");
         }
-        line.clear();
+        if let Err(mpsc::error::TrySendError::Full(_)) = sender.try_send(text) {
+            dropped.fetch_add(1, Ordering::Relaxed);
+        }
+    };
+    loop {
+        let length = reader.read(&mut chunk).await?;
+        if length == 0 {
+            if !line.is_empty() || truncated {
+                send(&line, truncated);
+            }
+            return Ok(());
+        }
+        for byte in &chunk[..length] {
+            if *byte == b'\n' {
+                send(&line, truncated);
+                line.clear();
+                truncated = false;
+            } else if line.len() < MAX_LOG_LINE_BYTES {
+                line.push(*byte);
+            } else {
+                truncated = true;
+            }
+        }
+        if sender.is_closed() {
+            return Ok(());
+        }
     }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn log_bursts_and_unterminated_lines_are_bounded_without_blocking_reader() {
+        use super::*;
+        let (sender, receiver) = mpsc::channel(LOG_QUEUE_LINES);
+        let dropped = Arc::new(AtomicUsize::new(0));
+        let burst = "line\n".repeat(LOG_QUEUE_LINES * 4);
+        timeout(
+            Duration::from_secs(2),
+            drain_output(burst.as_bytes(), sender, dropped.clone()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let mut output = CoreOutput { receiver, dropped };
+        assert!(output.recv().await.unwrap().contains("Dropped 768"));
+        let mut count = 0;
+        while let Some(line) = output.recv().await {
+            assert_eq!(line, "line");
+            count += 1;
+        }
+        assert_eq!(count, LOG_QUEUE_LINES);
+
+        let (sender, mut receiver) = mpsc::channel(4);
+        let mut long = vec![b'x'; MAX_LOG_LINE_BYTES * 100];
+        long.extend_from_slice(b"\nnext\nlast");
+        drain_output(long.as_slice(), sender, Arc::new(AtomicUsize::new(0)))
+            .await
+            .unwrap();
+        let truncated = receiver.recv().await.unwrap();
+        assert!(truncated.ends_with("[WinBox: line truncated]"));
+        assert!(truncated.len() < MAX_LOG_LINE_BYTES + 64);
+        assert_eq!(receiver.recv().await.unwrap(), "next");
+        assert_eq!(receiver.recv().await.unwrap(), "last");
+        assert!(receiver.recv().await.is_none());
+    }
     use super::*;
     use std::io::{Read, Write};
     use std::net::{SocketAddr, TcpListener};

@@ -41,6 +41,7 @@ pub fn run() {
 
     let minimized = startup.minimized;
     let app = tauri::Builder::default()
+        .manage(std::sync::Mutex::new(startup::StartupWindow::new(!minimized || startup.notification)))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = commands::show(app.clone());
         }))
@@ -85,6 +86,7 @@ pub fn run() {
             commands::minimize,
             commands::minimize_to_tray,
             commands::show,
+            commands::frontend_ready,
             commands::quit,
             commands::check_update,
             commands::check_program_update,
@@ -102,6 +104,10 @@ pub fn run() {
             // Recover before exposing commands or starting any network/privilege flow.
             let proxy_recovery_failed =
                 tauri::async_runtime::block_on(runtime.restore_proxy_if_owned()).is_err();
+            if proxy_recovery_failed {
+                app.state::<std::sync::Mutex<startup::StartupWindow>>()
+                    .lock().unwrap().request_show();
+            }
             tauri::async_runtime::block_on(runtime.clear_session_logs())?;
             let storage = Storage::new(paths);
             app.manage(runtime.clone());
@@ -219,14 +225,16 @@ pub fn run() {
                 window.on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
+                        if !event_app.state::<std::sync::Mutex<startup::StartupWindow>>()
+                            .lock().unwrap().frontend_ready {
+                            if let Some(window) = event_app.get_webview_window("main") {
+                                let _ = window.hide();
+                            }
+                            return;
+                        }
                         let _ = event_app.emit("window-close-requested", ());
                     }
                 });
-            }
-            if minimized && !proxy_recovery_failed {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
-                }
             }
             let startup_app = app.handle().clone();
             tauri::async_runtime::block_on(runtime.append_app_log(
@@ -245,6 +253,28 @@ pub fn run() {
                 tokio::time::sleep(Duration::from_millis(200)).await;
                 if initial.is_none() && !proxy_recovery_failed && !startup.notification {
                     commands::startup_runtime(startup_app, runtime).await;
+                }
+            });
+            let show_requested = app.state::<std::sync::Mutex<startup::StartupWindow>>()
+                .lock().unwrap().configure();
+            if show_requested {
+                commands::show(app.handle().clone()).map_err(|error| std::io::Error::other(error.message))?;
+            }
+            let watchdog_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Failure bound only; successful startup is driven by the frontend commit.
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                let ready = watchdog_app.state::<std::sync::Mutex<startup::StartupWindow>>()
+                    .lock().unwrap().frontend_ready;
+                if !ready {
+                    let runtime = watchdog_app.state::<RuntimeState>();
+                    let _ = runtime.append_app_log(&watchdog_app, "WARN",
+                        "Frontend readiness timed out; use tray Quit and reopen if the UI does not load.").await;
+                    let show_requested = watchdog_app.state::<std::sync::Mutex<startup::StartupWindow>>()
+                        .lock().unwrap().release(false);
+                    if show_requested {
+                        let _ = commands::show(watchdog_app.clone());
+                    }
                 }
             });
             Ok(())
