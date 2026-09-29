@@ -4,7 +4,7 @@
 
 `3.0.0-bata.1` 维护整改及本轮实机复验已获用户确认，包含启动白屏与自动连接检查 UI 修复。当前实现、自动检查及发布验证边界统一见 [审查与验证报告](review.md)。版本字符串沿用本轮的 bata 拼写。本次交付只推送 `dev`，维护者手动 PR 到 `main`，由现有 CI 构建并发布首个 beta；本地未签名测试包不作为发布资产。
 
-本版采用当前用户 NSIS 可见自动安装、普通权限启动、TUN/mixed 按需提权、HKCU 自启和启动代理恢复。全局错误使用英文 Fluent Toast。具体行为见 architecture.md、frontend.md、backend.md；安装/卸载定制见 src-tauri/nsis/README.md。不实现 alpha.3 跨安装范围迁移，测试者按 README 全新安装。
+本版采用当前用户 NSIS 可见自动安装、普通权限启动、TUN/mixed 按需提权、HKCU 自启和启动代理恢复。全局错误使用英文 Fluent Toast。具体行为见 architecture.md、frontend.md、backend.md；安装/卸载定制见 src-tauri/nsis/README.md。不实现 alpha.3 跨安装范围迁移，旧版升级步骤见 [用户指南](usage.md)。
 
 本轮已通过生产前端构建、逻辑检查、326 项生产 bundle 浏览器检查、Rust 52 项常规测试、两个单独执行的实机专项（真实内核启停和 UWP 只读枚举）、all-targets Clippy、rustfmt、未签名 x64 NSIS 构建、版本/PE 核对及文档/diff 检查。详细边界见报告。历史 alpha.4 验收不计入本轮成绩。截图与构建产物不入库。
 
