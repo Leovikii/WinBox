@@ -33,7 +33,7 @@ import * as Backend from '../api/backend'
 import { useApp, type UpdateState } from '../state/AppContext'
 import { ProductDialog } from './ProductDialog'
 import { ScrollArea } from './ScrollArea'
-import { ExpandMotion } from './motion'
+import { ExpandMotion, PageMotion } from './motion'
 import { luminance } from '../theme'
 
 interface SettingsPageProps {
@@ -169,11 +169,12 @@ function UwpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
     <ProductDialog
       open={open}
       title="UWP loopback exemption"
+      busy={app.uwpSaving}
       onOpenChange={onOpenChange}
       footer={(
         <div className="dialog-actions-right">
-          <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => onOpenChange(false)} disabled={app.uwpSaving}>Cancel</Button>
           <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => { void app.saveExemptions().then((saved) => { if (saved) onOpenChange(false) }) }} disabled={app.uwpLoading || app.uwpSaving || !app.uwpHasChanges} icon={app.uwpSaving ? <Spinner size="tiny" /> : undefined}>{app.uwpSaving ? 'Saving…' : 'Save'}</Button>
+          <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => onOpenChange(false)} disabled={app.uwpSaving}>Cancel</Button>
         </div>
       )}
     >
@@ -189,6 +190,7 @@ function UwpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
           {sortedApps.map((uwp) => <div className="uwp-row" key={uwp.sid}>
             <Checkbox
               className="uwp-checkbox"
+              disabled={app.uwpSaving}
               checked={app.uwpSelectedSIDs.includes(uwp.sid)}
               onChange={() => app.toggleUwpApp(uwp.sid)}
               label={{ className: 'uwp-checkbox-label', children: <span className="uwp-copy"><strong>{uwp.displayName}</strong>{uwp.packageName ? <small>{uwp.packageName}</small> : null}</span> }}
@@ -203,6 +205,9 @@ function UwpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
 
 function EditorDialogs() {
   const app = useApp()
+  const previousEditor = useRef({ open: app.showEditor, type: app.editingType })
+  const switchingTab = previousEditor.current.open && previousEditor.current.type !== app.editingType
+  useEffect(() => { previousEditor.current = { open: app.showEditor, type: app.editingType } }, [app.showEditor, app.editingType])
   const isMirror = app.editingType === 'mirror'
   const title = isMirror ? 'Edit mirror' : 'Edit inbound'
   return <>
@@ -210,21 +215,27 @@ function EditorDialogs() {
       open={app.showEditor}
       title={title}
       onOpenChange={app.setShowEditor}
-      width="xl"
-      className="editor-dialog"
+      width={isMirror ? 'md' : 'xl'}
+      className={isMirror ? 'mirror-dialog' : 'editor-dialog'}
       footer={(
         <div className="dialog-actions-right">
+          <Button appearance={app.saveBtnText === 'Saved' ? 'secondary' : 'primary'} className={`${app.saveBtnText === 'Saved' ? 'winbox-secondary-button' : 'winbox-primary-button'} winbox-dialog-button`} onClick={() => void app.saveEditor()} disabled={!app.isEditorChanged || app.editorBusy}>{app.saveBtnText === 'Saved' ? 'Saved!' : 'Save'}</Button>
           {app.editorContent !== app.editorDefaultContent ? <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" disabled={app.editorBusy} onClick={() => app.setShowResetConfirm(true)}>Reset</Button> : null}
           <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowEditor(false)}>Cancel</Button>
-          <Button appearance={app.saveBtnText === 'Saved' ? 'secondary' : 'primary'} className={`${app.saveBtnText === 'Saved' ? 'winbox-secondary-button' : 'winbox-primary-button'} winbox-dialog-button`} onClick={() => void app.saveEditor()} disabled={!app.isEditorChanged || app.editorBusy}>{app.saveBtnText === 'Saved' ? 'Saved!' : 'Save'}</Button>
         </div>
       )}
     >
       <ExpandMotion visible={!!app.editorError} unmountOnExit><div className="expand-content"><MessageBar intent="error" layout="multiline"><MessageBarBody>{app.editorError}</MessageBarBody></MessageBar></div></ExpandMotion>
-      {!isMirror ? <TabList selectedValue={app.editingType} onTabSelect={(_, data) => void app.switchEditorTab(data.value as 'tun' | 'mixed')} className="editor-tabs"><Tab disabled={app.editorBusy} value="tun">TUN</Tab><Tab disabled={app.editorBusy} value="mixed">Mixed</Tab></TabList> : null}
-      <Textarea disabled={app.editorBusy} textarea={{ className: 'editor-input' }} aria-label="Configuration JSON" className="editor-textarea" value={app.editorContent} onChange={(_, data) => app.setEditorContent(data.value)} resize="none" spellCheck={false} />
+      {/* Native disabled suppresses Fluent's indicator motion. The command guard
+          blocks busy selections; aria-disabled preserves focus and selection. */}
+      {!isMirror ? <TabList aria-label="Inbound type" selectedValue={app.editingType} onTabSelect={(_, data) => void app.switchEditorTab(data.value as 'tun' | 'mixed')} className="editor-tabs"><Tab id="inbound-tab-tun" aria-controls="inbound-panel" aria-disabled={app.editorBusy} value="tun">TUN</Tab><Tab id="inbound-tab-mixed" aria-controls="inbound-panel" aria-disabled={app.editorBusy} value="mixed">Mixed</Tab></TabList> : null}
+      <PageMotion key={app.editingType} visible appear={switchingTab}>
+        <div className="editor-panel" role={isMirror ? undefined : 'tabpanel'} id={isMirror ? undefined : 'inbound-panel'} aria-labelledby={isMirror ? undefined : `inbound-tab-${app.editingType}`} aria-busy={app.editorBusy}>
+          <Textarea disabled={app.editorBusy} textarea={{ className: 'editor-input' }} aria-label={isMirror ? 'Mirror URL' : 'Configuration JSON'} className="editor-textarea" value={app.editorContent} onChange={(_, data) => app.setEditorContent(data.value)} resize="none" spellCheck={false} />
+        </div>
+      </PageMotion>
     </ProductDialog>
-    <ProductDialog open={app.showResetConfirm} title="Confirm reset" onOpenChange={app.setShowResetConfirm} width="md" footer={<div className="dialog-actions-right"><Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowResetConfirm(false)}>Cancel</Button><Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => void app.confirmReset()}>Reset</Button></div>}>
+    <ProductDialog open={app.showResetConfirm} title="Confirm reset" onOpenChange={app.setShowResetConfirm} width="md" footer={<div className="dialog-actions-right"><Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => void app.confirmReset()}>Reset</Button><Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowResetConfirm(false)}>Cancel</Button></div>}>
       <p>Reset to default configuration?</p>
     </ProductDialog>
   </>
@@ -236,7 +247,7 @@ function ThemeColorDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   useEffect(() => {
     if (open) setDraft(app.accentColor)
   }, [app.accentColor, open])
-  return <ProductDialog open={open} title="Theme color" onOpenChange={onOpenChange} width="md" footer={<div className="dialog-actions-right"><Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => onOpenChange(false)}>Cancel</Button><Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => { void app.setThemeColor(draft); onOpenChange(false) }} disabled={draft === app.accentColor}>Apply</Button></div>}>
+  return <ProductDialog open={open} title="Theme color" onOpenChange={onOpenChange} width="md" footer={<div className="dialog-actions-right"><Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => { void app.setThemeColor(draft); onOpenChange(false) }} disabled={draft === app.accentColor}>Apply</Button><Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => onOpenChange(false)}>Cancel</Button></div>}>
     <Text weight="semibold">Preset colors</Text>
     <SwatchPicker layout="row" shape="circular" size="medium" selectedValue={draft} onSelectionChange={(_, data) => setDraft(data.selectedValue)}>
       {accentColors.map((color) => <ColorSwatch key={color.value} value={color.value} color={color.value} aria-label={color.name} />)}

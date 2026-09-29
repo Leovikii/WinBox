@@ -191,17 +191,19 @@ button.update-action-button { width: 112px; min-width: 112px; min-height: 32px; 
 .product-dialog.product-dialog-lg { width: min(90%, 720px); }
 .product-dialog.product-dialog-xl { width: min(95%, 960px); }
 .product-dialog-body.product-dialog-body { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0; max-height: calc(80vh - 2px); width: 100%; min-width: 0; min-height: 0; padding: 0; overflow: hidden; }
-.product-dialog-title.product-dialog-title { flex: 0 0 auto; min-width: 0; min-height: 60px; padding: 20px 0 0 20px; overflow: hidden; font-size: 20px; line-height: 28px; font-weight: 600; overflow-wrap: anywhere; }
+.product-dialog-title.product-dialog-title { flex: 0 0 auto; min-width: 0; min-height: 60px; padding: 20px 0 12px 20px; overflow: hidden; font-size: 20px; line-height: 28px; font-weight: 600; overflow-wrap: anywhere; }
 .product-dialog-title-action.product-dialog-title-action { margin: 16px 16px 0 8px; }
-.product-dialog-content.product-dialog-content { margin: 0; display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; min-width: 0; min-height: 0; gap: 16px; padding: 20px; overflow: auto; }
+.product-dialog-content.product-dialog-content { margin: 0; display: flex; flex: 1 1 auto; flex-direction: column; width: 100%; min-width: 0; min-height: 0; gap: 16px; padding: 0 20px 20px; overflow: auto; }
+.product-dialog-content > p { margin: 0; }
 .product-dialog-footer.product-dialog-footer { grid-column: 1 / -1; width: 100%; min-height: 68px; padding: 16px 20px; border-top: 1px solid var(--colorNeutralStroke2); background: var(--colorNeutralBackground2); }
 
 .dialog-actions-stretch, .dialog-actions-right { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; min-width: 0; }
-.dialog-actions-stretch > button { flex: 1; min-width: 0; }
+.dialog-actions-stretch > button { flex: 1; min-width: max-content; }
 .dialog-actions-right > button { min-width: 72px; }
 .product-message-bar { width: 100%; }
 
 .manage-dialog-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.manage-dialog-footer > .dialog-actions-right { width: auto; flex: 1 1 auto; }
 .profile-list-scroll { width: 100%; max-width: 100%; max-height: 40vh; }
 .profile-edit-list { display: flex; flex-direction: column; width: 100%; max-width: 100%; }
 .profile-presence { overflow: hidden; }
@@ -233,9 +235,10 @@ button.update-action-button { width: 112px; min-width: 112px; min-height: 32px; 
 
 .editor-dialog.editor-dialog { height: min(70vh, 720px); }
 .editor-dialog .product-dialog-body.product-dialog-body { height: 100%; }
-.editor-dialog .product-dialog-title-action.product-dialog-title-action { margin: 16px 16px 0 8px; }
-.editor-dialog .product-dialog-content { overflow: hidden; }
-.editor-tabs { align-self: center; }
+.editor-dialog .product-dialog-content.product-dialog-content { overflow: hidden; }
+.editor-tabs { align-self: flex-start; flex-shrink: 0; }
+.editor-panel { display: flex; flex: 1 1 auto; min-height: 0; width: 100%; }
+.mirror-dialog .editor-panel { flex: 0 0 96px; }
 .editor-textarea.editor-textarea { flex: 1 1 auto; min-height: 0; width: 100%; font: 12px/1.5 "Cascadia Mono", "Cascadia Code", Consolas, monospace; }
 .custom-color-row { display: flex; align-items: center; gap: 12px; }
 .custom-color-picker { position: relative; display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border: 1px solid var(--winbox-control-border); border-radius: 50%; background: var(--winbox-control-fill); cursor: pointer; transition: background-color 167ms cubic-bezier(0, 0, 0, 1), border-color 167ms cubic-bezier(0, 0, 0, 1); }
@@ -290,7 +293,7 @@ button.update-action-button { width: 112px; min-width: 112px; min-height: 32px; 
 .setting-control { max-width: 62%; }
 .expand-content { overflow: hidden; }
 .app-toast-body { min-width: 0; max-height: min(35vh, 240px); overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; }
-.editor-input.editor-input { font-family: var(--fontFamilyMonospace); font-size: 12px; line-height: 18px; }
+.editor-input.editor-input { min-height: 0; max-height: none; font-family: var(--fontFamilyMonospace); font-size: 12px; line-height: 18px; }
 @media (max-width: 360px) {
   .settings-card { padding: 16px; }
   .setting-row { flex-wrap: wrap; }

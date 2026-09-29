@@ -1,8 +1,8 @@
 # 前端设计与实现规范
 
-`3.0.0-beta.1` 沿用现有 Fluent UI、启动显示门控与自动连接检查 UI；本轮只同步更新交接 DTO，后端更新与退出修复及验证边界见 [审查与验证报告](review.md)。
+`3.0.0-beta.2` 恢复 inbound 标签官方指示条与内容切换动效，左对齐标签组，并统一其他弹窗的间距、按钮顺序与忙碌关闭反馈；验证边界见 [审查与验证报告](review.md)。
 
-## 本阶段布局验收补充
+## 布局验收
 
 - 收起的单行卡片应让可见标题行和控件在卡片内容盒中垂直居中；高度预算包括边框、padding、控件 root/slot 的实际高度。稳定帧中心偏差目标不超过 1 CSS px，这是产品验收公差。展开卡片仍按标题/内容分区排版。
 - 隐藏内容的布局占位与 inert/aria-hidden 分别检查；修复不得只用透明度隐藏，或靠负 margin/translateY 补偿偏移。保持下方两卡和启停中间帧几何约束。
@@ -10,7 +10,7 @@
 - Profile 收起态通过 flex 居中，并将隐藏行移出正常布局；离线状态卡使用居中内容预算。通用弹窗内容可滚动、标题可换行，只有 JSON 编辑器内容区保留专用 overflow。标题栏提示统一使用 Fluent Tooltip。浏览器 deviceScaleFactor 不替代 Windows DPI 与文字缩放实测。
 - 下拉按钮的 12/16 与模式标签的 12/16 保留为紧凑密度例外，普通设置标签继续 14/20；控件交互、焦点、禁用和高对比度仍由 Fluent 公开 root/slot 承担。
 
-alpha.4 权限交互：复用 ProductDialog、状态卡、Start 和设置行；TUN/mixed 授权后自动重启连接，取消保持未连接。开机自动连接只记录等待授权，不抢焦点或主动弹 UAC；手动启动可显示授权确认。权限等待与内核 busy/running 分离，状态以后端为准。启动按钮始终使用 Start，不因取消授权改名；普通权限 TUN/mixed 从首次启动即显示盾牌。授权弹窗采用一句说明、并排 Cancel/Continue，复用 dialog-actions-stretch。UWP 授权保留草稿，重开后重新确认；不新增权限页面或通用弹窗框架。设置页不展示权限状态行；普通权限无标识，管理员运行仅在标题栏显示可聚焦盾牌及 Fluent Tooltip。Auto connect 保持单行，标签旁的 Fluent 帮助按钮通过悬停/键盘焦点显示简短 Tooltip，不常驻说明段落。
+权限交互：复用 ProductDialog、状态卡、Start 和设置行；TUN/mixed 授权后自动重启连接，取消保持未连接。开机自动连接只记录等待授权，不抢焦点或主动弹 UAC；手动启动可显示授权确认。权限等待与内核 busy/running 分离，状态以后端为准。启动按钮始终使用 Start，不因取消授权改名；普通权限 TUN/mixed 从首次启动即显示盾牌。授权弹窗采用一句说明、并排 Continue/Cancel，复用 dialog-actions-stretch。UWP 授权保留草稿，重开后重新确认；不新增权限页面或通用弹窗框架。设置页不展示权限状态行；普通权限无标识，管理员运行仅在标题栏显示可聚焦盾牌及 Fluent Tooltip。Auto connect 保持单行，标签旁的 Fluent 帮助按钮通过悬停/键盘焦点显示简短 Tooltip，不常驻说明段落。
 
 ## 依据
 
@@ -26,8 +26,14 @@ alpha.4 权限交互：复用 ProductDialog、状态卡、Start 和设置行；T
 
 ## 组件、文字与表面
 
+- Inbound 编辑器为两个固定内容页，保留 Fluent TabList 默认 medium/transparent 样式与官方指示条，标签置于标题下、编辑器上方并靠左；去除内容区额外顶部 20px padding。左对齐是产品布局选择，不是 Windows 强制像素规则。[Windows TabView 指南](https://learn.microsoft.com/en-us/windows/apps/design/controls/tab-view)允许静态标签；[Pivot 指南](https://learn.microsoft.com/en-us/windows/apps/design/controls/pivot)已不推荐旧式 Pivot。Fluent Web TabList 不宣称与原生 WinUI TabView 完全相同。
+- 加载/保存时 Tab 使用 aria-disabled，AppContext 的同步 in-flight guard 阻止切换；不使用会令 Fluent 跳过指示条动画并清除 aria-selected 的原生 disabled。编辑器仍禁用输入；当前标签重复点击不重读配置、不清空草稿。Tab 与 tabpanel 显式关联，内容复用官方 PageMotion，减弱动效由官方 presence 及现有 CSS 处理。JSON textarea slot 去掉默认 min/max-height，随编辑区伸缩并在框内滚动。切换到另一页仍沿用重新读取配置的既有语义。
+
 - 官方 Button、Input/Textarea、Switch、Checkbox、Dropdown/Option、Dialog、MessageBar、Toaster/Toast、RadioGroup、TabList、ProgressBar、SwatchPicker、AreaChart 实际承担交互。主题 token → 公开 props/slots/motion → 必要产品样式；不依赖生成类名/私有 DOM，不复制控件，不做无用代理库。
 - `ProductDialog` 是业务弹窗组合，保留官方 focus/Escape/Portal 与离场；`ScrollArea` 复用 OverlayScrollbars。自定义颜色保留原生 `input type=color`，Cancel/Apply 操作不变。
+- 所有弹窗共用标题底部 12px、内容底部 20px、内容项间 16px 的产品间距，直接段落不再叠加浏览器 margin。固定内容弹窗与长列表保持内容滚动、底栏可达；镜像 URL 编辑使用紧凑 96px 输入区，不占用 JSON 编辑器的固定大高度。
+- 按 [Windows 对话框指南](https://learn.microsoft.com/en-us/windows/apps/design/controls/dialogs-and-flyouts/dialogs)，执行动作在左，安全关闭动作在最后（Cancel / Close / Later），保留右上角关闭和 Escape；不添加危险动作的 Enter 自动提交。日志增加底部 Close、退出选项增加 Cancel。配置管理 Add profile 与保存/取消在容纳得下时同排，窄窗口自动换行；按钮不压缩到文字所需宽度以下。
+- 共用 Dialog 保留官方 250ms 入场 / 167ms 退场与 83ms 遮罩。编辑器内容只在标签切换时播放 PageMotion，初次打开由 Dialog 动画负责。busy 同时锁定标题关闭、Escape 和遮罩关闭；UWP 保存和权限请求期间传入 busy，UWP 复选框也随保存禁用。可取消的配置加载仍允许关闭，原有业务关闭边界不扩大到全部异步操作。
 - 正文/设置标签 14/20 Regular，小标题 14/20 Semibold，辅助信息 12/16 Regular，弹窗标题 20/28 Semibold。不要缩小文字解决溢出；紧凑控件有产品密度例外，以当前实现和缩放回归为准。
 - Segoe UI Variable → Segoe UI → system-ui/sans-serif；日志用等宽回退。sentence case，保留 TUN/UWP/IPv6。普通图标用原生 16Regular，空态 24Regular，不把大图标统一缩小；纯图标按钮有可访问名称。GitHub 为单色 16px 品牌标志。
 - 通常控件 4px、菜单/Dialog 8px；产品卡片 8px。间距优先 4/8/12/16/24。单个 FluentProvider 统一浅/深/系统主题；强调色的 normal/hover/pressed/selected 必须可区分，极亮极暗自定义色仍可读。

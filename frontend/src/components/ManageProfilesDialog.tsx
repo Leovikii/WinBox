@@ -27,8 +27,8 @@ export function ManageProfilesDialog() {
         <div className="manage-dialog-footer">
           <Button ref={addButtonRef} disabled={app.isSavingProfiles} appearance="subtle" className="winbox-subtle-button" icon={<Add16Regular />} onClick={app.addNewDraftProfile}>Add profile</Button>
           <div className="dialog-actions-right">
-            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowManageProfilesModal(false)} disabled={app.isSavingProfiles}>Cancel</Button>
             <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => void app.saveManageProfiles()} disabled={!app.isManageProfilesChanged || app.isSavingProfiles} icon={app.isSavingProfiles ? <Spinner size="tiny" /> : undefined}>Save</Button>
+            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => app.setShowManageProfilesModal(false)} disabled={app.isSavingProfiles}>Cancel</Button>
           </div>
         </div>
       )}

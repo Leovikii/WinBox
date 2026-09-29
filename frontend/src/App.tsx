@@ -168,12 +168,13 @@ export default function App() {
       <ProductDialog
         open={app.permissionDialog !== null}
         title="Administrator permission"
+        busy={app.authorizing}
         onOpenChange={open => { if (!open && !app.authorizing) app.setPermissionDialog(null) }}
         footer={<div className="dialog-actions-stretch">
-          <Button appearance="secondary" disabled={app.authorizing} onClick={() => app.setPermissionDialog(null)}>Cancel</Button>
           <Button appearance="primary" disabled={app.authorizing} icon={app.authorizing ? <Spinner size="tiny" /> : undefined} onClick={() => void app.authorize()}>
             {app.authorizing ? 'Authorizing' : 'Continue'}
           </Button>
+          <Button appearance="secondary" disabled={app.authorizing} onClick={() => app.setPermissionDialog(null)}>Cancel</Button>
         </div>}
       >
         <span>{app.permissionDialog === 'uwp' ? 'Restart WinBox as administrator to edit UWP exemptions. Your selection will be kept.' : 'Restart WinBox as administrator to connect in TUN / Mixed mode.'}</span>
@@ -186,8 +187,9 @@ export default function App() {
         width="md"
         footer={(
           <div className="dialog-actions-stretch">
-            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => void confirmMinimize()}>Minimize</Button>
             <Button appearance="primary" style={dangerStyle} className="winbox-danger-button winbox-dialog-button" onClick={() => void confirmQuit()}>Quit</Button>
+            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => void confirmMinimize()}>Minimize</Button>
+            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => setShowQuitConfirm(false)}>Cancel</Button>
           </div>
         )}
       >
@@ -206,10 +208,10 @@ export default function App() {
         width="md"
         footer={(
           <div className="dialog-actions-stretch">
-            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => setShowUpdateDialog(false)}>Later</Button>
             <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" disabled={app.isChangingUpdateChannel || ['checking', 'updating'].includes(app.updateState) || ['checking', 'updating'].includes(app.programUpdateState)} onClick={() => { setShowUpdateDialog(false); openSettings(); void (kernelDialog ? app.performUpdate() : app.performProgramUpdate()) }}>
               Update now
             </Button>
+            <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => setShowUpdateDialog(false)}>Later</Button>
           </div>
         )}
       >
