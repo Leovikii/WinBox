@@ -1,6 +1,6 @@
 # 架构与开发入口
 
-`3.0.0-bata.1` 本轮维护整改已完成并获用户实机确认，交付 `dev` 后由维护者手动 PR 到 `main` 发布。修复范围及验证边界见 [审查与验证报告](review.md)。本阶段不新增产品功能或重做架构。沿用用户级 NSIS 安装、默认普通权限、TUN/mixed 按需整进程提权、用户级自启和可见自动更新；不使用服务，不开发 alpha.3 迁移或兼容逻辑。验证入口见 development.md；历史决策从 Git 查阅。
+`3.0.0-beta.1` 修正版本拼写与应用更新生命周期，交付 dev 后由维护者手动 PR 到 main 发布。验证边界见 [审查与验证报告](review.md)。沿用用户级 NSIS、默认普通权限、TUN/mixed 按需整进程提权、用户级自启和可见自动更新；不使用服务。管理员实例保留代理完成下载和验签，之后才交接普通实例安装。
 
 ## 模块
 
@@ -15,7 +15,7 @@
 | `commands.rs` | command 校验、配置/订阅/更新编排，UI/托盘共用业务入口 |
 | `runtime.rs`、`core.rs` | 操作锁、状态、流量/日志、代理恢复及 sing-box 子进程 |
 | `storage.rs`、`models.rs`、`paths.rs` | JSON 持久化、默认值、唯一数据根与受控路径 |
-| `updates.rs`、`startup.rs`、`handoff.rs` | 内核更新校验/暂存；启动参数；同账户一次性权限交接 |
+| `updates.rs`、`program_update.rs`、`startup.rs`、`handoff.rs` | 内核更新校验/暂存；启动参数；同账户一次性权限交接 |
 | `platform/windows.rs`、`platform/privileges.rs`、`platform/notifications.rs` | Windows 权限、进程身份/监听归属、用户级自启、代理、UWP、原生授权提醒 |
 
 调用方向：React → backend.ts → Rust command/runtime → 存储、内核或平台。窗口材质与 Web 主题计算分离。按实际需求解耦，不预建跨平台工厂、消息总线、长期兼容桥或第二套状态来源。

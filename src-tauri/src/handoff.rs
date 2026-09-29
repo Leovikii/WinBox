@@ -27,7 +27,9 @@ pub enum Action {
     },
     Update {
         version: String,
-        mirror: String,
+        signature: String,
+        #[serde(skip)]
+        bytes: std::sync::Arc<Vec<u8>>,
     },
 }
 impl Action {
@@ -68,6 +70,18 @@ fn timeouts(stream: &TcpStream) -> io::Result<()> {
     stream.set_write_timeout(Some(Duration::from_secs(5)))
 }
 
+fn read_update_bytes(stream: &mut impl Read) -> io::Result<Vec<u8>> {
+    let mut length = [0; 8];
+    stream.read_exact(&mut length)?;
+    let length = u64::from_le_bytes(length);
+    if length == 0 || length > crate::program_update::MAX_BYTES as u64 {
+        return Err(io::Error::other("Invalid update package size"));
+    }
+    let mut bytes = vec![0; length as usize];
+    stream.read_exact(&mut bytes)?;
+    Ok(bytes)
+}
+
 pub fn receive() -> io::Result<Option<Action>> {
     let args: Vec<String> = std::env::args().collect();
     let Some(index) = args.iter().position(|arg| arg == "--handoff") else {
@@ -92,9 +106,12 @@ pub fn receive() -> io::Result<Option<Action>> {
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(5))?;
     timeouts(&stream)?;
     write_message(&mut stream, &(std::process::id(), secret))?;
-    let action: Action = read_message(&mut stream)?;
+    let mut action: Action = read_message(&mut stream)?;
     if action.elevated() != elevated {
         return Err(io::Error::other("Incorrect handoff privileges"));
+    }
+    if let Action::Update { bytes, .. } = &mut action {
+        *bytes = std::sync::Arc::new(read_update_bytes(&mut stream)?);
     }
     let parent_process = privileges::ParentProcess::open(parent)?;
     write_message(&mut stream, &true)?;
@@ -116,6 +133,10 @@ pub async fn begin(app: AppHandle, action: Action) -> Result<(), String> {
     }
     let runtime = app.state::<crate::runtime::RuntimeState>();
     let operation = runtime.operation().await;
+    if runtime.is_exiting() {
+        state.busy.store(false, Ordering::Release);
+        return Err("WinBox is exiting".into());
+    }
     let worker = tauri::async_runtime::spawn_blocking(move || -> io::Result<TcpStream> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         listener.set_nonblocking(true)?;
@@ -138,6 +159,10 @@ pub async fn begin(app: AppHandle, action: Action) -> Result<(), String> {
                         return Err(io::Error::other("Invalid handoff response"));
                     }
                     write_message(&mut stream, &action)?;
+                    if let Action::Update { bytes, .. } = &action {
+                        stream.write_all(&(bytes.len() as u64).to_le_bytes())?;
+                        stream.write_all(bytes)?;
+                    }
                     if !read_message::<bool>(&mut stream)? {
                         return Err(io::Error::other("New instance is not ready"));
                     }
@@ -158,6 +183,10 @@ pub async fn begin(app: AppHandle, action: Action) -> Result<(), String> {
     let result = match worker {
         Ok(Ok(mut stream)) => {
             let runtime = app.state::<crate::runtime::RuntimeState>();
+            if runtime.is_exiting() {
+                state.busy.store(false, Ordering::Release);
+                return Err("WinBox is exiting".into());
+            }
             if let Err(error) = crate::commands::prepare_handoff(&app, &runtime).await {
                 state.busy.store(false, Ordering::Release);
                 return Err(error);
@@ -185,6 +214,24 @@ pub async fn begin(app: AppHandle, action: Action) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn update_handoff_has_bounded_binary_payload() {
+        let mut framed = 3_u64.to_le_bytes().to_vec();
+        framed.extend_from_slice(b"exe");
+        assert_eq!(read_update_bytes(&mut framed.as_slice()).unwrap(), b"exe");
+        for length in [0, crate::program_update::MAX_BYTES as u64 + 1, u64::MAX] {
+            assert!(read_update_bytes(&mut length.to_le_bytes().as_slice()).is_err());
+        }
+        assert!(read_update_bytes(&mut 3_u64.to_le_bytes().as_slice()).is_err());
+        let action = Action::Update {
+            version: "3.0.0-beta.1".into(),
+            signature: "signed".into(),
+            bytes: std::sync::Arc::new(b"exe".to_vec()),
+        };
+        let wire = serde_json::to_value(&action).unwrap();
+        assert!(wire.get("bytes").is_none());
+        assert!(!action.elevated());
+    }
     #[test]
     fn accepted_handoff_stream_waits_for_delayed_peer() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

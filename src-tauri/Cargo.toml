@@ -1,6 +1,6 @@
 [package]
 name = "winbox-tauri"
-version = "3.0.0-bata.1"
+version = "3.0.0-beta.1"
 description = "WinBox backend core"
 authors = ["WinBox contributors"]
 edition = "2021"
@@ -37,3 +37,6 @@ windows = { version = "=0.61.3", features = ["Win32_Security", "Win32_System_Reg
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
+
+[dev-dependencies]
+tauri = { version = "2.11.5", features = ["test"] }

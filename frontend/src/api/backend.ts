@@ -10,7 +10,7 @@ export interface ProfileDto {
   [key: string]: unknown
 }
 
-export type HandoffAction = { kind: 'connect'; tunMode: boolean; sysProxy: boolean } | { kind: 'uwp'; selected: string[]; resume?: [boolean, boolean] | null } | { kind: 'update'; version: string; mirror: string }
+export type HandoffAction = { kind: 'connect'; tunMode: boolean; sysProxy: boolean } | { kind: 'uwp'; selected: string[]; resume?: [boolean, boolean] | null } | { kind: 'update'; version: string; signature: string }
 
 export type StartupStatus = 'Detecting' | 'Standby' | 'Net Timeout' | null
 

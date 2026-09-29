@@ -1,6 +1,6 @@
 # WinBox agent 工作规则
 
-`3.0.0-bata.1` 本轮维护整改已完成，用户确认实机问题修复（含启动白屏与自动连接检查 UI），并授权交付到 `dev`。维护者手动 PR 到 `main` 并发布首个 beta；未执行的发布故障矩阵不能标为通过。当前结果及发布边界见 [审查与验证报告](docs/review.md)。不维护历史迁移台账。开发入口见 [架构](docs/architecture.md)，按改动阅读 [前端设计](docs/frontend.md)、[后端规范与契约](docs/backend.md)、[验证与发布](docs/development.md)。
+`3.0.0-beta.1` 修正版本拼写，并修复管理员更新的代理保留与下载期间退出冻结。上一轮启动白屏与自动连接检查 UI 已获用户实机确认；本轮更新链路仍需签名安装与 TUN 实机复验。当前结果及发布边界见 [审查与验证报告](docs/review.md)。不维护历史迁移台账。开发入口见 [架构](docs/architecture.md)，按改动阅读 [前端设计](docs/frontend.md)、[后端规范与契约](docs/backend.md)、[验证与发布](docs/development.md)。
 
 ## 边界
 

@@ -9,6 +9,7 @@ pub mod models;
 pub mod paths;
 #[cfg(windows)]
 pub mod platform;
+pub mod program_update;
 #[cfg(windows)]
 pub mod runtime;
 pub mod startup;
@@ -40,6 +41,13 @@ pub fn run() {
     }
 
     let minimized = startup.minimized;
+    let mut context = tauri::generate_context!();
+    if matches!(initial, Some(handoff::Action::Update { .. })) {
+        // Only the authenticated ordinary-privilege receiver uses loopback HTTP.
+        // Normal startup retains HTTPS-only endpoints; the compiled signing key is unchanged.
+        context.config_mut().plugins.0.get_mut("updater").unwrap()
+            ["dangerousInsecureTransportProtocol"] = true.into();
+    }
     let app = tauri::Builder::default()
         .manage(std::sync::Mutex::new(startup::StartupWindow::new(!minimized || startup.notification)))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -279,13 +287,22 @@ pub fn run() {
             });
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building WinBox");
     app.run(|app, event| {
-        if matches!(event, RunEvent::ExitRequested { .. }) {
+        if let RunEvent::ExitRequested { api, .. } = event {
             let runtime = app.state::<RuntimeState>().inner().clone();
-            let app_handle = (*app).clone();
-            tauri::async_runtime::block_on(commands::shutdown_runtime(&app_handle, &runtime));
+            if !runtime.exit_complete() {
+                api.prevent_exit();
+                if runtime.request_exit() {
+                    let app_handle = (*app).clone();
+                    tauri::async_runtime::spawn(async move {
+                        commands::shutdown_runtime(&app_handle, &runtime).await;
+                        runtime.finish_exit();
+                        app_handle.exit(0);
+                    });
+                }
+            }
         }
     });
 }

@@ -1464,7 +1464,12 @@ pub async fn update_kernel(
     )
     .await;
     let result = async {
-        if let Err(error) = download_file(&app, &download_url, &archive).await {
+        let download = tokio::select! {
+            biased;
+            _ = runtime.cancelled() => Err(update_cancelled()),
+            result = download_file(&app, &download_url, &archive) => result,
+        };
+        if let Err(error) = download {
             log_update_phase(
                 &runtime,
                 &app,
@@ -1613,67 +1618,115 @@ pub async fn update_program(
     runtime: State<'_, RuntimeState>,
 ) -> Result<String, AppError> {
     let result = async {
+        let tag = format!("v{}", expected_version.trim_start_matches('v'));
+        let updater = build_program_updater(&app, true, Some(&tag))?;
+        let (update, bytes) = tokio::select! {
+            biased;
+            _ = runtime.cancelled() => return Err(update_cancelled()),
+            result = download_program(&app, &runtime, updater, &mirror, &expected_version) => result?,
+        };
         if crate::platform::privileges::is_elevated()
             .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
         {
-            return crate::handoff::begin(
-                app.clone(),
-                crate::handoff::Action::Update {
-                    version: expected_version.clone(),
-                    mirror: mirror.clone(),
-                },
-            )
-            .await
-            .map(|()| "Success".to_owned())
-            .map_err(|e| AppError::detailed("handoff_failed", e));
+            crate::handoff::begin(app.clone(), crate::handoff::Action::Update {
+                version: update.version,
+                signature: update.signature,
+                bytes: Arc::new(bytes),
+            }).await.map_err(|e| AppError::detailed("handoff_failed", e))?;
+        } else {
+            install_program(&app, &runtime, update, bytes).await?;
         }
-        let tag = format!("v{}", expected_version.trim_start_matches('v'));
-        let updater = build_program_updater(&app, true, Some(&tag))?;
-        let _operation = runtime.core_operation(&app).await;
-        let mut update = updater
-            .check()
-            .await
-            .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?
-            .ok_or_else(|| {
-                AppError::new("update_not_available", "No program update is available")
-            })?;
-        ensure_update_version(&expected_version, &update.version)?;
-        update.timeout = Some(Duration::from_secs(30 * 60));
-        if !mirror.trim().is_empty() {
-            let download_url = mirrored_url(&mirror, update.download_url.as_str())?;
-            update.download_url = Url::parse(&download_url)
-                .map_err(|error| AppError::detailed("update_download_failed", error.to_string()))?;
-        }
-        let _ = app.emit("log", "Update ready. Restarting...");
-        let mut downloaded = 0_u64;
-        let mut last_progress = None;
-        let bytes = update
-            .download(
-                |chunk, total| {
-                    downloaded = downloaded.saturating_add(chunk as u64);
-                    let progress = total
-                        .and_then(|total| downloaded.checked_mul(100)?.checked_div(total))
-                        .unwrap_or(0)
-                        .min(100) as u32;
-                    if last_progress != Some(progress) {
-                        last_progress = Some(progress);
-                        let _ = app.emit("download-progress", progress);
-                    }
-                },
-                || {
-                    let _ = app.emit("download-progress", 100_u32);
-                },
-            )
-            .await
-            .map_err(|error| AppError::detailed("update_download_failed", error.to_string()))?;
-        drop(_operation);
-        update
-            .install(bytes)
-            .map_err(|error| AppError::detailed("update_install_failed", error.to_string()))?;
         Ok("Success".to_owned())
     }
     .await;
     log_failed_result(runtime.inner(), &app, "Program update", result).await
+}
+
+fn update_cancelled() -> AppError {
+    AppError::new(
+        "update_cancelled",
+        "Update cancelled because WinBox is exiting",
+    )
+}
+
+async fn download_program(
+    app: &AppHandle,
+    runtime: &RuntimeState,
+    updater: Updater,
+    mirror: &str,
+    expected_version: &str,
+) -> Result<(tauri_plugin_updater::Update, Vec<u8>), AppError> {
+    let _operation = runtime.core_operation(app).await;
+    let mut update = updater
+        .check()
+        .await
+        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?
+        .ok_or_else(|| AppError::new("update_not_available", "No program update is available"))?;
+    ensure_update_version(expected_version, &update.version)?;
+    update.timeout = Some(Duration::from_secs(30 * 60));
+    if !mirror.trim().is_empty() {
+        let download_url = mirrored_url(mirror, update.download_url.as_str())?;
+        update.download_url = Url::parse(&download_url)
+            .map_err(|error| AppError::detailed("update_download_failed", error.to_string()))?;
+    }
+    let _ = app.emit("log", "Downloading program update...");
+    let mut downloaded = 0_u64;
+    let mut last_progress = None;
+    let (size_tx, mut size_rx) = tokio::sync::mpsc::channel(1);
+    let download = update.download(
+        |chunk, total| {
+            downloaded = downloaded.saturating_add(chunk as u64);
+            if downloaded > MAX_UPDATE_BYTES || total.is_some_and(|size| size > MAX_UPDATE_BYTES) {
+                let _ = size_tx.try_send(());
+            }
+            let progress = total
+                .and_then(|total| downloaded.checked_mul(100)?.checked_div(total))
+                .unwrap_or(0)
+                .min(100) as u32;
+            if last_progress != Some(progress) {
+                last_progress = Some(progress);
+                let _ = app.emit("download-progress", progress);
+            }
+        },
+        || {
+            let _ = app.emit("download-progress", 100_u32);
+        },
+    );
+    let bytes = tokio::select! {
+        biased;
+        Some(()) = size_rx.recv() => return Err(AppError::new("update_download_failed", "Update package exceeds 512 MiB")),
+        result = download => result.map_err(|error| AppError::detailed("update_download_failed", error.to_string()))?,
+    };
+    if bytes.len() > MAX_UPDATE_BYTES as usize {
+        return Err(AppError::new(
+            "update_download_failed",
+            "Update package exceeds 512 MiB",
+        ));
+    }
+    Ok((update, bytes))
+}
+
+async fn install_program(
+    app: &AppHandle,
+    runtime: &RuntimeState,
+    update: tauri_plugin_updater::Update,
+    bytes: Vec<u8>,
+) -> Result<(), AppError> {
+    if runtime.is_exiting() {
+        return Err(update_cancelled());
+    }
+    // Once shutdown starts, finish restoring the proxy even if Quit arrives.
+    prepare_handoff(app, runtime)
+        .await
+        .map_err(|e| AppError::detailed("update_cleanup_failed", e))?;
+    if runtime.is_exiting() {
+        return Err(update_cancelled());
+    }
+    let _ = app.emit("log", "Update ready. Installing...");
+    tauri::async_runtime::spawn_blocking(move || update.install(bytes))
+        .await
+        .map_err(|e| AppError::detailed("update_install_failed", e.to_string()))?
+        .map_err(|e| AppError::detailed("update_install_failed", e.to_string()))
 }
 
 fn restore_installed_file(backup: Option<PathBuf>, target: &Path) -> Result<(), AppError> {
@@ -1698,6 +1751,9 @@ async fn start_core_impl(
     runtime: &RuntimeState,
     snapshot: &DataSnapshot,
 ) -> Result<(), AppError> {
+    if runtime.is_exiting() {
+        return Err(AppError::new("app_exiting", "WinBox is exiting"));
+    }
     if runtime.core().await.is_none() {
         runtime.restore_proxy_if_owned().await.map_err(|error| {
             AppError::detailed(
@@ -2339,6 +2395,13 @@ fn build_program_updater(
     tag: Option<&str>,
 ) -> Result<Updater, AppError> {
     let endpoint = program_update_endpoint(pre_release, tag)?;
+    program_updater_builder(app)
+        .endpoints(vec![endpoint])
+        .and_then(|builder| builder.build())
+        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))
+}
+
+fn program_updater_builder(app: &AppHandle) -> tauri_plugin_updater::UpdaterBuilder {
     let cleanup_app = app.clone();
     let cleanup_runtime = app.state::<RuntimeState>().inner().clone();
     app.updater_builder()
@@ -2349,8 +2412,6 @@ fn build_program_updater(
                 .connect_timeout(Duration::from_secs(8))
                 .read_timeout(Duration::from_secs(30))
         })
-        .endpoints(vec![endpoint])
-        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))?
         .on_before_exit(move || {
             let app = cleanup_app.clone();
             let runtime = cleanup_runtime.clone();
@@ -2360,8 +2421,6 @@ fn build_program_updater(
             .join();
             cleanup_app.cleanup_before_exit();
         })
-        .build()
-        .map_err(|error| AppError::detailed("update_check_failed", error.to_string()))
 }
 
 async fn release_response(url: &str) -> Result<reqwest::Response, AppError> {
@@ -3198,8 +3257,29 @@ pub async fn continue_handoff(app: AppHandle) -> Result<(), AppError> {
                 return Err(AppError::detailed("connect_failed", result));
             }
         }
-        Some(crate::handoff::Action::Update { version, mirror }) => {
-            update_program(app.clone(), mirror, version, app.state::<RuntimeState>()).await?;
+        Some(crate::handoff::Action::Update {
+            version,
+            signature,
+            bytes,
+        }) => {
+            let runtime = app.state::<RuntimeState>();
+            let local = crate::program_update::LocalPackage::serve(&version, &signature, bytes)
+                .await
+                .map_err(|e| AppError::detailed("update_handoff_failed", e.to_string()))?;
+            let updater = program_updater_builder(&app)
+                .no_proxy()
+                // Our NSIS template always launches after success. Never replay --handoff.
+                .restart_after_install(false)
+                .endpoints(vec![local.endpoint.clone()])
+                .and_then(|builder| builder.build())
+                .map_err(|e| AppError::detailed("update_check_failed", e.to_string()))?;
+            let (update, bytes) = tokio::select! {
+                biased;
+                _ = runtime.cancelled() => return Err(update_cancelled()),
+                result = download_program(&app, &runtime, updater, "", &version) => result?,
+            };
+            drop(local);
+            install_program(&app, &runtime, update, bytes).await?;
         }
         Some(crate::handoff::Action::Uwp {
             resume: Some((tun_mode, sys_proxy)),
