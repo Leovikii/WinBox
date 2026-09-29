@@ -927,8 +927,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [editingType, loadOverrideEditor])
 
   const switchEditorTab = useCallback(async (type: 'tun' | 'mixed') => {
-    if (!editorInFlight.current) await loadOverrideEditor(type)
-  }, [loadOverrideEditor])
+    if (!editorInFlight.current && type !== editingType) await loadOverrideEditor(type)
+  }, [editingType, loadOverrideEditor])
 
   const checkProgramUpdate = useCallback(async () => {
     if (programUpdateCheckInFlight.current || updateChannelChanging.current || programUpdateStateRef.current === 'updating') return

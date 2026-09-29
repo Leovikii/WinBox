@@ -73,6 +73,11 @@ const capture = async name => {
     return r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1 || e.scrollWidth > e.clientWidth + 2;
   }).map(e => ({ role: e.getAttribute('role'), text: e.textContent?.slice(0, 60) })));
   assert.deepEqual(badSurfaces, [], `${name}: popup stays within viewport without horizontal overflow`);
+  const unsafeFooters = await page.locator('.product-dialog-footer').evaluateAll(nodes => nodes.filter(e => e.checkVisibility()).filter(e => {
+    const buttons = [...e.querySelectorAll('button')]
+    return !/^(Cancel|Close|Later)$/.test(buttons.at(-1)?.textContent.trim())
+  }).map(e => e.textContent));
+  assert.deepEqual(unsafeFooters, [], `${name}: safe dismissal is the final footer action`);
   await page.screenshot({ path: resolve(evidence, `${name}.png`) });
 }
 const button = name => page.getByRole('button', { name, exact: true })
@@ -394,6 +399,10 @@ try {
   await page.getByRole('dialog', { name: 'Manage profiles' }).waitFor()
   await settle()
   await capture('profiles-light')
+  check('profile footer uses one row when its controls fit', await page.locator('.manage-dialog-footer button').evaluateAll(nodes => {
+    const centers=nodes.map(e=>{const r=e.getBoundingClientRect();return r.top+r.height/2})
+    return Math.max(...centers)-Math.min(...centers)<1
+  }))
   check('unchanged profile Save remains disabled', await button('Save').isDisabled())
   const count = await page.locator('.profile-presence').count()
   await button('Add profile').click()
@@ -499,6 +508,12 @@ try {
   await page.getByRole('switch', { name: 'Download proxy' }).click()
   await settle()
   check('mirror edit expands', await button('Edit proxy URL').isVisible())
+  await button('Edit proxy URL').click()
+  await settle()
+  check('mirror URL editor is compact and correctly named', await page.getByRole('dialog', {name:'Edit mirror'}).evaluate(e=>e.getBoundingClientRect().height<320) && await page.getByRole('textbox', {name:'Mirror URL'}).isVisible())
+  await capture('mirror-light')
+  await button('Cancel').click()
+  await settle()
   await page.getByRole('switch', { name: 'Download proxy' }).click()
   await settle()
   check('collapsed mirror edit is inert', await page.locator('.mirror-edit').evaluate(e => e.inert))
@@ -573,7 +588,13 @@ try {
   check('UWP All checks every official Checkbox', await page.getByRole('dialog').getByRole('checkbox').evaluateAll(nodes => nodes.length > 0 && nodes.every(e => e.checked)))
   await button('None').click()
   check('UWP None clears all checkboxes', await page.getByRole('dialog').getByRole('checkbox').evaluateAll(nodes => nodes.every(e => !e.checked)))
+  await page.evaluate(() => window.visualTest.holdNext('set_uwp_loopback_exemptions'))
+  await button('Save').click()
+  check('UWP save locks checkboxes and both close buttons', await page.getByRole('dialog').getByRole('checkbox').evaluateAll(nodes => nodes.every(e => e.disabled)) && await page.getByRole('dialog').getByRole('button', {name:'Close',exact:true}).isDisabled() && await button('Cancel').isDisabled())
   await page.keyboard.press('Escape')
+  check('UWP save cannot be dismissed by Escape', await page.getByRole('dialog', {name:'UWP loopback exemption'}).isVisible())
+  await page.evaluate(() => window.visualTest.release())
+  await page.getByRole('dialog', {name:'UWP loopback exemption'}).waitFor({state:'hidden'})
   await settle()
 
   await page.evaluate(() => window.visualTest.failNext('set_start_on_boot'))
@@ -851,7 +872,12 @@ try {
   const permissionButtons = await page.getByRole('dialog').getByRole('button').filter({ hasText: /^(Cancel|Continue)$/ }).evaluateAll(nodes => nodes.map(e => e.getBoundingClientRect().top))
   check('permission actions share one row', permissionButtons.length === 2 && Math.abs(permissionButtons[0] - permissionButtons[1]) < 1)
   check('permission dialog is compact', await page.getByRole('dialog').evaluate(e => e.getBoundingClientRect().height < 280))
+  await page.evaluate(() => window.visualTest.holdNext('authorize'))
   await page.getByRole('dialog').getByRole('button', { name: 'Continue' }).click()
+  check('authorization disables its title close action', await page.getByRole('dialog').getByRole('button', {name:'Close',exact:true}).isDisabled())
+  await page.keyboard.press('Escape')
+  check('authorization stays open while its request is pending', await page.getByRole('dialog', {name:'Administrator permission'}).isVisible())
+  await page.evaluate(() => window.visualTest.release())
   await settle()
   check('cancelled UAC keeps disconnected UI available', await page.getByRole('dialog').count() === 0 && await button('Start').isEnabled())
   check('authorization never reports a running kernel', await page.evaluate(() => !window.visualTest.state.running))
@@ -1017,6 +1043,51 @@ try {
 
   await button('Settings').click()
   const editInbound = page.locator('.setting-row').filter({ hasText: 'Inbound config' }).getByRole('button', { name: 'Edit', exact: true })
+  await editInbound.click()
+  await settle()
+  const inboundDraft = page.getByRole('textbox', { name: 'Configuration JSON' })
+  await inboundDraft.fill('{"keepDraft":true}')
+  await page.getByRole('tab', { name: 'TUN', exact: true }).click()
+  check('selecting the current inbound tab preserves its draft', await inboundDraft.inputValue() === '{"keepDraft":true}')
+  await page.evaluate(() => window.visualTest.holdNext('get_override'))
+  const inboundFrames = await page.evaluate(async () => {
+    const frames = []
+    document.querySelector('#inbound-tab-mixed').click()
+    for (let i = 0; i < 24; i++) {
+      await new Promise(requestAnimationFrame)
+      const tab = document.querySelector('#inbound-tab-mixed')
+      frames.push({ indicator: getComputedStyle(tab, '::after').transform, opacity: getComputedStyle(document.querySelector('.editor-panel')).opacity })
+    }
+    return frames
+  })
+  metrics.inboundFrames = inboundFrames
+  check('inbound indicator slides through intermediate frames during loading', new Set(inboundFrames.map(f => f.indicator)).size > 3)
+  check('inbound content has intermediate entrance frames', inboundFrames.some(f => Number(f.opacity) > 0 && Number(f.opacity) < 1))
+  check('loading keeps selected tab semantics and blocks editing', await page.getByRole('tab', { name: 'Mixed', exact: true }).getAttribute('aria-selected') === 'true' && await inboundDraft.isDisabled())
+  const inboundReads = await page.evaluate(() => window.visualTest.calls.filter(c => c === 'get_override').length)
+  await page.evaluate(() => document.querySelector('#inbound-tab-tun').click())
+  check('busy inbound tab cannot start another read', await page.evaluate(() => window.visualTest.calls.filter(c => c === 'get_override').length) === inboundReads)
+  await page.evaluate(() => window.visualTest.release())
+  await settle()
+  await page.getByRole('tab', { name: 'Mixed', exact: true }).focus()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('Space')
+  await settle()
+  check('inbound keyboard selection labels its panel', await page.getByRole('tabpanel', { name: 'TUN', exact: true }).isVisible())
+  check('inbound tabs sit directly below the title and align with the editor', await page.locator('.editor-dialog').evaluate(e => {
+    const title = e.querySelector('.product-dialog-title').getBoundingClientRect(), tabs = e.querySelector('.editor-tabs').getBoundingClientRect(), panel = e.querySelector('.editor-panel').getBoundingClientRect()
+    return Math.abs(tabs.top-title.bottom) <= 1 && Math.abs(tabs.left-panel.left) <= 1 && panel.height > 100
+  }))
+  await capture('inbound-tabs-beta2')
+  await page.setViewportSize({ width: 320, height: 360 })
+  await settle()
+  check('low-height inbound text stays within its editor and can scroll', await inboundDraft.evaluate(e => {
+    const input=e.getBoundingClientRect(), frame=e.closest('.editor-textarea').getBoundingClientRect()
+    return input.top >= frame.top && input.bottom <= frame.bottom && e.scrollHeight > e.clientHeight
+  }))
+  await page.setViewportSize({ width: 400, height: 720 })
+  await button('Cancel').click()
+  await settle()
   await page.evaluate(() => window.visualTest.holdNext('get_override'))
   await editInbound.click()
   await page.getByRole('dialog', { name: 'Edit inbound' }).waitFor()

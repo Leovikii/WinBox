@@ -20,8 +20,9 @@ export function AppLogsDialog() {
       onOpenChange={live.setShowLogModal}
       footer={(
         <div className="dialog-actions-right">
-          <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => void live.clearAppLog()}>Clear</Button>
           <Button appearance="primary" className="winbox-primary-button winbox-dialog-button" onClick={() => void live.copyAppLog()}>{live.copyState === 'COPIED!' ? 'Copied!' : 'Copy'}</Button>
+          <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => void live.clearAppLog()}>Clear</Button>
+          <Button appearance="secondary" className="winbox-secondary-button winbox-dialog-button" onClick={() => live.setShowLogModal(false)}>Close</Button>
         </div>
       )}
     >

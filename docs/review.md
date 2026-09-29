@@ -1,47 +1,37 @@
-# 3.0.0-beta.1 更新修复与验证
+# 3.0.0-beta.2 UI 修复与验证
 
-日期：2026-09-29。当前工作基于 dev。按用户要求将版本拼写从 bata 改为 beta，已删除 GitHub 预发布 v3.0.0-bata.1（release ID 398864435）和远端/本地同名 tag。此次仅交付 dev；维护者手动 PR 到 main，原工作流负责签名发布，不自行创建新 Release。
+日期：2026-09-29。基于 dev，版本同步 frontend、Rust、Tauri 与锁文件。本轮不创建 PR、合并或发布。
 
 ## 修复结果
 
-| 问题 | 根因与修复 |
-| --- | --- |
-| 管理员更新提前降权，TUN 代理丢失 | 原 update_program 在下载前交接，交接会停止内核、恢复代理。现在管理员实例先通过官方 updater 下载并验签，再通过现有受认证交接传递版本、签名和最多512MiB的包；接收方就绪后才停止原内核。普通实例通过内存回环源再次交给官方 updater 验签、安装，无须再次访问 GitHub |
-| 更新下载中退出冻结 | ExitRequested 在 UI 线程 block_on shutdown，而下载持有同一 operation 锁。现在退出通知下载取消，异步获取锁并停内核/恢复代理，清理结束才真正退出；重复 Quit 只启动一次清理。应用元数据/下载及内核下载可取消，内核替换/恢复阶段不强行中断 |
-| 更新交接后重启参数 | 官方 updater 默认重放当前进程参数。交接安装禁用此重放，由既有 NSIS 模板正常自动启动，避免携带失效的 --handoff 令牌 |
-| 本轮新增测试触发 TaskDialogIndirect 弹窗 | 官方 updater mock 测试令测试 EXE 引用了 Windows 对话框代码。tauri-build 原先仅给 bin 链接资源，现在 updater 集成测试目标也链接既有 Windows manifest，包含 Common Controls v6；修复后完整测试成功运行 |
+- Inbound 标签切换时，加载配置同步设置 editorBusy，原生 disabled 使 Fluent Tab 跳过指示条动画并移除 aria-selected。改用 aria-disabled 保留焦点、选中语义和官方动画，AppContext 的同步 in-flight guard 继续阻止重复操作，输入和保存仍受忙碌保护。
+- 内容页复用官方 PageMotion；补齐 Tab / tabpanel 关联。重复选择当前标签不再重新读取配置或清空草稿。切到另一标签仍按既有语义重新读取对应配置。
+- 两个固定内容页继续使用 Fluent TabList 默认 medium/transparent 样式。标签组靠左、置于标题下和编辑器上，删除编辑器内容区额外顶部 20px padding，保留 16px 内容间距和底部操作区。
+- Windows 指南允许静态标签，旧式 Pivot 已不推荐。左对齐和间距调整属于此弹窗的产品布局选择，不宣称是微软强制像素要求，也不宣称 Fluent Web 与原生 WinUI 完全等同。来源见 [前端规范](frontend.md)。
 
-保留普通权限安装、NSIS、内置签名公钥、同账户/会话/进程身份校验及现有 closeBehavior（tray/quit/ask）。交接失败不回退管理员安装。无新增生产依赖，测试只启用已有 Tauri 的 test feature。
+## 共用弹窗检查与优化
 
-官方 updater 没有公开离线 Update 构造接口，所以普通接收实例使用仅绑定127.0.0.1、随机令牌路径、两次请求、60秒上限的内存 HTTP 源。只有已通过认证的更新交接接收实例在内存配置中允许 HTTP endpoint；正常启动仍要求 HTTPS，签名公钥不变。本地请求禁用系统代理，源随作用域结束/取消关闭，无任意文件、命令或可执行路径接口。二进制交接不经 JSON，不落盘暂存。
+检查 11 类弹窗：配置管理、日志、退出、主题色、镜像 URL、Inbound、重置确认、UWP、应用更新、内核更新、管理员授权。
+
+- 共用官方 Dialog 的入场、退场、遮罩动画正常，无需自建动画。Inbound 内容只在切换标签时播放，初次打开不叠加内容入场。
+- 删除内容顶部额外 padding 和直接段落的默认 margin；标题底部统一 12px。修复配置管理操作组 width:100% 导致的无必要换行；按钮在窄窗口保持文本所需最小宽度。
+- 按 Windows ContentDialog 指南排列执行动作与最右侧安全关闭动作；日志增加底部 Close、退出增加 Cancel。右上角关闭、Escape 和原有功能保留，不添加危险动作的 Enter 快捷提交。
+- 镜像 URL 编辑改为紧凑宽度和 96px 输入区，保留验证、Reset、Save、Cancel。
+- busy 在共用 Dialog 中锁定标题关闭、Escape/遮罩关闭；UWP 保存时同步锁定复选框，管理员请求等待时关闭按钮显示禁用。可取消的配置加载仍可关闭，不改变提权协议或后端权限行为。
 
 ## 本轮验证
 
-| 检查 | 结果 |
-| --- | --- |
-| Rust 常规测试 | 56项单元测试及1项官方 updater 集成测试通过，0失败；2个需真实内核/UWP环境的专项未执行 |
-| 新增回归 | 退出取消长期等待并释放操作锁、重复退出/迟到取消订阅；交接包长度/截断/序列化边界；回环元数据与包一致、错误路径及关闭；实际官方 updater 读取本地包并拒绝错误签名 |
-| 前端生产构建与 Node 逻辑检查 | 通过；保留既有大于500kB的 bundle 提示 |
-| Clippy / rustfmt | all-targets Clippy（-D warnings）及 rustfmt通过 |
-| Windows x64 未签名 NSIS | 构建通过；本机测试包不得作为正式发布资产 |
-| UI 真实渲染 | 本轮未改布局/控件，仅更新交接 DTO，未重跑浏览器视觉矩阵 |
+- 前端生产构建、Node 逻辑检查通过；保留既有大于 500kB bundle 提示。
+- Edge 生产 bundle + 官方 MockIPC 完整回归：340 项通过，0 失败。新增检查实际指示条中间帧、内容入场中间帧、慢加载期间选中语义与防重入、重复点击保留草稿、键盘切换、布局对齐；既有保存失败、迟到响应、关闭/重开回归通过。另增底栏安全关闭顺序、配置管理单排布局、镜像编辑器紧凑尺寸、UWP 保存与授权等待关闭保护检查。
+- 额外 inbound 视觉矩阵：浅/深色 × 320/400/480 宽度、减弱动效/高对比度、200% CSS zoom、320×360 低高度通过；已检查截图。低高度 textarea 使用公开 slot 去除默认 52px min-height 和 260px max-height，内容在框内滚动。截图、视频和采样数据位于忽略的 frontend/test-results，不入库。
+- 11 类弹窗 × 浅/深色 × 320/400/480 宽度共 66 组：布局、按钮文字不溢出、稳定截图、入场/退场帧采样通过。另加 11 类弹窗各自的 320×360 低高度、高对比度/减弱动效、200% CSS zoom 检查，共 99 组通过；减弱动效没有透明度渐变中间帧。具体证据为忽略的 dialog-*-matrix.json 与 dialog-*.png。
+- 无 Rust 行为改动，未重跑 Rust 测试、Clippy、NSIS 构建或签名发布。本轮浏览器验证不替代 Windows WebView2、原生 DPI / 文字缩放和实机验收。
+- 已按用户要求构建 Windows x64 单 EXE 测试版（Tauri --no-bundle，locked/offline）：`src-tauri/target/test/WinBox-3.0.0-beta.2.exe`，19.11 MiB；ProductVersion/FileVersion 均为 3.0.0-beta.2，PE Machine 0x8664。SHA-256：E0E5D0618424B7CED2266F459CD99BFDE296FB3E73AECC3781A0451A3720851B。前端资源内嵌，沿用现有用户数据与系统 WebView2；用户已于 2026-09-29 确认此测试版实机验证通过，并授权提交、推送 dev；此 EXE 不作为正式发布资产。
 
-新增官方 updater 测试首次因测试 EXE manifest 缺失而未能运行；修复后的57项结果才计为通过。测试不启动安装器、不使用用户配置、不改变系统代理。
+本轮 UI 修复及弹窗优化已获用户实机验收。用户未逐项列出 DPI、文字缩放及完整发布矩阵，故不将总体确认扩大为所有专项均已执行。由维护者稍后手动 PR 到 main，原工作流负责发布。
 
-## 实机验收与限制
+## 延续的实机验收边界
 
-用户已使用最新源码 a3e3173、仅将版本覆盖为3.0.0-alpha.1的测试 EXE 实测，确认更新功能正常，检查更新报错问题已解决。远端 beta.1 更新元数据和安装包返回HTTP 200，签名资产与元数据一致；原报错未在最新源码复现，按旧 alpha 客户端问题关闭，未进一步证实旧版的具体网络失败根因。
+用户已确认此前启动白屏、自动连接检查 UI，以及最新源码低版本测试包更新功能正常；旧 alpha 的检查更新报错已关闭。管理员实例仍先通过官方 updater 下载并验签，再交接普通实例安装；退出仍异步取消下载并清理内核/代理。
 
-上一轮启动白屏和自动连接检查 UI 也已获用户确认。上述总体更新确认不等于下列专项均逐项执行；发布时按改动范围复验：
-
-1. 管理员 TUN/mixed 依赖代理联网，确认下载/验签完成前不降权、不停内核；交接后无外网也可安装并普通权限重启。
-2. 慢下载时右上角关闭并选择 Quit、直接 Quit、托盘 Quit，确认窗口不冻结、下载取消、内核退出并恢复属于 WinBox 的代理；tray 模式关闭只隐藏并继续下载。
-3. 交接失败、包截断、错误签名、普通权限安装失败、安装后重启、数据保留及失败重试。
-4. Windows 原生窗口/托盘、跨账户拒绝、WebView2缺失、异常断电等发布矩阵按开发指南执行。
-
-回归测试中的错误签名拒绝不等于真实签名安装成功；异步退出与锁取消测试不等于已经观察到原生窗口退出。未签名 NSIS 构建也不证明官方 updater 能安装它。不得将未执行矩阵标为通过。
-
-本轮用户验收测试程序：%TEMP%/winbox-update-check/WinBox.exe（源码a3e3173，版本覆盖3.0.0-alpha.1）。target目录的同名EXE也已被低版本构建覆盖；原beta.1 EXE备份为%TEMP%/winbox-update-check/WinBox-beta.1-original.exe。
-本机未签名安装包：src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/WinBox_3.0.0-beta.1_x64-setup.exe。
-
-安装包 SHA-256：E590949725BD4E96ADC1BE6EF3660A2540EF0F6AB7E83DC56A9B0EA6A645C882。该安装包构建时的EXE ProductVersion/FileVersion为3.0.0-beta.1，PE Machine为0x8664；低版本测试未重建此安装包。
+上述总体确认不等于发布矩阵逐项执行。管理员 TUN/mixed 依赖代理下载、断网交接安装、慢下载时窗口/托盘退出、交接失败、错误签名、数据保留、原生托盘/自启、跨账户拒绝和 WebView2 缺失等仍按 [开发指南](development.md) 验收。浏览器 MockIPC 不能替代这些实机结论。

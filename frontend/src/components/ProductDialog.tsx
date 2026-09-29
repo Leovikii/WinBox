@@ -41,7 +41,7 @@ export function ProductDialog({ open, title, onOpenChange, children, footer, wid
           if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true })
         }
       },
-    }} open={open} onOpenChange={(_, data) => onOpenChange(data.open)} modalType="modal">
+    }} open={open} onOpenChange={(_, data) => { if (!busy) onOpenChange(data.open) }} modalType="modal">
       <DialogSurface backdropMotion={{ duration: 83, exitDuration: 83 }} className={`product-dialog product-dialog-${width} ${className}`}>
         <DialogBody className="product-dialog-body">
           <DialogTitle
