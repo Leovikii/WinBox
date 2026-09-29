@@ -63,7 +63,7 @@ cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --no-sign -- --
 
 产物：`src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe`。主程序 PE Machine 应为0x8664；NSIS引导器的x86 stub不是应用架构。禁止ARM64/MSI/portable；本地未签名包只供测试，不入库、不作为Release输入。
 
-`.github/workflows/build-and-release.yml` 在 NSIS 构建前执行前端逻辑/Rust 测试、rustfmt、all-targets Clippy 与 Edge 生产 UI 检查，失败阻止后续构建发布。新增 workflow 尚未在远端 Actions 执行，本地通过不等同远端通过。
+`.github/workflows/build-and-release.yml` 在 NSIS 构建前执行前端逻辑/Rust 测试、rustfmt、all-targets Clippy 与 Edge 生产 UI 检查，失败阻止后续构建发布。UI 失败时上传 `winbox-ui-failure`（结果 JSON、截图、视频，保留7天）。检查 Tooltip 的键盘访问必须使用真实 Tab 导航，不以程序化 focus 等同键盘操作；Fluent 会按输入方式抑制部分程序化聚焦提示。完整本地通过不等同远端通过。
 
 发行以该 workflow 为准：PR到main构建未签名x64 NSIS；合并main后使用Actions secrets签名并发布 `*-setup.exe`、同名 `.sig`、`latest.json`（windows-x86_64-nsis），不生成 updater ZIP。密钥不入库，版本含连字符发布为prerelease。检查 Rust/tauri/frontend版本一致，锁文件齐全；不得跳过签名或从本地包代替CI资产。
 

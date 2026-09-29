@@ -17,7 +17,7 @@
 | U1 | Profile 收起卡垂直偏移 | 收起行 flex 居中；移除冲突 min-height；隐藏第二行移出正常布局；离线状态卡一并校准 | 浅深 × 320/400/480：标题行/控件与卡片中心偏差≤1 CSS px；四卡中间帧不变量继续通过；已查看截图 |
 | U2 | 弹窗 overflow 冲突、标题裁切、提示控件不一致 | 普通弹窗正文可滚动，标题可换行，JSON 编辑器保留专用 overflow；标题栏使用 Fluent Tooltip；保留有依据的紧凑字体例外 | 320×360 授权/UWP 弹窗标题与页脚可达；浅深、键盘、焦点、菜单、高对比度、reduced-motion 和长日志回归通过 |
 | C1 | 无用状态、颜色模块、包装和重复样式 | 删除 controlColor/modeColors、前端 Show 包装、empty-card-muted、未使用按钮选择器、重复 compact-select/listbox 样式及单调用薄包装；适配新 Clippy 的等价切片写法 | 引用复查、构建、Clippy、逻辑/UI 回归通过；保留 Rust show、图标生成器、许可证与诊断命令 |
-| V1 | 发布工作流缺少质量门禁 | 原 workflow 增加前端逻辑、Rust、rustfmt、all-targets Clippy、Edge 生产 UI 检查；Node 固定24.14.0，测试 Playwright 固定1.58.2 | 对应本地命令已执行；远端 Actions 未运行，不宣称 CI 已通过 |
+| V1 | 发布工作流缺少质量门禁 | 原 workflow 增加前端逻辑、Rust、rustfmt、all-targets Clippy、Edge 生产 UI 检查；Node 固定24.14.0，测试 Playwright 固定1.58.2；UI失败上传截图/视频/JSON | 远端日志98902951928在Tooltip可见性等待处超时；已修正测试键盘操作，本地326项通过，远端修复结果待重跑 |
 
 新增档案 IPC 已同步 Rust、TypeScript、调用者、MockIPC 与后端文档。重置直接持久化、切页读取配置等原有语义保持；未增加草稿保存协议或跨文件事务。
 
@@ -88,6 +88,8 @@ StartupWindow 为单次显示门控：普通启动请求展示；最小化启动
 第6项签名升级依赖维护者签名的测试资产，本地 --no-sign 包不能证明 updater 验签和真实升级成功，不通过发布线上版本来替代测试。跨账户拒绝、WebView2 缺失和异常断电等发布故障矩阵仍需专门环境，不在本轮自动完成声明中。
 
 ## 保留边界
+
+- CI日志98902951928中的失败位于Auto connect Tooltip第二个宽度场景，等待30秒超时，发生于打包前。测试原先通过blur/focus模拟键盘，依赖Fluent/Keyborg的输入方式与焦点时序；现用真实Shift+Tab/Tab返回触发器并校验焦点，同时移开鼠标，保留悬停/Escape/布局断言。管理员提示同类检查一并修正。没有改产品Tooltip或放宽超时。旧超时在本机未稳定重现；新路径已通过完整326项回归和4倍CPU降速下9轮变宽/聚焦/关闭专项，仍需远端确认。
 
 - 多 JSON、订阅内容与索引依旧是顺序提交，不是跨文件事务；不保证所有断电场景。失败恢复材料不能作为无用文件盲删。
 - 日志拥塞会有明确丢弃/截断提示；8KiB 是输入字节预算，非法 UTF-8 替换后的字符串可能更大但仍有界。

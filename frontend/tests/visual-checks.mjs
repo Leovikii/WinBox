@@ -76,6 +76,14 @@ const capture = async name => {
   await page.screenshot({ path: resolve(evidence, `${name}.png`) });
 }
 const button = name => page.getByRole('button', { name, exact: true })
+const focusWithKeyboard = async target => {
+  // Fluent suppresses programmatic focus tooltips outside keyboard modality.
+  // Seed the position, then return with real keyboard navigation.
+  await target.focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  assert(await target.evaluate(e => e === document.activeElement), 'keyboard navigation returns to tooltip trigger')
+}
 const dismissError = async () => {
   await button('Dismiss error').click()
   await button('Dismiss error').waitFor({ state: 'hidden' })
@@ -892,7 +900,7 @@ try {
   await page.goto(baseURL)
   const adminStatus = page.getByRole('img', { name: 'Running as administrator' })
   await adminStatus.waitFor()
-  await adminStatus.focus()
+  await focusWithKeyboard(adminStatus)
   await page.getByRole('tooltip').filter({ hasText: 'Running as administrator' }).waitFor()
   check('administrator indicator is keyboard accessible without changing titlebar height', await page.locator('.winbox-titlebar').evaluate(e => e.getBoundingClientRect().height === 48))
   await button('Settings').click()
@@ -901,8 +909,9 @@ try {
   for (const width of [320, 400, 480]) {
     await page.setViewportSize({ width, height: 720 })
     const help = button('About auto connect')
-    await help.blur()
-    await help.focus()
+    // Clear inherited keyboard modality so this also covers mouse-to-keyboard use.
+    await page.mouse.click(8, 80)
+    await focusWithKeyboard(help)
     await page.getByRole('tooltip').filter({ hasText: 'TUN / Mixed needs approval to auto-connect.' }).waitFor()
     check(`auto-connect help stays in its compact row at ${width}`, await help.locator('xpath=ancestor::*[contains(@class,"setting-row")]').evaluate(e => e.getBoundingClientRect().height <= 44))
     await settle()
@@ -1081,6 +1090,7 @@ try {
   check('no uncaught browser errors', failures.length === 0)
 } catch (error) {
   failures.push(error.message)
+  await page.screenshot({ path: resolve(evidence, 'failure.png') }).catch(() => {})
   throw error
 } finally {
   await writeFile(resolve(evidence, 'visual-results.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sourceSha256, browser: browser.version(), build: initScript ? 'production' : 'development', results, failures, metrics, viewport: '400x720 / 320x640', evidence: 'Browser fixture with Tauri mock; not a Windows WebView2/IPC pass' }, null, 2))

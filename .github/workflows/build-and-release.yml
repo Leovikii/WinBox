@@ -93,6 +93,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Check production UI in Edge
+        id: ui_checks
         shell: pwsh
         run: |
           $browserTools = Join-Path $env:RUNNER_TEMP 'winbox-browser-tests'
@@ -112,6 +113,15 @@ jobs:
           } finally {
             if (-not $preview.HasExited) { Stop-Process -Id $preview.Id }
           }
+
+      - name: Upload UI failure evidence
+        if: failure() && steps.ui_checks.outcome == 'failure'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: winbox-ui-failure
+          path: frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Install Tauri CLI
         if: steps.tauri_cli_cache.outputs.cache-hit != 'true'
