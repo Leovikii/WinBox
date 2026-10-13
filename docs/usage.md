@@ -6,7 +6,7 @@
 
 Download the Windows AMD64/x64 installer from [Releases](https://github.com/Leovikii/WinBox/releases). ARM64 is not supported. The installer uses your Windows account and opens WinBox when installation finishes. WebView2 is required; the installer offers its installation if missing.
 
-The default install location is `%LOCALAPPDATA%\Programs\WinBox`. Check for application and sing-box core updates in Settings. Enable **Pre-release updates** if you want beta releases. Application updates preserve user data.
+The default install location is `%LOCALAPPDATA%\Programs\WinBox`. Check for application and sing-box core updates in Settings. Enable **Pre-release updates** to include beta releases alongside stable releases; the highest semantic version wins, so 3.0.0 supersedes 3.0.0-rc.1. Disable it to check stable releases only. Application updates preserve user data.
 
 WinBox 3.0 requires **sing-box 1.14 or newer**. Update an older core in Settings before connecting.
 

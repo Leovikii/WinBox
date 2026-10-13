@@ -40,6 +40,7 @@
 | OverlayScrollbars / React 0.5.6 | [官方项目](https://github.com/KingSora/OverlayScrollbars)，MIT；Fluent 无等价滚动区，保留成熟实现 |
 | Tauri 2.11.5、updater 2.11.0 | [Tauri](https://github.com/tauri-apps/tauri)、官方插件，MIT/Apache-2.0；opener/single-instance 复用官方实现 |
 | windows 0.61.3 | [微软 windows-rs](https://github.com/microsoft/windows-rs)，MIT/Apache-2.0，微软持续维护；复用已锁定版本，启用 Security/Registry/Threading/Shell/Environment 及 Data_Xml_Dom/UI_Notifications 绑定，不增加依赖；平台操作留在 Windows 边界，通知在 UI 线程创建，其余阻塞操作放工作线程 |
+| semver 1.0.28 | [dtolnay/semver](https://github.com/dtolnay/semver)，MIT/Apache-2.0，Tauri/updater 已使用且持续维护；复用锁定版本作为直接依赖，比较 Release 标签的 SemVer 优先级，忽略非法标签，不自行实现解析器 |
 | Tokio、reqwest、serde、sha2、zip | 异步进程/网络/JSON/完整性及归档处理；不用 shell 插件管理动态下载的内核 |
 
 原生 API protobuf 使用 [prost 0.14.4](https://github.com/tokio-rs/prost)（[版本信息](https://crates.io/crates/prost/0.14.4)），Apache-2.0，tokio-rs 项目持续维护；直接依赖精确锁定，prost-derive 同为0.14.4。只声明上游 StartedService 的所需字段，未知字段由 prost 跳过，不引入 protoc 构建依赖。网络与取消复用 reqwest/Tokio，移除不再使用的 tokio-tungstenite。上游 RPC 字段来源为 sing-box daemon/started_service.proto，协议限制见后端规范；未来上游字段变更须同步核对并回归。

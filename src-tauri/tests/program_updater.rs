@@ -2,9 +2,10 @@ use std::sync::Arc;
 use winbox_backend::program_update::LocalPackage;
 
 #[tokio::test]
-async fn official_updater_checks_local_package_and_rejects_invalid_signature() {
+async fn official_updater_upgrades_rc_to_stable_and_rejects_invalid_signature() {
     use tauri_plugin_updater::UpdaterExt;
     let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+    context.package_info_mut().version = semver::Version::parse("3.0.0-rc.1").unwrap();
     let config: serde_json::Value =
         serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
     let mut updater_config = config["plugins"]["updater"].clone();
@@ -19,7 +20,7 @@ async fn official_updater_checks_local_package_and_rejects_invalid_signature() {
         .build(context)
         .unwrap();
     let local = LocalPackage::serve(
-        "99.0.0",
+        "3.0.0",
         "invalid signature",
         Arc::new(b"tampered package".to_vec()),
     )
@@ -37,7 +38,7 @@ async fn official_updater_checks_local_package_and_rejects_invalid_signature() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(update.version, "99.0.0");
+    assert_eq!(update.version, "3.0.0");
     let mut received = 0;
     assert!(update
         .download(|length, _| received += length, || {})

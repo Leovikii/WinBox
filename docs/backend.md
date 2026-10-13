@@ -61,13 +61,13 @@
 - 内核：下载/校验/候选检查→停止→备份替换→按原状态启动/确认ready→清理；失败恢复旧内核/配置，恢复材料不能提前删。
 - 应用更新交接：安装包仅在内存中，经现有受认证交接传递；普通实例使用只绑定127.0.0.1、随机令牌路径、两次请求/60秒上限的临时 HTTP 源将包交给官方 updater 重新验签。仅此已认证接收实例在内存中允许 HTTP endpoint，普通启动仍要求 HTTPS，编译内置公钥不变；本地请求 no_proxy，无外网请求、无磁盘缓存、无任意路径/命令。安装后由现有 NSIS 模板自动启动，不重放一次性 --handoff 参数。
 - 退出：ExitRequested 立即 prevent_exit，单次通知下载取消并异步停止内核/恢复代理，完成后再次退出；UI 线程不等待操作锁。应用元数据/下载等待、内核下载可取消；开始内核替换/恢复后须完成清理，不强行中断提交。窗口关闭仍遵循 tray/quit/ask 设置。
-- 应用：官方 updater 2.11.0，沿用 pre_release 选择 GitHub 稳定/预发布；无 latest.json 表示该通道无可用更新。Tauri 更新签名 NSIS + .sig + latest.json，不使用自制 helper/portable ZIP；安装前统一 shutdown 停流量、内核、恢复代理。
+- 应用：官方 updater 2.11.0，pre_release 关闭只检查 GitHub 正式版，开启包含正式版和测试版并选择最高语义版本；无 latest.json 表示该通道无可用更新。Tauri 更新签名 NSIS + .sig + latest.json，不使用自制 helper/portable ZIP；安装前统一 shutdown 停流量、内核、恢复代理。
 - 日志为本地时间；app.log 10MiB轮转保留5份；启动清空当前 app/kernel 会话日志，记录 Application started/shutdown。
 
 应用更新说明仅取自与 updater 目标版本匹配的 GitHub Release body；不读取 latest.json.notes。正文缺失或版本不匹配时返回说明及目标 Release 链接，不影响可用更新。发布工作流不再将日志复制到 latest.json。
 
 `check_update` 与 `check_program_update` 均返回 `{version, changelog}`；内核日志取 sing-box 对应 Release 正文，缺失时提供 Release 链接。`update_kernel` 接受可空 `expectedVersion`（仅首次安装省略），`update_program` 接受必填 `expectedVersion`；下载前验证指定 Release/updater 元数据版本与确认版本一致，不安装未经确认的版本。
 
-网络请求：预发布按单条分页搜索（最多30条、总查询30秒），稳定版直接取 latest；安装按已确认版本 tag 请求，不随 latest 漂移。程序已为相同版本时跳过 updater 元数据请求。元数据请求20秒，连接8秒，读取停滞30秒；订阅总时限120秒，安装包总时限30分钟。应用/内核仅在整数进度变化时通知前端。保留系统代理、下载镜像、大小限制、验签/摘要与回滚；不缓存 Release 正文，保证重新检查可读取修改。
+网络请求：包含测试版时每页100条扫描发布列表，按 SemVer 选最高版本（忽略草稿和非法版本；最多30页、总查询30秒，超限明确报错而不返回不完整候选），关闭时直接取正式版 latest；安装按已确认版本 tag 请求，不随 latest 漂移。程序已为相同版本时跳过 updater 元数据请求。元数据请求20秒，连接8秒，读取停滞30秒；订阅总时限120秒，安装包总时限30分钟。应用/内核仅在整数进度变化时通知前端。保留系统代理、下载镜像、大小限制、验签/摘要与回滚；不缓存 Release 正文，保证重新检查可读取修改。
 
 新增档案契约：`add_profile({id,name,url}) -> ProfileDto`，id 是前端草稿的稳定 UUID，Rust 再次校验 UUID/受控路径。相同 id/name/url 重试返回已保存档案，不重复添加；同 id 不同内容拒绝。TypeScript AddProfile 使用异常结果处理，全部调用者及 MockIPC 同步。其他字符串结果命令保持原契约，不进行无关全量改造。
