@@ -55,6 +55,7 @@ pub struct CoreProcess {
     child: Child,
     executable: PathBuf,
     output: Option<CoreOutput>,
+    pub dashboard_url: Result<Option<String>, String>,
 }
 
 impl CoreProcess {
@@ -99,6 +100,7 @@ impl CoreProcess {
             child,
             executable,
             output: Some(CoreOutput { receiver, dropped }),
+            dashboard_url: Ok(None),
         })
     }
 
@@ -128,13 +130,9 @@ impl CoreProcess {
         secret: Option<&str>,
         deadline: Duration,
     ) -> io::Result<()> {
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_millis(500))
-            .build()
-            .map_err(Error::other)?;
-        let url = format!("http://{address}/version");
+        let api =
+            crate::native_api::Api::new(format!("http://{address}"), secret.map(str::to_owned))
+                .map_err(Error::other)?;
         let ready = async {
             loop {
                 if let Some(status) = self.try_wait()? {
@@ -145,23 +143,15 @@ impl CoreProcess {
                 let pid = self
                     .id()
                     .ok_or_else(|| Error::other("sing-box has no process ID"))?;
-                if owns_tcp_listener(pid, address)? {
-                    let mut request = client.get(&url);
-                    if let Some(secret) = secret {
-                        request = request.bearer_auth(secret);
-                    }
-                    if let Ok(response) = request.send().await {
-                        if response.status().is_success() {
-                            if let Ok(body) = response.json::<serde_json::Value>().await {
-                                if body.get("version").and_then(|v| v.as_str()).is_some()
-                                    && self.try_wait()?.is_none()
-                                    && owns_tcp_listener(pid, address)?
-                                {
-                                    return Ok(());
-                                }
-                            }
-                        }
-                    }
+                if owns_tcp_listener(pid, address)?
+                    && matches!(
+                        timeout(Duration::from_millis(500), api.version()).await,
+                        Ok(Ok(_))
+                    )
+                    && self.try_wait()?.is_none()
+                    && owns_tcp_listener(pid, address)?
+                {
+                    return Ok(());
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
@@ -169,7 +159,7 @@ impl CoreProcess {
         timeout(deadline, ready).await.map_err(|_| {
             Error::new(
                 ErrorKind::TimedOut,
-                "Timed out waiting for sing-box control API readiness",
+                "Timed out waiting for sing-box native API readiness (requires sing-box 1.14 or newer; check API authentication)",
             )
         })?
     }
@@ -322,16 +312,27 @@ mod tests {
             let authenticated = String::from_utf8_lossy(&request[..length])
                 .to_ascii_lowercase()
                 .contains("authorization: bearer fixture-secret");
-            let (status, body) = if authenticated {
-                ("200 OK", r#"{"version":"fixture"}"#)
+            use prost::Message;
+            let version = crate::native_api::Version {
+                version: "fixture".into(),
+            }
+            .encode_to_vec();
+            let mut body = vec![0];
+            body.extend_from_slice(&(version.len() as u32).to_be_bytes());
+            body.extend(version);
+            let trailer = b"grpc-status: 0\r\n";
+            body.push(128);
+            body.extend_from_slice(&(trailer.len() as u32).to_be_bytes());
+            body.extend(trailer);
+            if authenticated {
+                let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/grpc-web+proto\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = stream.write_all(&body);
             } else {
-                ("401 Unauthorized", "{}")
-            };
-            let _ = write!(
-                stream,
-                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                );
+            }
         }
     }
 
@@ -363,7 +364,8 @@ mod tests {
             } else {
                 address
             };
-            let config = serde_json::json!({"log":log, "experimental":{"clash_api":{"external_controller":controller,"secret":"fixture-secret"}}});
+            let listener: SocketAddr = controller.parse().unwrap();
+            let config = serde_json::json!({"log":log, "services":[{"type":"api","listen":listener.ip().to_string(),"listen_port":listener.port(),"secret":"fixture-secret"}]});
             std::fs::write(directory.join("config.json"), config.to_string()).unwrap();
             let start = std::time::Instant::now();
             let mut core = CoreProcess::start(&directory).await.unwrap();
@@ -380,6 +382,125 @@ mod tests {
         std::fs::remove_dir_all(directory).unwrap();
     }
 
+    #[tokio::test]
+    #[ignore = "requires WINBOX_TEST_CORE; only local proxy traffic, never system proxy/TUN"]
+    async fn real_native_api_panels_and_traffic() {
+        use crate::native_api::{self, Api};
+        use serde_json::json;
+        let directory =
+            std::env::temp_dir().join(format!("winbox-native-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(directory.join("panel")).unwrap();
+        std::fs::copy(
+            std::env::var_os("WINBOX_TEST_CORE").unwrap(),
+            directory.join("sing-box.exe"),
+        )
+        .unwrap();
+        std::fs::write(directory.join("panel/index.html"), "x".repeat(128 * 1024)).unwrap();
+        for kind in ["clash", "native", "both"] {
+            let native_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let clash_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let mixed_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let native_address = native_listener.local_addr().unwrap();
+            let clash_address = clash_listener.local_addr().unwrap();
+            let mixed_address = mixed_listener.local_addr().unwrap();
+            let mut config = json!({"log":{"disabled":true},"inbounds":[{"type":"mixed","listen":"127.0.0.1","listen_port":mixed_address.port(),"set_system_proxy":false}],"outbounds":[{"type":"direct","tag":"direct"}],"route":{"final":"direct"}});
+            if kind != "clash" {
+                config["services"] = json!([{"type":"api","listen":"127.0.0.1","listen_port":native_address.port(),"secret":"native-secret","dashboard":"panel"}]);
+            }
+            if kind != "native" {
+                config["experimental"] = json!({"clash_api":{"external_controller":clash_address.to_string(),"secret":"clash-secret","external_ui":"panel"}});
+            }
+            let saved = config.clone();
+            let (address, secret) = native_api::prepare(&mut config).unwrap();
+            assert_eq!(config["experimental"], saved["experimental"]);
+            let panel = native_api::dashboard_url(&config).unwrap().unwrap();
+            if kind == "clash" {
+                assert_eq!(panel, format!("http://{clash_address}/ui/"));
+            } else {
+                assert_eq!(panel, format!("http://{native_address}/"));
+            }
+            std::fs::write(directory.join("config.json"), config.to_string()).unwrap();
+            drop((native_listener, clash_listener, mixed_listener));
+            let mut core = CoreProcess::start(&directory).await.unwrap();
+            core.wait_ready(address, secret.as_deref(), Duration::from_secs(10))
+                .await
+                .unwrap();
+            let api = Api::new(format!("http://{address}"), secret).unwrap();
+            assert!(api.version().await.unwrap().version.starts_with("1."));
+            let wrong = Api::new(format!("http://{address}"), Some("wrong-secret".into())).unwrap();
+            assert!(timeout(Duration::from_secs(2), wrong.version())
+                .await
+                .unwrap()
+                .is_err());
+            let direct = reqwest::Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(3))
+                .build()
+                .unwrap();
+            let response = direct.get(&panel).send().await.unwrap();
+            assert!(response.status().is_success());
+            assert_eq!(response.bytes().await.unwrap().len(), 128 * 1024);
+            if kind != "native" {
+                assert_eq!(
+                    direct
+                        .get(format!("http://{clash_address}/"))
+                        .send()
+                        .await
+                        .unwrap()
+                        .status(),
+                    401
+                );
+            }
+            let mut stream = api.subscribe().await.unwrap();
+            assert!(
+                timeout(Duration::from_secs(3), stream.status())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap()
+                    .traffic_available
+            );
+            let proxy = reqwest::Client::builder()
+                .no_proxy()
+                .proxy(reqwest::Proxy::http(format!("http://{mixed_address}")).unwrap())
+                .timeout(Duration::from_secs(3))
+                .build()
+                .unwrap();
+            assert_eq!(
+                proxy
+                    .get(&panel)
+                    .send()
+                    .await
+                    .unwrap()
+                    .bytes()
+                    .await
+                    .unwrap()
+                    .len(),
+                128 * 1024
+            );
+            let mut observed = false;
+            for _ in 0..3 {
+                let status = timeout(Duration::from_secs(3), stream.status())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap();
+                if status.downlink > 0 && status.uplink > 0 {
+                    observed = true;
+                    break;
+                }
+            }
+            assert!(
+                observed,
+                "native API must measure local mixed proxy bytes for {kind}"
+            );
+            drop(stream);
+            core.stop().await.unwrap();
+            assert!(core.try_wait().unwrap().is_some());
+            println!("Native monitoring, authentication, panel redirect and nonzero traffic passed: {kind}");
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     fn child(address: SocketAddr, mode: &str) -> CoreProcess {
         let executable = std::env::current_exe().unwrap();
         let child = Command::new(&executable)
@@ -396,6 +517,7 @@ mod tests {
             child,
             executable,
             output: None,
+            dashboard_url: Ok(None),
         }
     }
 

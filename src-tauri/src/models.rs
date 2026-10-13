@@ -11,13 +11,14 @@ pub const DEFAULT_TUN_CONFIG: &str = r#"{
   ],
   "mtu": 9000,
   "auto_route": true,
-  "strict_route": true
+  "strict_route": true,
+  "auto_redirect": false
 }"#;
 
 pub const DEFAULT_MIXED_CONFIG: &str = r#"{
   "type": "mixed",
   "tag": "mixed-in",
-  "listen": "0.0.0.0",
+  "listen": "127.0.0.1",
   "listen_port": 7893,
   "set_system_proxy": true
 }"#;
@@ -81,7 +82,7 @@ pub struct GlobalSettings {
     #[serde(default = "default_auto_connect_state")]
     pub auto_connect_state: String,
     #[serde(default)]
-    // Legacy settings round-trip only; Task Scheduler is the autostart authority.
+    // Legacy settings round-trip only; the current-user Run registry entry is the autostart authority.
     pub start_on_boot: bool,
     #[serde(default = "default_close_behavior")]
     pub close_behavior: String,

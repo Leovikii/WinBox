@@ -1,6 +1,6 @@
 # 架构与开发入口
 
-当前版本 `3.0.0-beta.2` 已由维护者确认发布。验证边界见 [审查与验证报告](review.md)。沿用用户级 NSIS、默认普通权限、TUN/mixed 按需整进程提权、用户级自启和可见自动更新；不使用服务。管理员实例保留代理完成下载和验签，之后才交接普通实例安装。
+当前版本 `3.0.0`，要求 sing-box 1.14+；rc.1 单 EXE 已通过维护者实机验收，正式发布等待 main 工作流。验证边界见 [审查与验证报告](review.md)。沿用用户级 NSIS、默认普通权限、TUN/mixed 按需整进程提权、用户级自启和可见自动更新；不使用服务。管理员实例保留代理完成下载和验签，之后才交接普通实例安装。
 
 ## 模块
 
@@ -14,6 +14,7 @@
 | `src-tauri/src/lib.rs`、`main.rs` | 组装、插件、窗口/托盘、应用生命周期 |
 | `commands.rs` | command 校验、配置/订阅/更新编排，UI/托盘共用业务入口 |
 | `runtime.rs`、`core.rs` | 操作锁、状态、流量/日志、代理恢复及 sing-box 子进程 |
+| `native_api.rs` | 原生 gRPC-Web 版本/网速、运行配置 API 与面板地址解析 |
 | `storage.rs`、`models.rs`、`paths.rs` | JSON 持久化、默认值、唯一数据根与受控路径 |
 | `updates.rs`、`program_update.rs`、`startup.rs`、`handoff.rs` | 内核更新校验/暂存；启动参数；同账户一次性权限交接 |
 | `platform/windows.rs`、`platform/privileges.rs`、`platform/notifications.rs` | Windows 权限、进程身份/监听归属、用户级自启、代理、UWP、原生授权提醒 |
@@ -24,7 +25,7 @@
 
 - Windows x64，普通权限 manifest，WebView2；NSIS 当前用户安装到 `%LOCALAPPDATA%\Programs\WinBox`，数据根为 `appLocalDataDir()`，通常 `%LOCALAPPDATA%\com.leovikii.winbox`。
 - `config/{settings,state,profiles}.json` 与 `config/overrides/{tun,mixed}.json`；`profiles/` 保存订阅；`core/` 保存 sing-box、生成配置和内核日志；根目录 app.log/轮转日志与 system-proxy.json 按需产生。
-- 安装目录不写用户数据。暂存/备份仅服务更新、原子替换和恢复，不保留无用途目录。alpha.4 只支持全新安装，不扫描、迁移或兼容旧版安装/数据/自启任务；手动清理步骤见 [用户指南](usage.md)。
+- 安装目录不写用户数据。暂存/备份仅服务更新、原子替换和恢复，不保留无用途目录。旧 alpha.3 及更早版本只支持全新安装，不扫描、迁移或兼容旧版安装/数据/自启任务；手动清理步骤见 [用户指南](usage.md)。
 - 应用更新走官方 Tauri updater；内核下载/替换是独立流程。具体边界见 [后端](backend.md)，构建及发布见 [开发指南](development.md)。
 
 ## 当前技术选择
@@ -39,6 +40,8 @@
 | OverlayScrollbars / React 0.5.6 | [官方项目](https://github.com/KingSora/OverlayScrollbars)，MIT；Fluent 无等价滚动区，保留成熟实现 |
 | Tauri 2.11.5、updater 2.11.0 | [Tauri](https://github.com/tauri-apps/tauri)、官方插件，MIT/Apache-2.0；opener/single-instance 复用官方实现 |
 | windows 0.61.3 | [微软 windows-rs](https://github.com/microsoft/windows-rs)，MIT/Apache-2.0，微软持续维护；复用已锁定版本，启用 Security/Registry/Threading/Shell/Environment 及 Data_Xml_Dom/UI_Notifications 绑定，不增加依赖；平台操作留在 Windows 边界，通知在 UI 线程创建，其余阻塞操作放工作线程 |
-| Tokio、reqwest、tokio-tungstenite、serde、sha2、zip | 异步进程/网络/JSON/完整性及归档处理；不用 shell 插件管理动态下载的内核 |
+| Tokio、reqwest、serde、sha2、zip | 异步进程/网络/JSON/完整性及归档处理；不用 shell 插件管理动态下载的内核 |
+
+原生 API protobuf 使用 [prost 0.14.4](https://github.com/tokio-rs/prost)（[版本信息](https://crates.io/crates/prost/0.14.4)），Apache-2.0，tokio-rs 项目持续维护；直接依赖精确锁定，prost-derive 同为0.14.4。只声明上游 StartedService 的所需字段，未知字段由 prost 跳过，不引入 protoc 构建依赖。网络与取消复用 reqwest/Tokio，移除不再使用的 tokio-tungstenite。上游 RPC 字段来源为 sing-box daemon/started_service.proto，协议限制见后端规范；未来上游字段变更须同步核对并回归。
 
 GitHub 标志来自 [primer/octicons](https://github.com/primer/octicons)，MIT 原文在 `frontend/src/assets/github.LICENSE`。不打包微软系统字体。图标生成器在 `frontend/src/assets/icon-builder/`，托盘 SVG/ICO 和 README 截图仍有用途，不属于清理对象。
