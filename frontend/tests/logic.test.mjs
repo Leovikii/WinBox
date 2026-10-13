@@ -1,5 +1,6 @@
 import { appendLog } from '../src/utils/logUtils.ts'
 import assert from 'node:assert/strict'
+import { isNewerVersion } from '../src/utils/versionCompare.ts'
 import { brandRamp, createWinBoxTheme, luminance } from '../src/theme.ts'
 import { appendTraffic, emptyTrafficHistory } from '../src/utils/trafficHistory.ts'
 
@@ -53,3 +54,9 @@ assert.match(renderChangelog('```\n:memo:\n```'), /<pre><code>:memo:/)
 assert.match(renderChangelog('[:memo:](https://example.com/:memo:)'), /href="https:\/\/example.com\/:memo:">📝<\/a>/)
 assert.match(renderChangelog(':unknown_emoji:'), /:unknown_emoji:/)
 assert.match(renderChangelog(':constructor:'), /:constructor:/)
+
+assert(isNewerVersion('v3.0.0', '3.0.0-rc.1'))
+assert(isNewerVersion('v3.1.0-rc.10', '3.1.0-rc.2'))
+assert(!isNewerVersion('v3.0.0-rc.1', '3.0.0'))
+assert(!isNewerVersion('v3.0.0', '3.0.0'))
+console.log('PASS: stable supersedes RC; numeric prereleases; no downgrade or equal-version update')

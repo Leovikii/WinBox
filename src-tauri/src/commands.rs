@@ -191,6 +191,8 @@ struct ReleaseInfo {
     #[serde(default)]
     prerelease: bool,
     #[serde(default)]
+    draft: bool,
+    #[serde(default)]
     assets: Vec<ReleaseAsset>,
 }
 
@@ -2414,19 +2416,21 @@ async fn release_by_version(repo: &str, version: &str) -> Result<ReleaseInfo, Ap
 
 async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, AppError> {
     if !pre_release {
-        return release_response(&format!("{repo}/releases/latest"))
+        let release = release_response(&format!("{repo}/releases/latest"))
             .await?
             .json()
             .await
             .map_err(|error| {
                 AppError::detailed("network_error", format!("Release data is invalid: {error}"))
-            });
+            })?;
+        return select_release(vec![release], false);
     }
-    // Bound the whole scan, not just each page. Usually the first release matches.
+    // GitHub release order is not semantic version order (e.g. maintenance releases).
     tokio::time::timeout(Duration::from_secs(30), async {
+        let mut candidates = Vec::new();
         for page in 1..=30 {
             let releases: Vec<ReleaseInfo> =
-                release_response(&format!("{repo}/releases?per_page=1&page={page}"))
+                release_response(&format!("{repo}/releases?per_page=100&page={page}"))
                     .await?
                     .json()
                     .await
@@ -2436,24 +2440,35 @@ async fn latest_release(repo: &str, pre_release: bool) -> Result<ReleaseInfo, Ap
                             format!("Release data is invalid: {error}"),
                         )
                     })?;
-            if releases.is_empty() {
-                break;
-            }
-            if let Ok(release) = select_pre_release(releases) {
-                return Ok(release);
+            let last_page = releases.len() < 100;
+            candidates.extend(releases);
+            if last_page {
+                return select_release(candidates, true);
             }
         }
-        Err(AppError::new("update_check_failed", "No pre-release found"))
+        Err(AppError::new(
+            "update_check_failed",
+            "Release lookup exceeded page limit",
+        ))
     })
     .await
     .map_err(|_| AppError::new("network_error", "Release lookup timed out"))?
 }
 
-fn select_pre_release(releases: Vec<ReleaseInfo>) -> Result<ReleaseInfo, AppError> {
+fn select_release(
+    releases: Vec<ReleaseInfo>,
+    include_pre_release: bool,
+) -> Result<ReleaseInfo, AppError> {
     releases
         .into_iter()
-        .find(|release| release.prerelease)
-        .ok_or_else(|| AppError::new("update_check_failed", "No pre-release found"))
+        .filter(|release| !release.draft && (include_pre_release || !release.prerelease))
+        .filter_map(|release| {
+            let version = semver::Version::parse(release.tag_name.trim_start_matches('v')).ok()?;
+            (include_pre_release || version.pre.is_empty()).then_some((version, release))
+        })
+        .max_by(|(left, _), (right, _)| left.cmp_precedence(right))
+        .map(|(_, release)| release)
+        .ok_or_else(|| AppError::new("update_check_failed", "No valid release found"))
 }
 
 fn ensure_update_version(expected: &str, actual: &str) -> Result<(), AppError> {
@@ -2749,7 +2764,7 @@ mod tests {
     use super::{
         current_time_string, http_client, install_staged_file, is_hex_color, limit_log_lines,
         mirrored_url, program_update_endpoint, release_has_updater_metadata, requested_mode,
-        restore_installed_file, select_pre_release, staged_profile_path, window_theme, AppPaths,
+        restore_installed_file, select_release, staged_profile_path, window_theme, AppPaths,
         DataSnapshot, Effect, Profile, ReleaseInfo, Theme, HTTP_USER_AGENT,
     };
     use super::{ensure_update_version, program_changelog};
@@ -2866,19 +2881,50 @@ mod tests {
     }
 
     #[test]
-    fn pre_release_lookup_skips_stable_releases() {
-        let releases: Vec<ReleaseInfo> = serde_json::from_value(json!([
-            {"tag_name":"v3.0.0","prerelease":false},
-            {"tag_name":"v3.0.0-alpha.2","prerelease":true},
-            {"tag_name":"v3.0.0-alpha.1","prerelease":true}
-        ]))
-        .expect("release list");
-        assert_eq!(
-            select_pre_release(releases)
-                .expect("latest pre-release")
-                .tag_name,
-            "v3.0.0-alpha.2"
-        );
+    fn release_selection_includes_stable_and_uses_semantic_precedence() {
+        for (values, include_pre_release, expected) in [
+            (
+                json!([
+                    {"tag_name":"v3.0.0-rc.1","prerelease":true},
+                    {"tag_name":"v3.0.0","prerelease":false}
+                ]),
+                true,
+                "v3.0.0",
+            ),
+            (
+                json!([
+                    {"tag_name":"v3.0.1","prerelease":false},
+                    {"tag_name":"v3.1.0-rc.2","prerelease":true},
+                    {"tag_name":"v3.1.0-rc.10","prerelease":true},
+                    {"tag_name":"v9.0.0","draft":true},
+                    {"tag_name":"invalid"}
+                ]),
+                true,
+                "v3.1.0-rc.10",
+            ),
+            (
+                json!([
+                    {"tag_name":"v3.1.0-rc.1","prerelease":true},
+                    {"tag_name":"v3.0.0","prerelease":false}
+                ]),
+                false,
+                "v3.0.0",
+            ),
+            (
+                json!([{"tag_name":"v3.0.0","prerelease":false}]),
+                true,
+                "v3.0.0",
+            ),
+        ] {
+            let releases = serde_json::from_value(values).unwrap();
+            assert_eq!(
+                select_release(releases, include_pre_release)
+                    .unwrap()
+                    .tag_name,
+                expected
+            );
+        }
+        assert!(select_release(Vec::new(), true).is_err());
     }
 
     #[test]
@@ -3007,15 +3053,21 @@ mod tests {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
+        let first_page = serde_json::to_string(&vec![
+            json!({"tag_name":"v1.1.0-alpha.1","prerelease":true});
+            100
+        ])
+        .unwrap();
         let server = tokio::spawn(async move {
             for (path, body) in [
+                ("/releases?per_page=100&page=1", first_page.as_str()),
                 (
-                    "/releases?per_page=1&page=1",
-                    r#"[{"tag_name":"v1.0.0","prerelease":false}]"#,
+                    "/releases?per_page=100&page=2",
+                    r#"[{"tag_name":"v1.1.0","prerelease":false}]"#,
                 ),
                 (
-                    "/releases?per_page=1&page=2",
-                    r#"[{"tag_name":"v1.1.0-alpha.1","prerelease":true}]"#,
+                    "/releases/latest",
+                    r#"{"tag_name":"v1.1.0","prerelease":false}"#,
                 ),
                 (
                     "/releases/tags/v1.1.0-alpha.1",
@@ -3043,13 +3095,17 @@ mod tests {
             }
         });
         let release = super::latest_release(&base, true).await.unwrap();
-        assert_eq!(release.tag_name, "v1.1.0-alpha.1");
+        assert_eq!(release.tag_name, "v1.1.0");
+        assert_eq!(
+            super::latest_release(&base, false).await.unwrap().tag_name,
+            "v1.1.0"
+        );
         assert_eq!(
             super::release_by_version(&base, "1.1.0-alpha.1")
                 .await
                 .unwrap()
                 .tag_name,
-            release.tag_name
+            "v1.1.0-alpha.1"
         );
         assert_eq!(
             super::download_bytes(&format!("{base}/profile"), 32)
