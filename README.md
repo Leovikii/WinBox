@@ -1,6 +1,6 @@
 # <img src="frontend/src/assets/icon-builder/src/tray.svg" width="32" alt=""> WinBox
 
-A Windows desktop client for [sing-box](https://github.com/SagerNet/sing-box), with a Fluent interface and simple proxy controls.
+A Windows desktop client for [sing-box](https://github.com/SagerNet/sing-box), with a Fluent interface and simple proxy controls. WinBox 3.0 requires sing-box **1.14 or newer**.
 
 **[Download for Windows x64](https://github.com/Leovikii/WinBox/releases)** · [User guide](docs/usage.md) · [Report an issue](https://github.com/Leovikii/WinBox/issues)
 
@@ -15,6 +15,7 @@ A Windows desktop client for [sing-box](https://github.com/SagerNet/sing-box), w
 - **Smart auto-connect** — Checks network access and connects when needed. Start minimized at sign-in, or choose Always / Off.
 - **Profiles and updates** — Manage subscription URLs and download or update the sing-box core from the app.
 - **Fluent design** — Light, dark, and system themes, with live traffic and connection logs.
+- **Web dashboards** — Open the native sing-box or Clash API dashboard configured by your profile; live traffic uses the native API.
 - **UWP support** — Manage loopback exemptions for Microsoft Store apps.
 
 ## Get started

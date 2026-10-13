@@ -162,9 +162,15 @@ mockIPC(async (command, args: any) => {
       if (state.activeProfile?.id === args.id) state.activeProfile = null as any
       return undefined
     case 'get_override': return overrideSnapshot
-    case 'get_default_override': return '{\n  "inbounds": []\n}'
-    case 'save_override': overrides[args.name] = args.content; return undefined
-    case 'reset_override': overrides[args.name] = '{\n  "inbounds": []\n}'; return undefined
+    case 'get_default_override': return JSON.stringify({ type: args.name })
+    case 'save_override': {
+      const value = JSON.parse(args.content)
+      if (!value || typeof value !== 'object' || Array.isArray(value) || value.type !== args.name) {
+        throw { code: 'invalid_override_json', message: `Inbound must be a JSON object with type '${args.name}'` }
+      }
+      overrides[args.name] = args.content; return undefined
+    }
+    case 'reset_override': overrides[args.name] = JSON.stringify({ type: args.name }); return undefined
     case 'get_uwp_apps': return [
       { sid: 'test-1', displayName: 'Windows application', packageName: 'Microsoft.Example_1.0_x64', isExempt: false },
       { sid: 'test-2', displayName: '长名称应用程序与缩放检查', packageName: 'Microsoft.LongPackageName_1.0.0_x64', isExempt: true },

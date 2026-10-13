@@ -2,10 +2,8 @@ use crate::core::{CoreOutput, CoreProcess};
 use crate::paths::AppPaths;
 use crate::platform::windows::{read_system_proxy, restore_system_proxy, SystemProxySettings};
 use chrono::Local;
-use futures_util::StreamExt;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
 use std::collections::VecDeque;
 use std::fs;
 use std::io;
@@ -16,13 +14,6 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout, Duration};
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::{
-    client::IntoClientRequest,
-    http::{header::HeaderValue, Request},
-    Message,
-};
-
 const MAX_KERNEL_LOG_LINES: usize = 5_000;
 const MAX_APP_LOG_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_APP_LOG_ARCHIVES: usize = 5;
@@ -328,116 +319,32 @@ impl RuntimeState {
         let state = self.clone();
         let app = app.clone();
         let task = tokio::spawn(async move {
-            let ws_url = traffic_url(&api_url);
-            let mut failed_attempts = 0_u32;
-            loop {
-                let request = match traffic_request(&ws_url, secret.as_deref()) {
-                    Ok(request) => request,
-                    Err(error) => {
-                        let _ = state
-                            .append_app_log(
-                                &app,
-                                "ERROR",
-                                &format!("Traffic WebSocket request is invalid: {error}"),
-                            )
-                            .await;
-                        return;
-                    }
-                };
-                let connection = tokio::select! {
-                    _ = &mut cancelled => return,
-                    result = timeout(TRAFFIC_CONNECT_TIMEOUT, connect_async(request)) => result,
-                };
-                let mut socket = match connection {
-                    Ok(Ok((socket, _))) => {
-                        if failed_attempts > 0 {
-                            let _ = state
-                                .append_app_log(
-                                    &app,
-                                    "INFO",
-                                    "Traffic WebSocket connected after retry",
-                                )
-                                .await;
-                        }
-                        failed_attempts = 0;
-                        socket
-                    }
-                    Ok(Err(error)) => {
-                        failed_attempts = failed_attempts.saturating_add(1);
-                        if failed_attempts == 1 || failed_attempts.is_multiple_of(10) {
-                            let _ = state
-                                .append_app_log(
-                                    &app,
-                                    "WARN",
-                                    &format!(
-                                        "Traffic WebSocket connection failed (attempt {failed_attempts}): {error}"
-                                    ),
-                                )
-                                .await;
-                        }
-                        tokio::select! {
-                            _ = &mut cancelled => return,
-                            _ = sleep(TRAFFIC_RETRY_DELAY) => continue,
-                        }
-                    }
-                    Err(_) => {
-                        failed_attempts = failed_attempts.saturating_add(1);
-                        if failed_attempts == 1 || failed_attempts.is_multiple_of(10) {
-                            let _ = state
-                                .append_app_log(
-                                    &app,
-                                    "WARN",
-                                    &format!(
-                                        "Traffic WebSocket connection timed out (attempt {failed_attempts})"
-                                    ),
-                                )
-                                .await;
-                        }
-                        tokio::select! {
-                            _ = &mut cancelled => return,
-                            _ = sleep(TRAFFIC_RETRY_DELAY) => continue,
-                        }
-                    }
-                };
-
-                let mut invalid_payload_reported = false;
-                loop {
-                    tokio::select! {
-                        _ = &mut cancelled => {
-                            let _ = socket.close(None).await;
-                            return;
-                        }
-                        message = socket.next() => match message {
-                            Some(Ok(Message::Text(text))) => {
-                                if let Some(payload) = traffic_payload(text.as_ref()) {
-                                    let _ = app.emit("traffic-update", payload);
-                                } else if !invalid_payload_reported {
-                                    invalid_payload_reported = true;
-                                    let _ = state
-                                        .append_app_log(
-                                            &app,
-                                            "WARN",
-                                            "Traffic WebSocket returned an invalid payload",
-                                        )
-                                        .await;
-                                }
-                            }
-                            Some(Ok(Message::Close(_))) | None => break,
-                            Some(Ok(_)) => {}
-                            Some(Err(error)) => {
-                                let _ = state
-                                    .append_app_log(
-                                        &app,
-                                        "WARN",
-                                        &format!("Traffic WebSocket disconnected: {error}"),
-                                    )
-                                    .await;
-                                break;
-                            }
-                        }
-                    }
+            let api = match crate::native_api::Api::new(api_url, secret) {
+                Ok(api) => api,
+                Err(error) => {
+                    let _ = state.append_app_log(&app, "ERROR", &error).await;
+                    return;
                 }
-
+            };
+            let mut failures = 0_u32;
+            loop {
+                let session = async {
+                    let mut stream = timeout(TRAFFIC_CONNECT_TIMEOUT, api.subscribe())
+                        .await
+                        .map_err(|_| "Native API connection timed out".to_owned())??;
+                    loop {
+                        let status = stream
+                            .status()
+                            .await?
+                            .ok_or("Native API traffic stream ended")?;
+                        failures = 0;
+                        let _ = app.emit("traffic-update", traffic_payload(status));
+                    }
+                };
+                let result: Result<(), String> = tokio::select! {
+                    _ = &mut cancelled => return,
+                    result = session => result,
+                };
                 let _ = app.emit(
                     "traffic-update",
                     TrafficUpdate {
@@ -445,8 +352,15 @@ impl RuntimeState {
                         download: 0,
                     },
                 );
-                if state.stop_requested() {
-                    return;
+                failures = failures.saturating_add(1);
+                if failures == 1 || failures.is_multiple_of(10) {
+                    if let Err(error) = result {
+                        let _ = state.append_app_log(&app, "WARN", &error).await;
+                    }
+                }
+                tokio::select! {
+                    _ = &mut cancelled => return,
+                    _ = sleep(TRAFFIC_RETRY_DELAY) => {}
                 }
             }
         });
@@ -548,47 +462,20 @@ pub struct TrafficUpdate {
     pub download: i64,
 }
 
-fn traffic_url(api_url: &str) -> String {
-    let api_url = api_url.trim_end_matches('/');
-    let api_url = api_url
-        .strip_prefix("http://0.0.0.0")
-        .map(|rest| format!("http://127.0.0.1{rest}"))
-        .or_else(|| {
-            api_url
-                .strip_prefix("https://0.0.0.0")
-                .map(|rest| format!("https://127.0.0.1{rest}"))
-        })
-        .unwrap_or_else(|| api_url.to_owned());
-    let mut url = api_url;
-    if let Some(rest) = url.strip_prefix("http://") {
-        url = format!("ws://{rest}");
-    } else if let Some(rest) = url.strip_prefix("https://") {
-        url = format!("wss://{rest}");
+fn traffic_payload(status: crate::native_api::Status) -> TrafficUpdate {
+    TrafficUpdate {
+        upload: if status.traffic_available {
+            status.uplink.max(0)
+        } else {
+            0
+        },
+        download: if status.traffic_available {
+            status.downlink.max(0)
+        } else {
+            0
+        },
     }
-    format!("{url}/traffic")
 }
-
-fn traffic_request(url: &str, secret: Option<&str>) -> Result<Request<()>, String> {
-    let mut request = url
-        .to_owned()
-        .into_client_request()
-        .map_err(|error| error.to_string())?;
-    if let Some(secret) = secret {
-        let value =
-            HeaderValue::try_from(format!("Bearer {secret}")).map_err(|error| error.to_string())?;
-        request.headers_mut().insert("Authorization", value);
-    }
-    Ok(request)
-}
-
-fn traffic_payload(text: &str) -> Option<TrafficUpdate> {
-    let value: Value = serde_json::from_str(text).ok()?;
-    Some(TrafficUpdate {
-        upload: value.get("up")?.as_i64()?,
-        download: value.get("down")?.as_i64()?,
-    })
-}
-
 fn rotate_app_log(path: &Path) -> io::Result<()> {
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
@@ -637,8 +524,8 @@ pub(crate) fn local_time_string(with_seconds: bool) -> String {
 mod tests {
     use super::{
         app_log_archive_path, load_proxy_state, local_time_string, persist_proxy_state,
-        rotate_app_log, traffic_payload, traffic_request, traffic_url, AppPaths,
-        PersistedProxyState, RuntimeState, MAX_APP_LOG_BYTES,
+        rotate_app_log, traffic_payload, AppPaths, PersistedProxyState, RuntimeState,
+        MAX_APP_LOG_BYTES,
     };
     use crate::platform::windows::SystemProxySettings;
     use std::fs;
@@ -823,38 +710,15 @@ mod tests {
     }
 
     #[test]
-    fn traffic_url_maps_wildcard_controller_to_loopback() {
-        assert_eq!(
-            traffic_url("http://0.0.0.0:9090"),
-            "ws://127.0.0.1:9090/traffic"
-        );
-        assert_eq!(
-            traffic_url("https://0.0.0.0:9090/"),
-            "wss://127.0.0.1:9090/traffic"
-        );
-    }
-
-    #[test]
-    fn traffic_payload_and_auth_request_keep_contract() {
-        assert_eq!(
-            traffic_payload(r#"{"up":123,"down":456}"#)
-                .expect("traffic payload")
-                .upload,
-            123
-        );
-        assert!(traffic_payload(r#"{"up":"123","down":456}"#).is_none());
-
-        let request = traffic_request("ws://127.0.0.1:9090/traffic", Some("test-secret"))
-            .expect("traffic request");
-        assert!(request.headers().contains_key("sec-websocket-key"));
-        assert_eq!(
-            request
-                .headers()
-                .get("authorization")
-                .expect("authorization")
-                .to_str()
-                .expect("header text"),
-            "Bearer test-secret"
-        );
+    fn native_traffic_keeps_bytes_per_second_and_unavailable_contract() {
+        let mut status = crate::native_api::Status {
+            traffic_available: true,
+            uplink: 123,
+            downlink: 456,
+        };
+        assert_eq!(traffic_payload(status.clone()).upload, 123);
+        assert_eq!(traffic_payload(status.clone()).download, 456);
+        status.traffic_available = false;
+        assert_eq!(traffic_payload(status).upload, 0);
     }
 }

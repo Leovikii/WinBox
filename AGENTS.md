@@ -1,6 +1,6 @@
 # WinBox agent 工作规则
 
-`3.0.0-beta.2` 已由维护者确认发布，UI 修复及弹窗优化已通过实机验收。当前验证结论及边界见 [审查与验证报告](docs/review.md)。不维护历史迁移台账；历史从 Git 查阅。开发入口见 [架构](docs/architecture.md)，按改动阅读 [前端设计](docs/frontend.md)、[后端规范与契约](docs/backend.md)、[验证与发布](docs/development.md)。
+`3.0.0-rc.1` 已通过维护者实机验收，当前准备发布 `3.0.0`，要求 sing-box 1.14+；正式发布由维护者将 dev 手动 PR 到 main 后交现有工作流执行。当前验证结论及边界见 [审查与验证报告](docs/review.md)。不维护历史迁移台账；历史从 Git 查阅。开发入口见 [架构](docs/architecture.md)，按改动阅读 [前端设计](docs/frontend.md)、[后端规范与契约](docs/backend.md)、[验证与发布](docs/development.md)。
 
 ## 边界
 

@@ -203,10 +203,19 @@ impl Storage {
 }
 
 fn validate_override(kind: &str, content: &str) -> Result<(), StorageError> {
-    serde_json::from_str::<Value>(content).map_err(|source| StorageError::InvalidOverride {
-        kind: kind.to_owned(),
-        source,
-    })?;
+    let value =
+        serde_json::from_str::<Value>(content).map_err(|source| StorageError::InvalidOverride {
+            kind: kind.to_owned(),
+            source,
+        })?;
+    if !value.is_object() || value.get("type").and_then(Value::as_str) != Some(kind) {
+        return Err(StorageError::InvalidOverride {
+            kind: kind.to_owned(),
+            source: <serde_json::Error as serde::de::Error>::custom(format!(
+                "Expected an inbound object with type '{kind}'"
+            )),
+        });
+    }
     Ok(())
 }
 
@@ -428,15 +437,21 @@ mod tests {
         let paths = AppPaths::from_data_dir(&root);
         let storage = Storage::new(paths.clone());
         storage
-            .save_override("tun", r#"{"mtu": 9000}"#)
+            .save_override("tun", r#"{"type":"tun","mtu": 9000}"#)
             .expect("valid override");
+        for invalid in ["null", "[]", "1", "{}", r#"{"type":"mixed"}"#] {
+            assert!(matches!(
+                storage.save_override("tun", invalid),
+                Err(StorageError::InvalidOverride { .. })
+            ));
+        }
         let error = storage
             .save_override("tun", "not-json")
             .expect_err("invalid override must fail");
         assert!(matches!(error, StorageError::InvalidOverride { .. }));
         assert_eq!(
             fs::read_to_string(paths.override_file("tun").expect("tun path")).expect("override"),
-            r#"{"mtu": 9000}"#
+            r#"{"type":"tun","mtu": 9000}"#
         );
         let _ = fs::remove_dir_all(root);
     }

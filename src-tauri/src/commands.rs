@@ -32,7 +32,6 @@ use uuid::Uuid;
 
 const MAX_PROFILE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_UPDATE_BYTES: u64 = 512 * 1024 * 1024;
-const DEFAULT_DASHBOARD_URL: &str = "http://127.0.0.1:9090/ui";
 const HTTP_USER_AGENT: &str = "sing-box";
 const PROGRAM_REPOSITORY: &str = "https://github.com/Leovikii/WinBox";
 const PROGRAM_REPOSITORY_API: &str = "https://api.github.com/repos/Leovikii/WinBox";
@@ -83,7 +82,7 @@ impl AppError {
     fn invalid_override_json() -> Self {
         Self::new(
             "invalid_override_json",
-            "Override content must be valid JSON",
+            "Inbound must be a JSON object with the matching tun or mixed type",
         )
     }
     fn update_failed() -> Self {
@@ -327,7 +326,10 @@ pub fn get_default_override(name: String) -> Result<String, AppError> {
 
 fn map_storage_write_error(error: StorageError) -> AppError {
     match error {
-        StorageError::InvalidOverride { .. } => AppError::invalid_override_json(),
+        StorageError::InvalidOverride { kind, .. } => AppError::detailed(
+            "invalid_override_json",
+            format!("Inbound must be a JSON object with type '{kind}'"),
+        ),
         StorageError::Io { .. } | StorageError::Json { .. } => AppError::storage_write(),
     }
 }
@@ -1155,12 +1157,39 @@ pub fn set_uwp_loopback_exemptions(selected_sids: Vec<String>) -> Result<String,
 }
 
 #[tauri::command]
-pub fn open_dashboard(app: AppHandle) -> Result<(), AppError> {
+pub async fn open_dashboard(
+    app: AppHandle,
+    runtime: State<'_, RuntimeState>,
+) -> Result<(), AppError> {
+    let core = runtime
+        .core()
+        .await
+        .ok_or_else(|| AppError::new("core_stopped", "Start the core before opening Web UI"))?;
+    let mut process = core.lock().await;
+    if process
+        .try_wait()
+        .map_err(|_| AppError::operation_failed())?
+        .is_some()
+    {
+        return Err(AppError::new(
+            "core_stopped",
+            "Start the core before opening Web UI",
+        ));
+    }
+    let url = process
+        .dashboard_url
+        .clone()
+        .map_err(|detail| AppError::detailed("dashboard_unavailable", detail))?
+        .ok_or_else(|| {
+            AppError::new(
+                "dashboard_unavailable",
+                "No Web UI is enabled in the running configuration",
+            )
+        })?;
     tauri_plugin_opener::OpenerExt::opener(&app)
-        .open_url(DEFAULT_DASHBOARD_URL, None::<String>)
+        .open_url(url, None::<String>)
         .map_err(|_| AppError::operation_failed())
 }
-
 #[tauri::command]
 pub fn open_url(app: AppHandle, url: String) -> Result<(), AppError> {
     validate_http_url(&url)?;
@@ -1775,6 +1804,7 @@ async fn start_core_impl(
     let profile = active_profile_path(snapshot, storage.paths())?;
     let config_path = storage.paths().core_dir.join("config.json");
     let mut config = build_runtime_config(&profile, snapshot)?;
+    ensure_native_core_version(&local_version(&storage.paths().core_dir))?;
     if config_needs_admin(&config)
         && !crate::platform::privileges::is_elevated()
             .map_err(|e| AppError::detailed("permission_check_failed", e.to_string()))?
@@ -1791,7 +1821,8 @@ async fn start_core_impl(
         ));
     }
     runtime.set_permission_pending(app, false);
-    let api_address = prepare_control_api(&mut config)?;
+    let (api_address, secret) = crate::native_api::prepare(&mut config)
+        .map_err(|detail| AppError::detailed("native_api_invalid", detail))?;
     let bytes = serde_json::to_vec_pretty(&config).map_err(|_| AppError::operation_failed())?;
     write_atomic(&config_path, &bytes).map_err(|_| AppError::operation_failed())?;
     run_core_check(&storage.paths().core_dir, &config_path)?;
@@ -1814,7 +1845,7 @@ async fn start_core_impl(
     let mut output = process
         .take_output()
         .ok_or_else(|| AppError::new("core_start_failed", "Failed to capture sing-box output"))?;
-    let secret = extract_api_secret(&config);
+    process.dashboard_url = crate::native_api::dashboard_url(&config);
     let readiness = {
         let ready = process.wait_ready(api_address, secret.as_deref(), Duration::from_secs(30));
         tokio::pin!(ready);
@@ -1871,7 +1902,7 @@ async fn start_core_impl(
     runtime.set_core(process.clone()).await;
     runtime.spawn_core_monitor(app, process, output);
     runtime
-        .start_traffic(app, extract_api_url(&config), extract_api_secret(&config))
+        .start_traffic(app, format!("http://{api_address}"), secret)
         .await;
     let _ = runtime
         .append_app_log(app, "INFO", "Core started successfully")
@@ -2159,110 +2190,14 @@ fn build_runtime_config(profile_path: &Path, snapshot: &DataSnapshot) -> Result<
     Ok(config)
 }
 
-// Only the generated config receives a fallback controller; the saved profile is untouched.
-fn prepare_control_api(config: &mut Value) -> Result<std::net::SocketAddr, AppError> {
-    let experimental = config
-        .as_object_mut()
-        .ok_or_else(AppError::operation_failed)?
-        .entry("experimental")
-        .or_insert_with(|| json!({}));
-    if experimental.is_null() {
-        *experimental = json!({});
-    }
-    let clash = experimental
-        .as_object_mut()
-        .ok_or_else(|| AppError::invalid_input("experimental must be an object"))?
-        .entry("clash_api")
-        .or_insert_with(|| json!({}));
-    if clash.is_null() {
-        *clash = json!({});
-    }
-    let clash = clash
-        .as_object_mut()
-        .ok_or_else(|| AppError::invalid_input("clash_api must be an object"))?;
-    if clash
-        .get("external_controller")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .is_empty()
-    {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0")
-            .map_err(|e| AppError::detailed("core_start_failed", e.to_string()))?;
-        let address = listener
-            .local_addr()
-            .map_err(|e| AppError::detailed("core_start_failed", e.to_string()))?;
-        clash.insert("external_controller".into(), json!(address.to_string()));
-        if clash
-            .get("secret")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .is_empty()
-        {
-            clash.insert("secret".into(), json!(Uuid::new_v4().to_string()));
-        }
-    }
-    let external = clash
-        .get("external_controller")
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    let external = if external.starts_with(':') {
-        format!("0.0.0.0{external}")
-    } else if let Some(port) = external.strip_prefix("localhost:") {
-        format!("127.0.0.1:{port}")
-    } else {
-        external.to_owned()
-    };
-    clash.insert("external_controller".into(), json!(external));
-    let mut address: std::net::SocketAddr = external.parse().map_err(|_| {
-        AppError::invalid_input("Control API must use a local IP address and nonzero port")
-    })?;
-    if address.port() == 0 {
-        return Err(AppError::invalid_input("Control API port must not be zero"));
-    }
-    if address.ip().is_unspecified() {
-        address.set_ip(if address.is_ipv4() {
-            std::net::Ipv4Addr::LOCALHOST.into()
-        } else {
-            std::net::Ipv6Addr::LOCALHOST.into()
-        });
-    }
-    Ok(address)
-}
-
-fn extract_api_url(config: &Value) -> String {
-    let external = config
-        .pointer("/experimental/clash_api/external_controller")
-        .and_then(Value::as_str)
-        .unwrap_or("127.0.0.1:9090");
-    let host_port = if external.starts_with(':') {
-        format!("127.0.0.1{external}")
-    } else if let Some(port) = external.strip_prefix("0.0.0.0:") {
-        format!("127.0.0.1:{port}")
-    } else if let Some(port) = external.strip_prefix("[::]:") {
-        format!("[::1]:{port}")
-    } else {
-        external.to_owned()
-    };
-    format!("http://{host_port}")
-}
-
-fn extract_api_secret(config: &Value) -> Option<String> {
-    config
-        .get("experimental")
-        .and_then(|value| value.get("clash_api"))
-        .and_then(|value| value.get("secret"))
-        .and_then(Value::as_str)
-        .filter(|secret| !secret.is_empty())
-        .map(ToOwned::to_owned)
-}
-
 fn check_staged_core(
     staging_dir: &Path,
     storage: &Storage,
     snapshot: &DataSnapshot,
 ) -> Result<(), AppError> {
+    run_core_version_check(staging_dir)?;
     let Some(profile) = staged_profile_path(snapshot, storage.paths())? else {
-        return run_core_version_check(staging_dir);
+        return Ok(());
     };
     let config = build_runtime_config(&profile, snapshot)?;
     let bytes = serde_json::to_vec_pretty(&config).map_err(|_| AppError::operation_failed())?;
@@ -2330,7 +2265,9 @@ fn run_core_version_check(core_dir: &Path) -> Result<(), AppError> {
         )
     })?;
     if output.status.success() {
-        return Ok(());
+        return ensure_native_core_version(&version_from_output(&String::from_utf8_lossy(
+            &output.stdout,
+        )));
     }
     let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
     Err(update_phase_error(
@@ -2352,7 +2289,25 @@ fn local_version(core_dir: &Path) -> String {
     let Ok(output) = core_version_output(core_dir) else {
         return "Unknown".to_owned();
     };
-    let text = String::from_utf8_lossy(&output.stdout);
+    version_from_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn ensure_native_core_version(version: &str) -> Result<(), AppError> {
+    let mut parts = version.trim_start_matches('v').split('.');
+    let numbers = parts
+        .next()
+        .and_then(|p| p.parse::<u64>().ok())
+        .zip(parts.next().and_then(|p| p.parse::<u64>().ok()));
+    if numbers.is_some_and(|v| v >= (1, 14)) {
+        return Ok(());
+    }
+    Err(AppError::new(
+        "kernel_upgrade_required",
+        "WinBox requires sing-box 1.14 or newer. Update the core before starting.",
+    ))
+}
+
+fn version_from_output(text: &str) -> String {
     let Some(version) = text
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -2792,13 +2747,12 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
     use super::{
-        current_time_string, extract_api_secret, extract_api_url, http_client, install_staged_file,
-        is_hex_color, limit_log_lines, mirrored_url, program_update_endpoint,
-        release_has_updater_metadata, requested_mode, restore_installed_file, select_pre_release,
-        staged_profile_path, window_theme, AppPaths, DataSnapshot, Effect, Profile, ReleaseInfo,
-        Theme, HTTP_USER_AGENT,
+        current_time_string, http_client, install_staged_file, is_hex_color, limit_log_lines,
+        mirrored_url, program_update_endpoint, release_has_updater_metadata, requested_mode,
+        restore_installed_file, select_pre_release, staged_profile_path, window_theme, AppPaths,
+        DataSnapshot, Effect, Profile, ReleaseInfo, Theme, HTTP_USER_AGENT,
     };
-    use super::{ensure_update_version, prepare_control_api, program_changelog};
+    use super::{ensure_update_version, program_changelog};
     use serde_json::json;
     use std::fs;
     use std::path::PathBuf;
@@ -2814,6 +2768,48 @@ mod tests {
         path
     }
 
+    #[test]
+    fn native_api_requires_supported_kernel_and_defaults_match_windows_template() {
+        for version in ["1.14.0", "1.14.3", "1.15.0-alpha.1", "2.0.0"] {
+            assert!(super::ensure_native_core_version(version).is_ok());
+        }
+        for version in ["1.13.9", "Unknown", "Not Installed", "invalid"] {
+            assert_eq!(
+                super::ensure_native_core_version(version).unwrap_err().code,
+                "kernel_upgrade_required"
+            );
+        }
+        let directory = temp_dir();
+        let profile = directory.join("profile.json");
+        fs::write(
+            &profile,
+            r#"{"inbounds":[{"type":"direct"}],"services":[{"type":"api","listen_port":9999}]}"#,
+        )
+        .unwrap();
+        let mut snapshot = DataSnapshot::default();
+        for (tun, mixed, count) in [(true, false, 1), (false, true, 1), (true, true, 2)] {
+            snapshot.state.tun_mode = tun;
+            snapshot.state.sys_proxy = mixed;
+            let config = super::build_runtime_config(&profile, &snapshot).unwrap();
+            assert_eq!(config["inbounds"].as_array().unwrap().len(), count);
+            for inbound in config["inbounds"].as_array().unwrap() {
+                if inbound["type"] == "tun" {
+                    assert_eq!(inbound["auto_redirect"], false);
+                } else {
+                    assert_eq!(inbound["listen"], "127.0.0.1");
+                    assert_eq!(inbound["set_system_proxy"], true);
+                }
+            }
+            assert_eq!(config["services"][0]["listen_port"], 9999);
+        }
+        snapshot.settings.ipv6_enabled = false;
+        let config = super::build_runtime_config(&profile, &snapshot).unwrap();
+        assert_eq!(
+            config["inbounds"][0]["address"].as_array().unwrap().len(),
+            1
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
     #[test]
     fn log_level_override_preserves_default_and_kernel_values() {
         let directory = temp_dir();
@@ -2831,58 +2827,6 @@ mod tests {
             );
         }
         fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn api_url_preserves_explicit_controller_and_maps_wildcards() {
-        assert_eq!(
-            extract_api_url(&json!({"experimental":{"clash_api":{"external_controller":":9090"}}})),
-            "http://127.0.0.1:9090"
-        );
-        assert_eq!(
-            extract_api_url(
-                &json!({"experimental":{"clash_api":{"external_controller":"10.0.0.1:9090"}}})
-            ),
-            "http://10.0.0.1:9090"
-        );
-        assert_eq!(
-            extract_api_url(
-                &json!({"experimental":{"clash_api":{"external_controller":"0.0.0.0:9090"}}})
-            ),
-            "http://127.0.0.1:9090"
-        );
-        assert_eq!(
-            extract_api_secret(&json!({"experimental":{"clash_api":{"secret":"test-secret"}}})),
-            Some("test-secret".to_owned())
-        );
-    }
-
-    #[test]
-    fn runtime_controller_fallback_preserves_profile_options() {
-        let mut absent = json!({"log": {"disabled": true}});
-        let address = prepare_control_api(&mut absent).unwrap();
-        assert!(address.ip().is_loopback());
-        assert_ne!(address.port(), 0);
-        assert!(extract_api_secret(&absent).is_some());
-        assert_eq!(absent["log"]["disabled"], true);
-        for (controller, expected) in [
-            ("0.0.0.0:9090", "127.0.0.1:9090"),
-            ("[::]:9090", "[::1]:9090"),
-            ("localhost:9090", "127.0.0.1:9090"),
-        ] {
-            let mut config = json!({"experimental":{"clash_api":{"external_controller":controller,"secret":"keep", "external_ui":"ui"}}});
-            assert_eq!(
-                prepare_control_api(&mut config).unwrap().to_string(),
-                expected
-            );
-            assert_eq!(extract_api_secret(&config).as_deref(), Some("keep"));
-            assert_eq!(config["experimental"]["clash_api"]["external_ui"], "ui");
-        }
-        for controller in ["127.0.0.1:0", "example.com:9090", "invalid"] {
-            let mut config =
-                json!({"experimental":{"clash_api":{"external_controller":controller}}});
-            assert!(prepare_control_api(&mut config).is_err());
-        }
     }
 
     #[test]

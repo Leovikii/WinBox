@@ -2,16 +2,20 @@
 
 窗口启动：主窗口初始隐藏，`frontend_ready() -> void` 只报告 React 已提交；Rust 的 StartupWindow 同时等待 setup 配置完成。普通启动/代理恢复失败/通知请求展示，最小化启动保持隐藏；早到 Show 请求排队，就绪后 Show 正常恢复与聚焦。重复就绪不抢焦点。setup 后10秒未就绪时记录日志并放行待展示窗口，托盘仍可退出；迟到就绪不重复展示。此门控不代表内核已运行，不改变运行态契约。
 
-`3.0.0-beta.2` 的当前实现与验证结果见 [审查与验证报告](review.md)。权限、发行和跨文件顺序提交边界保持不变。
+`3.0.0` 的当前实现与验证结果见 [审查与验证报告](review.md)。权限、发行和跨文件顺序提交边界保持不变。
 
-alpha.4 开发约束：普通权限主进程，TUN/mixed 及 UWP 修改由统一权限边界检查；Windows 原生提权/降权与有限动作交接只在 Rust platform 内实现。跨账户交接拒绝，UAC 取消原实例保留，禁止任意路径/命令入口。用户级自启替代最高权限计划任务；不保留旧任务迁移代码。管理员状态下先通过官方 updater 下载并验签，保留 TUN/系统代理；完成后才交接到普通权限安装。
+权限约束：普通权限主进程，TUN/mixed 及 UWP 修改由统一权限边界检查；Windows 原生提权/降权与有限动作交接只在 Rust platform 内实现。跨账户交接拒绝，UAC 取消原实例保留，禁止任意路径/命令入口。用户级自启替代最高权限计划任务；不保留旧任务迁移代码。管理员状态下先通过官方 updater 下载并验签，保留 TUN/系统代理；完成后才交接到普通权限安装。
 
 ## 状态与进程
 
 - 所有启停、重启、运行中档案/模式切换、内核替换共用 RuntimeState operation 锁。离线 save_mode 使用同一锁，不发布内核 busy；后台线程只原子更新 state.json，不重写设置、档案和覆盖配置，内核已运行时拒绝离线保存。用户选定模式与实际运行分开；停止/退出不清除持久模式。
 - `CoreProcess` 只启动受控目录中的 `sing-box.exe run -c config.json`；先 `check` 验证生成配置。只管理自身子进程，停止核对镜像路径；优雅退出最多2秒，再 kill+wait，不按名称批量杀进程。
-- spawn 不等于 ready：等待本进程拥有的 TCP 监听（Windows GetExtendedTcpTable，IPv4/IPv6）及 `/version` 成功 JSON，确认仍存活后才注册运行态。reqwest no_proxy/禁止重定向，请求500ms、重试间隔100ms、总限30秒；不依赖日志或固定成功延迟。依据 sing-box [启动顺序](https://github.com/SagerNet/sing-box/blob/v1.12.0/box.go) 与 [Clash API](https://github.com/SagerNet/sing-box/blob/v1.12.0/experimental/clashapi/server.go)。就绪不是远端互联网可达证明。
-- 缺少 controller 时只在生成配置补随机 loopback 端口/secret；不改保存档案。已有 IP/secret/UI 保留，localhost 明确 IPv4，通配地址用 loopback 检查；域名和端口0不支持，明确失败。PID 不匹配不能探测或误报成功。
+- sing-box 最低版本 1.14；启动和候选内核检查均拒绝旧版/未知版本并提示升级，不自动降级为 Clash 监控。版本仍由受控核心的 version 命令读取。
+- spawn 不等于 ready：Windows GetExtendedTcpTable 核对本进程 TCP 监听归属，原生 `daemon.StartedService/GetVersion` 成功后再次核对 PID 与存活。gRPC-Web 使用 reqwest no_proxy/禁止重定向，单次500ms、重试间隔100ms、总限30秒；不依赖日志或固定成功延迟。就绪不是远端互联网可达证明。
+- `native_api.rs` 实现 GetVersion 与 SubscribeStatus 的二进制 gRPC-Web；protobuf 由 prost 编解码。消息帧最多64KiB、未消费缓冲最多128KiB；校验 content-type、帧类型/长度、gRPC 状态和正常 trailers，不接受压缩帧或 text/base64 响应，不实现无用途的通用 gRPC 客户端。官方 1.14.3 这两个 RPC 已实测。
+- 复用配置中第一个可解析、非 TLS 的原生 API listener（保留地址/secret）；没有时仅在生成配置补带随机 secret 的 loopback 原生服务，不改保存档案，不补 Clash API。只有 TLS listener 时使用独立本地监控接口，保留原服务的证书/认证策略，不绕过 TLS 验证。通配地址映射 loopback，IPv4/IPv6 均可；随机端口释放到核心绑定之间仍可能被其他进程抢占，启动失败按既有清理流程处理，不误报 ready。
+- 网速订阅固定1秒（请求 interval 为10亿纳秒），使用 trafficAvailable、uplink/downlink，统一发布 B/s；不可用/负数归零。连接限5秒，连续5秒无完整有效样本则清零并重连；错误/结束后等待1秒再试，日志节流。取消/停止结束旧任务；前端 status=false 清空历史，流量成功不决定 running。
+- Web UI 地址在启动时从生成配置解析并保存在该 CoreProcess，未应用的编辑不改变按钮目标。优先原生已启用 Dashboard（兼容布尔/字符串/对象配置），打开 HTTP(S) 根地址，让核心重定向；否则 Clash external_ui 打开 controller 的 `/ui/`，避免其带 secret 根路径的401。识别自定义端口、IPv6方括号、通配转loopback及原生TLS。未配置面板/地址不可用返回明确错误；点击时核对核心仍存活，secret 不进入浏览器 URL、日志或前端 DTO。
 - stdout/stderr 持续消费，最终日志历史最多5000行；中间队列最多256行，每个输入行最多保留8KiB原始字节，超长行带截断提示。队列满时丢弃并聚合报告数量，不阻塞子进程输出；非法 UTF-8 以替换字符显示，转换后的字符串字节数可能大于8KiB，但仍有界。启动失败保留错误并停止子进程/尝试恢复代理。停止完成后发布真实状态，重启中途旧进程退出不能解除操作锁。
 
 ## IPC
@@ -52,7 +56,7 @@ alpha.4 开发约束：普通权限主进程，TUN/mixed 及 UWP 修改由统一
 - 唯一 AppPaths 数据根；订阅路径由受控 ID 重建，不信任保存的绝对路径。保留默认值、未知兼容字段及旧 auto_connect 处理；坏 JSON/写入错误不能静默覆盖。单文件写入先创建唯一暂存文件、写入并 sync_all，再复用 Windows ReplaceFileW/MoveFileExW 替换。成功提交后的备份清理失败保留备份，不把已完成的写入报告为失败。失败保留目标/恢复材料，不承诺抵御所有断电或存储设备故障。
 - Storage::update 在同一锁内读取最新快照、修改并只写变化的文件。网络下载在锁外，提交时检查档案仍存在且 URL 未变；订阅提交/删除与内核操作共用 operation 锁。模式写入只更新 state，档案切换回滚只还原 active_id，不能覆盖无关设置。
 - 已知边界：多个 JSON 文件顺序提交，不是跨文件事务；真正需要崩溃一致性时再加 journal。不要把每文件原子替换宣称为全局事务。
-- 运行配置仅做必要 serde_json 覆盖，保留无关字段；TUN/mixed、IPv6/日志语义不变，候选调用内核 check。默认值以 models.rs/storage.rs 为准。
+- 运行配置仅做必要 serde_json 覆盖，保留无关字段；按 TUN/Proxy/Mixed 模式生成对应 inbounds，IPv6/日志语义不变，候选调用内核 check。默认 TUN 显式 auto_redirect=false；默认 mixed 为127.0.0.1:7893、set_system_proxy=true。新默认只作用于缺少覆盖文件及 Reset，不覆盖已保存自定义入站。保存入站要求对象且 type 匹配编辑页，其他合法字段不白名单限制；完整配置仍交核心 check。默认值以 models.rs/storage.rs 为准。
 - 远程下载/元数据请求 UA `sing-box`；非2xx保留状态码。超时、大小、路径、架构校验不可省略。sing-box 精确官方 windows-amd64.zip，压缩64MiB、解压128MiB预算；核对 GitHub digest、拒绝越界归档，只提取目标 exe。普通 SHA-256 不等于发布者签名，镜像不得绕过校验。
 - 内核：下载/校验/候选检查→停止→备份替换→按原状态启动/确认ready→清理；失败恢复旧内核/配置，恢复材料不能提前删。
 - 应用更新交接：安装包仅在内存中，经现有受认证交接传递；普通实例使用只绑定127.0.0.1、随机令牌路径、两次请求/60秒上限的临时 HTTP 源将包交给官方 updater 重新验签。仅此已认证接收实例在内存中允许 HTTP endpoint，普通启动仍要求 HTTPS，编译内置公钥不变；本地请求 no_proxy，无外网请求、无磁盘缓存、无任意路径/命令。安装后由现有 NSIS 模板自动启动，不重放一次性 --handoff 参数。

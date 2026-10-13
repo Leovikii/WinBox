@@ -6,6 +6,7 @@ pub mod commands;
 pub mod core;
 pub mod handoff;
 pub mod models;
+pub mod native_api;
 pub mod paths;
 #[cfg(windows)]
 pub mod platform;

@@ -2,7 +2,7 @@
 
 ## 当前版本与验收
 
-`3.0.0-beta.2` 已由维护者确认发布，单 EXE 的 UI 修复及弹窗优化已通过用户实机验收。验证证据及未逐项执行的边界见 [审查与验证报告](review.md)。发行继续使用当前用户 NSIS、普通权限安装、按需提权和官方 updater。
+当前版本 `3.0.0` 准备发布，`3.0.0-rc.1` 单 EXE 已通过维护者实机验收。只推送 dev，由维护者手动 PR 到 main；合并后现有工作流负责正式发布。验证证据及未逐项执行的边界见 [审查与验证报告](review.md)。发行继续使用当前用户 NSIS、普通权限安装、按需提权和官方 updater。
 
 更新专项实机验收：管理员运行 TUN/mixed 并依赖代理联网，确认外网下载/验签完成前不降权或停内核，交接后断开外网仍可安装；慢下载期间分别使用右上角 Quit/确认退出和托盘 Quit，确认窗口不冻结、下载取消、代理恢复；另测最小化到托盘继续下载、错误签名、交接失败保留原实例、正常安装后启动时无 --handoff 重放。不得以 MockIPC/单元测试代替这些实机结论。
 
@@ -20,15 +20,16 @@ node --test frontend/tests/logic.test.mjs
 git diff --check
 ```
 
-logic.test.mjs 直接加载 TypeScript，需支持类型擦除的 Node 22.18+ / 24+；CI 固定 Node 24.14.0。Rust 两个实机专项默认 ignored：
+logic.test.mjs 直接加载 TypeScript，需支持类型擦除的 Node 22.18+ / 24+；CI 固定 Node 24.14.0。Rust 三个实机专项默认 ignored（两个核心测试、一个 UWP）：
 
 ```powershell
 $env:WINBOX_TEST_CORE='C:/path/to/sing-box.exe'
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline real_core_start_stop_restart_without_system_proxy -- --ignored --nocapture
+cargo test --manifest-path src-tauri/Cargo.toml --locked --offline real_native_api_panels_and_traffic -- --ignored --nocapture
 cargo test --manifest-path src-tauri/Cargo.toml --locked --offline installed_uwp_apps_are_detected -- --ignored --nocapture
 ```
 
-前者在临时目录运行真实内核，仅控制API，不配置系统代理/TUN；UWP测试只读当前用户注册表，需要已安装UWP应用，受限沙箱可能无读取权限。自启使用当前用户注册表项，实际登录启动仍需人工验收。进程超时/退出/端口归属故障注入在常规测试中。
+两个核心测试要求1.14+，在临时目录运行真实内核；第一个验证原生API的IPv4/IPv6就绪及启停，第二个验证Clash-only/原生-only/并存面板、认证和非零流量（仅临时loopback mixed代理，不写系统代理、不启动TUN、不访问外网）；UWP测试只读当前用户注册表，需要已安装UWP应用，受限沙箱可能无读取权限。自启使用当前用户注册表项，实际登录启动仍需人工验收。进程超时/退出/端口归属故障注入在常规测试中。
 
 UI 回归使用工具目录安装的 Playwright 1.58.2（微软官方，Apache-2.0，持续维护；仅测试，不进入产品依赖），通过其 CLI 安装 ffmpeg 录屏组件，浏览器复用已安装 Edge。首次缺少 Cargo 缓存时先 `cargo fetch --manifest-path src-tauri/Cargo.toml --locked`，之后再用 offline 验证。
 
